@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="日程助手"
-        Height="760" Width="1180" MinHeight="560" MinWidth="980"
+        Height="820" Width="1280" MinHeight="600" MinWidth="1040"
         WindowStartupLocation="CenterScreen">
     <Window.Resources>
         <CollectionViewSource x:Key="GroupedRows" Source="{Binding Rows}">
@@ -70,17 +70,23 @@
                     </StackPanel>
 
                     <StackPanel>
-                        <TextBlock Text="时间范围" Style="{StaticResource SectionTitle}" />
-                        <ListBox Style="{StaticResource FilterListBox}"
-                                 ItemsSource="{Binding Filters}"
-                                 SelectedItem="{Binding SelectedFilter, Mode=TwoWay}"
-                                 DisplayMemberPath="Name" />
+                        <StackPanel Visibility="{Binding IsListView, Converter={StaticResource BoolToVisibility}}">
+                            <TextBlock Text="时间范围" Style="{StaticResource SectionTitle}" />
+                            <ListBox Style="{StaticResource FilterListBox}"
+                                     ItemsSource="{Binding Filters}"
+                                     SelectedItem="{Binding SelectedFilter, Mode=TwoWay}"
+                                     DisplayMemberPath="Name" />
+                        </StackPanel>
 
                         <TextBlock Text="分类" Style="{StaticResource SectionTitle}" Margin="2,16,0,6" />
                         <ListBox Style="{StaticResource FilterListBox}"
-                                 MaxHeight="260"
+                                 MaxHeight="300"
                                  ItemsSource="{Binding Categories}"
                                  SelectedItem="{Binding SelectedCategory, Mode=TwoWay}" />
+
+                        <TextBlock Style="{StaticResource FieldHint}"
+                                   Margin="2,14,0,0"
+                                   Text="提示：周 / 月视图只按分类与搜索过滤；双击空白处可在该时间点新建日程。" />
                     </StackPanel>
                 </DockPanel>
             </Border>
@@ -91,109 +97,411 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
+                <!-- 视图切换与导航 -->
                 <DockPanel Grid.Row="0" Margin="2,0,2,8">
-                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                        <Button Content="今天" Style="{StaticResource GhostButton}" Click="Today_Click" />
-                        <Button Content="刷新" Style="{StaticResource GhostButton}" Click="Refresh_Click" ToolTip="F5" />
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding CountText}" Foreground="{StaticResource Brush.Subtle}" FontSize="12" VerticalAlignment="Center" />
+                        <Button Content="刷新" Style="{StaticResource GhostButton}" Click="Refresh_Click" Margin="8,0,0,0" ToolTip="F5" />
                     </StackPanel>
-                    <TextBlock Text="{Binding CountText}" VerticalAlignment="Center" Foreground="{StaticResource Brush.Subtle}" FontSize="12" />
+
+                    <StackPanel Orientation="Horizontal">
+                        <Border Style="{StaticResource Card}" Padding="3" CornerRadius="9">
+                            <StackPanel Orientation="Horizontal">
+                                <RadioButton x:Name="ListModeButton" Style="{StaticResource SegmentButton}" Content="列表" GroupName="ViewMode" Click="ViewList_Click" />
+                                <RadioButton x:Name="WeekModeButton" Style="{StaticResource SegmentButton}" Content="周" GroupName="ViewMode" Click="ViewWeek_Click" />
+                                <RadioButton x:Name="MonthModeButton" Style="{StaticResource SegmentButton}" Content="月" GroupName="ViewMode" Click="ViewMonth_Click" />
+                            </StackPanel>
+                        </Border>
+
+                        <Button Content="今天" Style="{StaticResource GhostButton}" Margin="10,0,0,0" Click="Today_Click" />
+                        <Button Content="◀" Style="{StaticResource NavButton}" Margin="6,0,0,0" Click="Prev_Click" IsEnabled="{Binding IsCalendarView}" ToolTip="上一周 / 上一月" />
+                        <Button Content="▶" Style="{StaticResource NavButton}" Margin="2,0,0,0" Click="Next_Click" IsEnabled="{Binding IsCalendarView}" ToolTip="下一周 / 下一月" />
+                        <TextBlock Text="{Binding PeriodLabel}" VerticalAlignment="Center" Margin="10,0,0,0" FontWeight="SemiBold" FontSize="14" />
+                    </StackPanel>
                 </DockPanel>
 
-                <Border Grid.Row="1" Style="{StaticResource Card}" Padding="10,6,14,10">
-                    <Grid>
-                        <ListView x:Name="ScheduleList"
-                                  ItemsSource="{Binding Source={StaticResource GroupedRows}}"
-                                  MouseDoubleClick="ScheduleList_MouseDoubleClick"
-                                  PreviewMouseRightButtonDown="ScheduleList_PreviewMouseRightButtonDown">
-                            <ListView.ContextMenu>
-                                <ContextMenu DataContext="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource Self}}">
-                                    <MenuItem Header="编辑" Click="EditRow_Click" />
-                                    <MenuItem Header="标记完成 / 未完成" Click="ToggleDone_Click" />
-                                    <MenuItem Header="删除" Click="DeleteRow_Click" />
-                                </ContextMenu>
-                            </ListView.ContextMenu>
-                            <ListView.GroupStyle>
-                                <GroupStyle>
-                                    <GroupStyle.HeaderTemplate>
+                <Grid Grid.Row="1">
+                    <!-- ================= 列表视图 ================= -->
+                    <Border Style="{StaticResource Card}" Padding="10,6,14,10"
+                            Visibility="{Binding IsListView, Converter={StaticResource BoolToVisibility}}">
+                        <Grid>
+                            <ListView x:Name="ScheduleList"
+                                      ItemsSource="{Binding Source={StaticResource GroupedRows}}"
+                                      MouseDoubleClick="ScheduleList_MouseDoubleClick"
+                                      PreviewMouseRightButtonDown="ScheduleList_PreviewMouseRightButtonDown">
+                                <ListView.ContextMenu>
+                                    <ContextMenu DataContext="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource Self}}">
+                                        <MenuItem Header="编辑" Click="EditRow_Click" />
+                                        <MenuItem Header="标记完成 / 未完成" Click="ToggleDone_Click" />
+                                        <MenuItem Header="删除" Click="DeleteRow_Click" />
+                                    </ContextMenu>
+                                </ListView.ContextMenu>
+                                <ListView.GroupStyle>
+                                    <GroupStyle>
+                                        <GroupStyle.HeaderTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Name}"
+                                                           FontSize="13"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{StaticResource Brush.Accent}"
+                                                           Margin="6,16,0,6" />
+                                            </DataTemplate>
+                                        </GroupStyle.HeaderTemplate>
+                                    </GroupStyle>
+                                </ListView.GroupStyle>
+                                <ListView.View>
+                                    <GridView>
+                                        <GridViewColumn Width="10">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <Rectangle Width="4" RadiusX="2" RadiusY="2" Fill="{Binding ColorBrush}" Height="30" ToolTip="{Binding CategoryText}" />
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+
+                                        <GridViewColumn Header="完成" Width="52">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <CheckBox HorizontalAlignment="Center"
+                                                              IsChecked="{Binding IsDone, Mode=OneWay}"
+                                                              Click="ToggleDone_Click"
+                                                              ToolTip="标记完成 / 未完成" />
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+
+                                        <GridViewColumn Header="时间" Width="150" DisplayMemberBinding="{Binding TimeText}" />
+
+                                        <GridViewColumn Header="日程" Width="300">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding TitleText}"
+                                                                   FontWeight="SemiBold"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   TextDecorations="{Binding IsDone, Converter={StaticResource DoneToDecoration}}" />
+                                                        <TextBlock Text="{Binding NotesPreview}"
+                                                                   FontSize="11"
+                                                                   Foreground="{StaticResource Brush.Subtle}"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   Visibility="{Binding NotesPreview, Converter={StaticResource TextToVisibility}}" />
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+
+                                        <GridViewColumn Header="分类" Width="92" DisplayMemberBinding="{Binding CategoryText}" />
+                                        <GridViewColumn Header="提醒" Width="170" DisplayMemberBinding="{Binding ReminderText}" />
+                                        <GridViewColumn Header="重复" Width="140" DisplayMemberBinding="{Binding RepeatText}" />
+
+                                        <GridViewColumn Header="优先级" Width="70">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding PriorityText}"
+                                                               Foreground="{Binding Priority, Converter={StaticResource PriorityToBrush}}" />
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+
+                                        <GridViewColumn Header="操作" Width="112">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Button Content="编辑" Style="{StaticResource IconButton}" Click="EditRow_Click" />
+                                                        <Button Content="删除" Style="{StaticResource IconButton}"
+                                                                Foreground="{StaticResource Brush.Danger}" Click="DeleteRow_Click" />
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                    </GridView>
+                                </ListView.View>
+                            </ListView>
+
+                            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
+                                        Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisibility}}">
+                                <TextBlock Text="这个范围内还没有日程" FontSize="15" Foreground="{StaticResource Brush.Subtle}" HorizontalAlignment="Center" />
+                                <TextBlock Text="点击右上角「新建日程」，或「导入 CSV」批量导入"
+                                           Margin="0,8,0,0" FontSize="12" Foreground="{StaticResource Brush.Subtle}" HorizontalAlignment="Center" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- ================= 周视图 ================= -->
+                    <Border Style="{StaticResource Card}" Padding="0"
+                            Visibility="{Binding IsWeekView, Converter={StaticResource BoolToVisibility}}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+
+                            <!-- 星期表头 -->
+                            <Grid Grid.Row="0" Background="{StaticResource Brush.Card}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="54" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <ItemsControl Grid.Column="1" ItemsSource="{Binding WeekColumns}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <UniformGrid Rows="1" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <TextBlock Text="{Binding Name}"
-                                                       FontSize="13"
-                                                       FontWeight="SemiBold"
-                                                       Foreground="{StaticResource Brush.Accent}"
-                                                       Margin="6,16,0,6" />
+                                            <Border BorderBrush="{StaticResource Brush.Border}" BorderThickness="1,0,0,1" Padding="4,8">
+                                                <StackPanel HorizontalAlignment="Center">
+                                                    <TextBlock Text="{Binding HeaderText}" FontSize="11" HorizontalAlignment="Center"
+                                                               Foreground="{Binding HeaderForeground}" />
+                                                    <Border Width="24" Height="24" CornerRadius="12" Margin="0,3,0,0"
+                                                            Background="{Binding DayNumberBackground}">
+                                                        <TextBlock Text="{Binding DayNumberText}" FontSize="13" FontWeight="SemiBold"
+                                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                   Foreground="{Binding HeaderForeground}" />
+                                                    </Border>
+                                                </StackPanel>
+                                            </Border>
                                         </DataTemplate>
-                                    </GroupStyle.HeaderTemplate>
-                                </GroupStyle>
-                            </ListView.GroupStyle>
-                            <ListView.View>
-                                <GridView>
-                                    <GridViewColumn Header="完成" Width="52">
-                                        <GridViewColumn.CellTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Grid>
+
+                            <!-- 全天事件条 -->
+                            <Grid Grid.Row="1" MinHeight="28">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="54" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="全天" FontSize="10" Foreground="{StaticResource Brush.Subtle}"
+                                           HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <ItemsControl Grid.Column="1" ItemsSource="{Binding WeekColumns}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <UniformGrid Rows="1" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border BorderBrush="{StaticResource Brush.Border}" BorderThickness="1,0,0,1" MinHeight="28">
+                                                <ItemsControl ItemsSource="{Binding AllDayChips}" Margin="2,3,2,3">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <WrapPanel />
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Border Background="{Binding SoftBrush}" BorderBrush="{Binding ColorBrush}"
+                                                                    BorderThickness="3,0,0,0" CornerRadius="3" Padding="4,1" Margin="0,0,2,0"
+                                                                    ToolTip="{Binding ToolTipText}"
+                                                                    MouseLeftButtonDown="MonthChip_Click">
+                                                                <TextBlock Text="{Binding TitleText}" FontSize="10" TextTrimming="CharacterEllipsis" />
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Grid>
+
+                            <!-- 时间网格 -->
+                            <ScrollViewer Grid.Row="2" x:Name="WeekScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                <Grid Height="{Binding WeekGridHeight}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="54" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <ItemsControl Grid.Column="0" ItemsSource="{Binding WeekHours}" IsHitTestVisible="False">
+                                        <ItemsControl.ItemTemplate>
                                             <DataTemplate>
-                                                <CheckBox HorizontalAlignment="Center"
-                                                          IsChecked="{Binding IsDone, Mode=OneWay}"
-                                                          Click="ToggleDone_Click"
-                                                          ToolTip="标记完成 / 未完成" />
+                                                <Grid Height="{Binding Height}">
+                                                    <TextBlock Text="{Binding Label}" FontSize="10" Foreground="{StaticResource Brush.Subtle}"
+                                                               HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-7,8,0" />
+                                                </Grid>
                                             </DataTemplate>
-                                        </GridViewColumn.CellTemplate>
-                                    </GridViewColumn>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
 
-                                    <GridViewColumn Header="时间" Width="150" DisplayMemberBinding="{Binding TimeText}" />
+                                    <Grid Grid.Column="1" x:Name="WeekBody">
+                                        <ItemsControl ItemsSource="{Binding WeekHours}" IsHitTestVisible="False">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Height="{Binding Height}" BorderBrush="{StaticResource Brush.Border}" BorderThickness="0,0,0,1" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
 
-                                    <GridViewColumn Header="日程" Width="330">
-                                        <GridViewColumn.CellTemplate>
+                                        <ItemsControl ItemsSource="{Binding WeekColumns}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <UniformGrid Rows="1" />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border BorderBrush="{StaticResource Brush.Border}" BorderThickness="1,0,0,0"
+                                                            Background="{Binding ColumnBackground}">
+                                                        <Canvas Background="Transparent" Height="{Binding CanvasHeight}"
+                                                                MouseLeftButtonDown="WeekSlot_Click">
+                                                            <ItemsControl ItemsSource="{Binding Blocks}">
+                                                                <ItemsControl.ItemsPanel>
+                                                                    <ItemsPanelTemplate>
+                                                                        <Canvas />
+                                                                    </ItemsPanelTemplate>
+                                                                </ItemsControl.ItemsPanel>
+                                                                <ItemsControl.ItemContainerStyle>
+                                                                    <Style TargetType="ContentPresenter">
+                                                                        <Setter Property="Canvas.Top" Value="{Binding Top}" />
+                                                                        <Setter Property="Canvas.Left" Value="{Binding Left}" />
+                                                                        <Setter Property="Width" Value="{Binding Width}" />
+                                                                    </Style>
+                                                                </ItemsControl.ItemContainerStyle>
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <Border Style="{StaticResource WeekBlock}" Height="{Binding Height}"
+                                                                                MouseLeftButtonDown="WeekBlock_Click">
+                                                                            <StackPanel>
+                                                                                <TextBlock Text="{Binding TitleText}" FontSize="11" FontWeight="SemiBold"
+                                                                                           TextTrimming="CharacterEllipsis"
+                                                                                           TextDecorations="{Binding IsDone, Converter={StaticResource DoneToDecoration}}" />
+                                                                                <TextBlock Text="{Binding TimeText}" FontSize="10"
+                                                                                           Foreground="{StaticResource Brush.Subtle}"
+                                                                                           TextTrimming="CharacterEllipsis" />
+                                                                            </StackPanel>
+                                                                        </Border>
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                        </Canvas>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </Grid>
+                                </Grid>
+                            </ScrollViewer>
+                        </Grid>
+                    </Border>
+
+                    <!-- ================= 月视图 ================= -->
+                    <Grid Visibility="{Binding IsMonthView, Converter={StaticResource BoolToVisibility}}">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <Border Grid.Row="0" Style="{StaticResource Card}" Padding="12,10,13,13">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+
+                                <DockPanel Grid.Row="0" Margin="0,0,0,10">
+                                    <TextBlock DockPanel.Dock="Right" Text="{Binding MonthSummaryText}" FontSize="11"
+                                               Foreground="{StaticResource Brush.Subtle}" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding PeriodLabel}" FontSize="15" FontWeight="SemiBold" />
+                                </DockPanel>
+
+                                <ItemsControl Grid.Row="1" ItemsSource="{Binding WeekdayHeaders}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <UniformGrid Rows="1" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding}" FontSize="11" Foreground="{StaticResource Brush.Subtle}"
+                                                       HorizontalAlignment="Center" Margin="0,0,0,6" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <ItemsControl Grid.Row="2" ItemsSource="{Binding MonthCells}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <UniformGrid Rows="6" Columns="7" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Style="{StaticResource MonthCell}" MouseLeftButtonDown="MonthCell_Click">
+                                                <Grid>
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto" />
+                                                        <RowDefinition Height="*" />
+                                                    </Grid.RowDefinitions>
+                                                    <Grid Grid.Row="0">
+                                                        <Border Width="20" Height="20" CornerRadius="10" HorizontalAlignment="Left"
+                                                                Background="{Binding DayNumberBackground}">
+                                                            <TextBlock Text="{Binding DayNumber}" FontSize="11" FontWeight="SemiBold"
+                                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                       Foreground="{Binding DayNumberForeground}" />
+                                                        </Border>
+                                                        <TextBlock Text="{Binding MoreText}" FontSize="10" HorizontalAlignment="Right"
+                                                                   VerticalAlignment="Center" Foreground="{StaticResource Brush.Subtle}" />
+                                                    </Grid>
+                                                    <ItemsControl Grid.Row="1" ItemsSource="{Binding Chips}" Margin="0,3,0,0" VerticalAlignment="Top">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <Border Background="{Binding SoftBrush}" BorderBrush="{Binding ColorBrush}"
+                                                                        BorderThickness="3,0,0,0" CornerRadius="3" Padding="3,1" Margin="0,1,1,0"
+                                                                        ToolTip="{Binding ToolTipText}"
+                                                                        MouseLeftButtonDown="MonthChip_Click">
+                                                                    <TextBlock Text="{Binding TitleText}" FontSize="10"
+                                                                               TextTrimming="CharacterEllipsis"
+                                                                               TextDecorations="{Binding IsDone, Converter={StaticResource DoneToDecoration}}" />
+                                                                </Border>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Grid>
+                        </Border>
+
+                        <!-- 选中日详情 -->
+                        <Border Grid.Row="1" Style="{StaticResource Card}" Margin="0,10,0,0" Padding="12,10" MaxHeight="240">
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Top" Text="{Binding SelectedDayLabel}" Style="{StaticResource SectionTitle}" />
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <ItemsControl ItemsSource="{Binding SelectedDayRows}">
+                                        <ItemsControl.ItemTemplate>
                                             <DataTemplate>
-                                                <StackPanel>
-                                                    <TextBlock Text="{Binding TitleText}"
-                                                               FontWeight="SemiBold"
-                                                               TextTrimming="CharacterEllipsis"
-                                                               TextDecorations="{Binding IsDone, Converter={StaticResource DoneToDecoration}}" />
-                                                    <TextBlock Text="{Binding NotesPreview}"
-                                                               FontSize="11"
-                                                               Foreground="{StaticResource Brush.Subtle}"
-                                                               TextTrimming="CharacterEllipsis"
-                                                               Visibility="{Binding NotesPreview, Converter={StaticResource TextToVisibility}}" />
-                                                </StackPanel>
+                                                <Border BorderBrush="{StaticResource Brush.Border}" BorderThickness="0,0,0,1" Padding="2,6">
+                                                    <DockPanel>
+                                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                                            <Button Content="编辑" Style="{StaticResource IconButton}" Click="EditRow_Click" />
+                                                            <Button Content="删除" Style="{StaticResource IconButton}"
+                                                                    Foreground="{StaticResource Brush.Danger}" Click="DeleteRow_Click" />
+                                                        </StackPanel>
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <Rectangle Width="4" RadiusX="2" RadiusY="2" Fill="{Binding ColorBrush}" Margin="0,0,8,0" />
+                                                            <TextBlock Text="{Binding TimeText}" Width="120" Foreground="{StaticResource Brush.Subtle}" FontSize="12" />
+                                                            <TextBlock Text="{Binding TitleText}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                                                                       TextDecorations="{Binding IsDone, Converter={StaticResource DoneToDecoration}}" />
+                                                            <TextBlock Text="{Binding ReminderText}" Margin="12,0,0,0" FontSize="11"
+                                                                       Foreground="{StaticResource Brush.Subtle}" />
+                                                        </StackPanel>
+                                                    </DockPanel>
+                                                </Border>
                                             </DataTemplate>
-                                        </GridViewColumn.CellTemplate>
-                                    </GridViewColumn>
-
-                                    <GridViewColumn Header="分类" Width="100" DisplayMemberBinding="{Binding CategoryText}" />
-                                    <GridViewColumn Header="提醒" Width="130" DisplayMemberBinding="{Binding ReminderText}" />
-                                    <GridViewColumn Header="重复" Width="76" DisplayMemberBinding="{Binding RepeatText}" />
-
-                                    <GridViewColumn Header="优先级" Width="76">
-                                        <GridViewColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <TextBlock Text="{Binding PriorityText}"
-                                                           Foreground="{Binding Priority, Converter={StaticResource PriorityToBrush}}" />
-                                            </DataTemplate>
-                                        </GridViewColumn.CellTemplate>
-                                    </GridViewColumn>
-
-                                    <GridViewColumn Header="操作" Width="112">
-                                        <GridViewColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <StackPanel Orientation="Horizontal">
-                                                    <Button Content="编辑" Style="{StaticResource IconButton}" Click="EditRow_Click" />
-                                                    <Button Content="删除" Style="{StaticResource IconButton}"
-                                                            Foreground="{StaticResource Brush.Danger}" Click="DeleteRow_Click" />
-                                                </StackPanel>
-                                            </DataTemplate>
-                                        </GridViewColumn.CellTemplate>
-                                    </GridViewColumn>
-                                </GridView>
-                            </ListView.View>
-                        </ListView>
-
-                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
-                                    Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisibility}}">
-                            <TextBlock Text="这个范围内还没有日程" FontSize="15" Foreground="{StaticResource Brush.Subtle}" HorizontalAlignment="Center" />
-                            <TextBlock Text="点击右上角「新建日程」，或「导入 CSV」批量导入"
-                                       Margin="0,8,0,0" FontSize="12" Foreground="{StaticResource Brush.Subtle}" HorizontalAlignment="Center" />
-                        </StackPanel>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                            </DockPanel>
+                        </Border>
                     </Grid>
-                </Border>
+                </Grid>
             </Grid>
         </Grid>
 

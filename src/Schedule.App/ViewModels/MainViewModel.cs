@@ -3,6 +3,7 @@ using Schedule.App.Mvvm;
 using Schedule.Core.Csv;
 using Schedule.Core.Models;
 using Schedule.Core.Scheduling;
+using Schedule.Core.Services;
 using Schedule.Core.Storage;
 using Schedule.Core.Templating;
 
@@ -53,6 +54,10 @@ public sealed class ScheduleRow
 
     public required string SourceText { get; init; }
 
+    public required string ColorHex { get; init; }
+
+    public System.Windows.Media.Brush ColorBrush => BrushCache.Get(ColorHex);
+
     public string TitleText => Item.Title;
 
     public Priority Priority => Item.Priority;
@@ -64,7 +69,7 @@ public sealed class ScheduleRow
     public override string ToString() => TimeText + " " + Item.Title;
 }
 
-/// <summary>主界面视图模型：负责筛选、展开重复日程、统计与状态栏文本。</summary>
+/// <summary>主界面视图模型：列表 / 周 / 月三种视图，负责筛选、展开、统计与状态栏文本。</summary>
 public sealed class MainViewModel : ObservableObject
 {
     public const string AllCategories = "全部分类";
@@ -73,16 +78,24 @@ public sealed class MainViewModel : ObservableObject
 
     private readonly AppHost _host;
 
+    private ScheduleViewMode _viewMode;
     private FilterOption _selectedFilter;
     private string _selectedCategory = AllCategories;
     private string _searchText = string.Empty;
     private string _countText = string.Empty;
     private string _nextReminderText = string.Empty;
+    private string _periodLabel = string.Empty;
+    private string _selectedDayLabel = string.Empty;
+    private string _monthSummaryText = string.Empty;
     private bool _isEmpty = true;
     private int _totalCount;
     private int _pendingCount;
     private int _todayCount;
     private bool _capped;
+
+    private DateTime _anchorDate = DateTime.Today;
+    private DateOnly _selectedDay = DateOnly.FromDateTime(DateTime.Today);
+    private double _weekColumnWidth;
 
     public MainViewModel(AppHost host)
     {
@@ -99,15 +112,53 @@ public sealed class MainViewModel : ObservableObject
         };
 
         _selectedFilter = Filters[3];
+        _viewMode = host.Settings.DefaultView;
     }
 
+    // ================= 集合 =================
+
     public ObservableCollection<ScheduleRow> Rows { get; } = new();
+
+    public ObservableCollection<ScheduleRow> SelectedDayRows { get; } = new();
+
+    public ObservableCollection<MonthCellViewModel> MonthCells { get; } = new();
+
+    public ObservableCollection<WeekColumnViewModel> WeekColumns { get; } = new();
+
+    public ObservableCollection<WeekHourViewModel> WeekHours { get; } = new();
+
+    public ObservableCollection<string> WeekdayHeaders { get; } = new();
 
     public ObservableCollection<FilterOption> Filters { get; }
 
     public ObservableCollection<string> Categories { get; } = new();
 
+    // ================= 状态 =================
+
     public string DataDirectoryText => AppPaths.DataDirectory;
+
+    public ScheduleViewMode ViewMode
+    {
+        get => _viewMode;
+        set
+        {
+            if (!SetProperty(ref _viewMode, value)) return;
+
+            OnPropertyChanged(nameof(IsListView));
+            OnPropertyChanged(nameof(IsWeekView));
+            OnPropertyChanged(nameof(IsMonthView));
+            OnPropertyChanged(nameof(IsCalendarView));
+            Refresh();
+        }
+    }
+
+    public bool IsListView => _viewMode == ScheduleViewMode.List;
+
+    public bool IsWeekView => _viewMode == ScheduleViewMode.Week;
+
+    public bool IsMonthView => _viewMode == ScheduleViewMode.Month;
+
+    public bool IsCalendarView => _viewMode is ScheduleViewMode.Week or ScheduleViewMode.Month;
 
     public FilterOption SelectedFilter
     {
@@ -150,11 +201,33 @@ public sealed class MainViewModel : ObservableObject
         private set => SetProperty(ref _nextReminderText, value);
     }
 
+    public string PeriodLabel
+    {
+        get => _periodLabel;
+        private set => SetProperty(ref _periodLabel, value);
+    }
+
+    public string SelectedDayLabel
+    {
+        get => _selectedDayLabel;
+        private set => SetProperty(ref _selectedDayLabel, value);
+    }
+
+    public string MonthSummaryText
+    {
+        get => _monthSummaryText;
+        private set => SetProperty(ref _monthSummaryText, value);
+    }
+
     public bool IsEmpty
     {
         get => _isEmpty;
         private set => SetProperty(ref _isEmpty, value);
     }
+
+    public double WeekGridHeight => 24 * HourHeight;
+
+    public int HourHeight => Math.Clamp(_host.Settings.HourHeight, 32, 140);
 
     /// <summary>是否显示已完成 / 已取消的日程（写回设置）。</summary>
     public bool ShowCompleted
@@ -172,17 +245,47 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
-    /// <summary>重新计算列表内容。</summary>
+    // ================= 刷新 =================
+
     public void Refresh()
     {
         var items = _host.Repository.Snapshot();
         var now = DateTime.Now;
-        var today = now.Date;
-        var lookAheadDays = Math.Clamp(_host.Settings.LookAheadDays, 1, 3650);
 
         RefreshCategories(items);
+        RefreshWeekdayHeaders();
 
+        switch (_viewMode)
+        {
+            case ScheduleViewMode.Week:
+                RefreshWeek(items, now);
+                break;
+            case ScheduleViewMode.Month:
+                RefreshMonth(items, now);
+                break;
+            default:
+                RefreshList(items, now);
+                break;
+        }
+
+        UpdateNextReminder(items, now);
+    }
+
+    /// <summary>只刷新状态栏（提醒轮询调用，不重建视图）。</summary>
+    public void RefreshStatus()
+    {
+        UpdateCountText();
+        UpdateNextReminder(_host.Repository.Snapshot(), DateTime.Now);
+    }
+
+    // ================= 列表视图 =================
+
+    private void RefreshList(List<ScheduleItem> items, DateTime now)
+    {
+        var today = now.Date;
+        var lookAheadDays = Math.Clamp(_host.Settings.LookAheadDays, 1, 3650);
         var (from, to) = ResolveWindow(SelectedFilter.Value, today, lookAheadDays);
+
         var rows = new List<ScheduleRow>();
         var pendingCount = 0;
         var todayCount = 0;
@@ -201,7 +304,6 @@ public sealed class MainViewModel : ObservableObject
 
             if (item.Status != ItemStatus.Pending && !_host.Settings.ShowCompleted) continue;
 
-            // 已完成 / 已取消的日程只展示自身那一次
             if (item.Status != ItemStatus.Pending)
             {
                 if (item.Start < from || item.Start > to) continue;
@@ -217,7 +319,6 @@ public sealed class MainViewModel : ObservableObject
                 continue;
             }
 
-            // 重复日程不展示历史实例，避免「每天」类日程产生上千行
             var windowFrom = from < today ? today : from;
             foreach (var occurrence in OccurrenceCalculator.Expand(item, windowFrom, to))
             {
@@ -240,34 +341,8 @@ public sealed class MainViewModel : ObservableObject
         _capped = rows.Count >= RowLimit;
         IsEmpty = Rows.Count == 0;
 
+        PeriodLabel = SelectedFilter.Value == TimeFilter.Completed ? "已完成 / 已取消" : SelectedFilter.Name;
         UpdateCountText();
-        UpdateNextReminder(items, now);
-    }
-
-    /// <summary>只刷新状态栏（提醒轮询调用，不重建列表）。</summary>
-    public void RefreshStatus()
-    {
-        UpdateCountText();
-        UpdateNextReminder(_host.Repository.Snapshot(), DateTime.Now);
-    }
-
-    private void UpdateCountText()
-    {
-        CountText = "共 " + _totalCount + " 条 · 待办 " + _pendingCount + " · 今天 " + _todayCount
-            + (_capped ? "（仅显示前 " + RowLimit + " 条）" : string.Empty);
-    }
-
-    private void UpdateNextReminder(List<ScheduleItem> items, DateTime now)
-    {
-        var next = ReminderPlanner.NextUpcoming(items, now);
-        if (next == null)
-        {
-            NextReminderText = "下一次提醒：无";
-            return;
-        }
-
-        NextReminderText = "下一次提醒：" + next.ReminderAt.ToString("MM-dd HH:mm") + " 「" + next.Item.Title + "」"
-            + "（" + VoiceTemplate.DescribeCountdown(next.Start, now) + "）";
     }
 
     private static (DateTime From, DateTime To) ResolveWindow(TimeFilter filter, DateTime today, int lookAheadDays)
@@ -280,7 +355,7 @@ public sealed class MainViewModel : ObservableObject
                 return (today.AddDays(1), today.AddDays(2));
             case TimeFilter.ThisWeek:
             {
-                var start = StartOfWeek(today);
+                var start = DateHelpers.StartOfWeek(today);
                 return (start, start.AddDays(7));
             }
             case TimeFilter.Completed:
@@ -292,10 +367,342 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
-    public static DateTime StartOfWeek(DateTime date)
+    // ================= 周视图 =================
+
+    /// <summary>窗口尺寸变化时更新周视图列宽（决定重叠块的像素布局）。</summary>
+    public void UpdateWeekWidth(double availableWidth)
     {
-        var delta = ((int)date.DayOfWeek + 6) % 7; // 周一为一周开始
-        return date.AddDays(-delta).Date;
+        if (availableWidth <= 0) return;
+
+        var columnWidth = Math.Max(70, (availableWidth / 7.0) - 2);
+        if (Math.Abs(columnWidth - _weekColumnWidth) < 6) return;
+
+        _weekColumnWidth = columnWidth;
+        if (IsWeekView) RefreshWeek(_host.Repository.Snapshot(), DateTime.Now);
+    }
+
+    private void RefreshWeek(List<ScheduleItem> items, DateTime now)
+    {
+        var mondayFirst = _host.Settings.WeekStartsOnMonday;
+        var weekStart = DateHelpers.StartOfWeek(_anchorDate, mondayFirst);
+        var today = now.Date;
+        var hourHeight = HourHeight;
+        var columnWidth = _weekColumnWidth <= 0 ? 110 : _weekColumnWidth;
+
+        EnsureWeekHours(hourHeight);
+
+        var filtered = items.Where(i => MatchesCategory(i) && MatchesSearch(i)).ToList();
+        var layout = CalendarLayout.BuildWeek(filtered, weekStart, today);
+
+        WeekColumns.Clear();
+        var total = 0;
+
+        foreach (var column in layout)
+        {
+            var columnViewModel = new WeekColumnViewModel
+            {
+                Date = column.Date,
+                HeaderText = VoiceTemplate.ShortWeekdayText(column.Date.DayOfWeek),
+                DayNumberText = column.Date.Day.ToString(),
+                IsToday = column.IsToday,
+                IsWeekend = column.IsWeekend,
+                CanvasHeight = WeekGridHeight,
+            };
+
+            foreach (var block in column.TimedBlocks)
+            {
+                var slice = columnWidth / Math.Max(1, block.ColumnCount);
+
+                columnViewModel.Blocks.Add(new WeekBlockViewModel
+                {
+                    Item = block.Occurrence.Item,
+                    Start = block.Occurrence.Start,
+                    End = block.Occurrence.End,
+                    TitleText = block.Occurrence.Item.Title,
+                    TimeText = BuildTimeText(block.Occurrence.Item, block.Occurrence.Start, block.Occurrence.End),
+                    ColorHex = EventColors.Resolve(block.Occurrence.Item, _host.Settings.CategoryColors),
+                    IsDone = block.Occurrence.Item.Status != ItemStatus.Pending,
+                    Top = block.StartMinutes / 60.0 * hourHeight,
+                    Height = Math.Max(18, block.DurationMinutes / 60.0 * hourHeight),
+                    Left = (block.Column * slice) + 2,
+                    Width = Math.Max(16, slice - 5),
+                    ToolTipText = BuildToolTip(block.Occurrence),
+                });
+
+                total++;
+            }
+
+            foreach (var allDay in column.AllDayEvents)
+            {
+                columnViewModel.AllDayChips.Add(CreateChip(allDay, allDay.Item, allDay.Start, allDay.End));
+                total++;
+            }
+
+            WeekColumns.Add(columnViewModel);
+        }
+
+        _totalCount = total;
+        _pendingCount = filtered.Count(i => i.Status == ItemStatus.Pending);
+        _todayCount = WeekColumns.Where(c => c.Date == DateOnly.FromDateTime(today))
+            .Sum(c => c.Blocks.Count + c.AllDayChips.Count);
+        _capped = false;
+        IsEmpty = total == 0;
+
+        var weekEnd = weekStart.AddDays(6);
+        var isCurrentWeek = weekStart <= today && today <= weekEnd;
+        PeriodLabel = FormatMonthDay(weekStart) + " - " + FormatMonthDay(weekEnd) + (isCurrentWeek ? "（本周）" : string.Empty);
+
+        UpdateCountText();
+    }
+
+    private void EnsureWeekHours(int hourHeight)
+    {
+        var expected = Enumerable.Range(0, 24)
+            .Select(hour => new WeekHourViewModel
+            {
+                Label = hour.ToString("00") + ":00",
+                Height = hourHeight,
+                Hour = hour,
+            })
+            .ToList();
+
+        if (WeekHours.Count == 24 && Math.Abs(WeekHours[0].Height - hourHeight) < 0.1) return;
+
+        WeekHours.Clear();
+        foreach (var hour in expected) WeekHours.Add(hour);
+        OnPropertyChanged(nameof(WeekGridHeight));
+    }
+
+    // ================= 月视图 =================
+
+    private void RefreshMonth(List<ScheduleItem> items, DateTime now)
+    {
+        var today = now.Date;
+        var monthStart = new DateTime(_anchorDate.Year, _anchorDate.Month, 1);
+        var capacity = Math.Clamp(_host.Settings.MonthCellCapacity, 1, 8);
+
+        var filtered = items.Where(i => MatchesCategory(i) && MatchesSearch(i)).ToList();
+        var cells = CalendarLayout.BuildMonth(
+            filtered,
+            monthStart.Year,
+            monthStart.Month,
+            today,
+            capacity,
+            _host.Settings.WeekStartsOnMonday);
+
+        MonthCells.Clear();
+        var monthTotal = 0;
+        var todayTotal = 0;
+
+        foreach (var cell in cells)
+        {
+            var viewModel = new MonthCellViewModel
+            {
+                Date = cell.Date,
+                DayNumber = cell.DayNumber,
+                IsCurrentMonth = cell.IsCurrentMonth,
+                IsToday = cell.IsToday,
+                IsWeekend = cell.Date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday,
+                EventCount = cell.Events.Count,
+                MoreText = cell.HiddenCount > 0 ? "+" + cell.HiddenCount : string.Empty,
+                Chips = cell.Events.Take(cell.VisibleCount)
+                    .Select(o => CreateChip(o, o.Item, o.Start, o.End))
+                    .ToList(),
+                IsSelected = cell.Date == _selectedDay,
+            };
+
+            if (cell.IsCurrentMonth) monthTotal += cell.Events.Count;
+            if (cell.IsToday) todayTotal = cell.Events.Count;
+
+            MonthCells.Add(viewModel);
+        }
+
+        _totalCount = monthTotal;
+        _pendingCount = filtered.Count(i => i.Status == ItemStatus.Pending);
+        _todayCount = todayTotal;
+        _capped = false;
+        IsEmpty = monthTotal == 0;
+
+        PeriodLabel = monthStart.ToString("yyyy年M月");
+        MonthSummaryText = "本月 " + monthTotal + " 项 · 今天 " + todayTotal + " 项";
+
+        RefreshSelectedDay(filtered, now);
+        UpdateCountText();
+    }
+
+    /// <summary>选中月视图中的某一天。</summary>
+    public void SelectDay(DateOnly day)
+    {
+        _selectedDay = day;
+
+        foreach (var cell in MonthCells)
+        {
+            cell.IsSelected = cell.Date == day;
+        }
+
+        RefreshSelectedDay(_host.Repository.Snapshot().Where(i => MatchesCategory(i) && MatchesSearch(i)).ToList(), DateTime.Now);
+    }
+
+    public DateOnly SelectedDay => _selectedDay;
+
+    private void RefreshSelectedDay(List<ScheduleItem> items, DateTime now)
+    {
+        var from = _selectedDay.ToDateTime(TimeOnly.MinValue);
+        var to = from.AddDays(1);
+
+        var rows = new List<ScheduleRow>();
+
+        foreach (var item in items)
+        {
+            if (item.Status != ItemStatus.Pending && !_host.Settings.ShowCompleted) continue;
+
+            if (item.Repeat == RepeatKind.None)
+            {
+                if (item.Start >= from && item.Start < to) rows.Add(CreateRow(item, item.Start, item.EffectiveEnd, now));
+                continue;
+            }
+
+            foreach (var occurrence in OccurrenceCalculator.Expand(item, from, to))
+            {
+                rows.Add(CreateRow(item, occurrence.Start, occurrence.End, now));
+            }
+        }
+
+        rows.Sort(static (a, b) => a.OccurrenceStart.CompareTo(b.OccurrenceStart));
+
+        SelectedDayRows.Clear();
+        foreach (var row in rows) SelectedDayRows.Add(row);
+
+        SelectedDayLabel = FormatMonthDay(from) + " " + VoiceTemplate.WeekdayText(from.DayOfWeek)
+            + " · " + rows.Count + " 项";
+    }
+
+    private void RefreshWeekdayHeaders()
+    {
+        var mondayFirst = _host.Settings.WeekStartsOnMonday;
+        var headers = Enumerable.Range(0, 7)
+            .Select(i => VoiceTemplate.ShortWeekdayText((DayOfWeek)(((mondayFirst ? 1 : 0) + i) % 7)))
+            .ToList();
+
+        if (WeekdayHeaders.SequenceEqual(headers)) return;
+
+        WeekdayHeaders.Clear();
+        foreach (var header in headers) WeekdayHeaders.Add(header);
+    }
+
+    // ================= 导航 =================
+
+    public void GoPrevious() => Shift(-1);
+
+    public void GoNext() => Shift(1);
+
+    public void GoToday()
+    {
+        _anchorDate = DateTime.Today;
+        _selectedDay = DateOnly.FromDateTime(DateTime.Today);
+        Refresh();
+    }
+
+    private void Shift(int direction)
+    {
+        switch (_viewMode)
+        {
+            case ScheduleViewMode.Month:
+                _anchorDate = new DateTime(_anchorDate.Year, _anchorDate.Month, 1).AddMonths(direction);
+                break;
+            case ScheduleViewMode.Week:
+                _anchorDate = _anchorDate.AddDays(7 * direction);
+                break;
+            default:
+                SelectedFilter = Filters[0];
+                return;
+        }
+
+        Refresh();
+    }
+
+    // ================= 行构造 =================
+
+    private string ResolveColor(ScheduleItem item) => EventColors.Resolve(item, _host.Settings.CategoryColors);
+
+    private MonthChipViewModel CreateChip(ScheduleOccurrence occurrence, ScheduleItem item, DateTime start, DateTime end)
+    {
+        var color = ResolveColor(item);
+
+        return new MonthChipViewModel
+        {
+            Item = item,
+            Start = start,
+            TimeText = item.AllDay ? "全天" : start.ToString("HH:mm"),
+            TitleText = item.Title,
+            ColorHex = color,
+            IsDone = item.Status != ItemStatus.Pending,
+            ToolTipText = BuildToolTip(occurrence),
+        };
+    }
+
+    private ScheduleRow CreateRow(ScheduleItem item, DateTime start, DateTime end, DateTime now)
+    {
+        return new ScheduleRow
+        {
+            Item = item,
+            OccurrenceStart = start,
+            OccurrenceEnd = end,
+            DayLabel = BuildDayLabel(start, now),
+            TimeText = BuildTimeText(item, start, end),
+            CategoryText = string.IsNullOrWhiteSpace(item.Category) ? "未分类" : item.Category,
+            ReminderText = BuildReminderText(item, start),
+            RepeatText = BuildRepeatText(item),
+            PriorityText = CsvExporter.PriorityText(item.Priority),
+            NotesPreview = BuildNotesPreview(item.Notes),
+            SourceText = item.Origin == ItemOrigin.CsvImport
+                ? (string.IsNullOrWhiteSpace(item.Source) ? "CSV 导入" : "导入：" + item.Source)
+                : "手动创建",
+            ColorHex = ResolveColor(item),
+        };
+    }
+
+    private static string BuildToolTip(ScheduleOccurrence occurrence)
+    {
+        var item = occurrence.Item;
+        var lines = new List<string>
+        {
+            item.Title,
+            MainViewModelStatic.TimeRange(item, occurrence.Start, occurrence.End),
+        };
+
+        if (!string.IsNullOrWhiteSpace(item.Category)) lines.Add("分类：" + item.Category);
+        lines.Add("重复：" + BuildRepeatText(item));
+        lines.Add("提醒：" + BuildReminderText(item, occurrence.Start));
+        if (!string.IsNullOrWhiteSpace(item.Notes)) lines.Add("备注：" + VoiceTemplate.SingleLine(item.Notes));
+
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    // ================= 通用工具 =================
+
+    public void ToggleDone(ScheduleRow row)
+    {
+        var item = _host.Repository.Find(row.Item.Id);
+        if (item == null) return;
+
+        item.Status = item.Status == ItemStatus.Pending ? ItemStatus.Done : ItemStatus.Pending;
+        item.UpdatedAt = DateTime.Now;
+        _host.Repository.Update(item);
+        _host.Repository.Save();
+        Refresh();
+    }
+
+    public bool Delete(ScheduleRow row)
+    {
+        var removed = _host.Repository.Remove(row.Item.Id);
+        if (removed)
+        {
+            _host.Repository.Save();
+            Refresh();
+        }
+
+        return removed;
     }
 
     private void RefreshCategories(List<ScheduleItem> items)
@@ -343,50 +750,23 @@ public sealed class MainViewModel : ObservableObject
             => !string.IsNullOrEmpty(source) && source.Contains(keyword, StringComparison.CurrentCultureIgnoreCase);
     }
 
-    /// <summary>切换完成状态。</summary>
-    public void ToggleDone(ScheduleRow row)
+    private void UpdateCountText()
     {
-        var item = _host.Repository.Find(row.Item.Id);
-        if (item == null) return;
-
-        item.Status = item.Status == ItemStatus.Pending ? ItemStatus.Done : ItemStatus.Pending;
-        item.UpdatedAt = DateTime.Now;
-        _host.Repository.Update(item);
-        _host.Repository.Save();
-        Refresh();
+        CountText = "共 " + _totalCount + " 项 · 待办 " + _pendingCount + " · 今天 " + _todayCount
+            + (_capped ? "（仅显示前 " + RowLimit + " 条）" : string.Empty);
     }
 
-    /// <summary>删除日程（重复日程会删除整个系列）。</summary>
-    public bool Delete(ScheduleRow row)
+    private void UpdateNextReminder(List<ScheduleItem> items, DateTime now)
     {
-        var removed = _host.Repository.Remove(row.Item.Id);
-        if (removed)
+        var next = ReminderPlanner.NextUpcoming(items, now);
+        if (next == null)
         {
-            _host.Repository.Save();
-            Refresh();
+            NextReminderText = "下一次提醒：无";
+            return;
         }
 
-        return removed;
-    }
-
-    public static ScheduleRow CreateRow(ScheduleItem item, DateTime start, DateTime end, DateTime now)
-    {
-        return new ScheduleRow
-        {
-            Item = item,
-            OccurrenceStart = start,
-            OccurrenceEnd = end,
-            DayLabel = BuildDayLabel(start, now),
-            TimeText = BuildTimeText(item, start, end),
-            CategoryText = string.IsNullOrWhiteSpace(item.Category) ? "未分类" : item.Category,
-            ReminderText = BuildReminderText(item, start),
-            RepeatText = CsvExporter.RepeatText(item.Repeat),
-            PriorityText = CsvExporter.PriorityText(item.Priority),
-            NotesPreview = BuildNotesPreview(item.Notes),
-            SourceText = item.Origin == ItemOrigin.CsvImport
-                ? (string.IsNullOrWhiteSpace(item.Source) ? "CSV 导入" : "导入：" + item.Source)
-                : "手动创建",
-        };
+        NextReminderText = "下一次提醒：" + next.FireAt.ToString("MM-dd HH:mm") + " " + next.Plan.OffsetText
+            + " 「" + next.Item.Title + "」（" + VoiceTemplate.DescribeCountdown(next.Occurrence.Start, now) + "开始）";
     }
 
     public static string BuildDayLabel(DateTime start, DateTime now)
@@ -402,12 +782,11 @@ public sealed class MainViewModel : ObservableObject
             _ => string.Empty,
         };
 
-        var label = date.Year == now.Year
-            ? date.ToString("M月d日") + " " + VoiceTemplate.WeekdayText(date.DayOfWeek)
-            : date.ToString("yyyy年M月d日") + " " + VoiceTemplate.WeekdayText(date.DayOfWeek);
-
-        return prefix + label;
+        return prefix + FormatMonthDay(date) + " " + VoiceTemplate.WeekdayText(date.DayOfWeek);
     }
+
+    private static string FormatMonthDay(DateTime date)
+        => date.Month + "月" + date.Day + "日";
 
     public static string BuildTimeText(ScheduleItem item, DateTime start, DateTime end)
     {
@@ -415,27 +794,62 @@ public sealed class MainViewModel : ObservableObject
 
         var text = start.ToString("HH:mm");
         if (end <= start) return text;
-
-        if (end.Date > start.Date)
-        {
-            return text + " - 次日 " + end.ToString("HH:mm");
-        }
+        if (end.Date > start.Date) return text + " - 次日 " + end.ToString("HH:mm");
 
         return text + " - " + end.ToString("HH:mm");
     }
 
+    /// <summary>多档提醒的可读描述，例如「提前 30分钟 / 15分钟 / 准点」。</summary>
     public static string BuildReminderText(ScheduleItem item, DateTime start)
     {
         if (!item.ReminderEnabled) return "不提醒";
 
+        var parts = new List<string>();
+
         if (item.RemindAtOverride.HasValue && start == item.Start)
         {
-            return "定时 " + item.RemindAtOverride.Value.ToString("MM-dd HH:mm");
+            parts.Add("定时 " + item.RemindAtOverride.Value.ToString("MM-dd HH:mm"));
         }
 
-        if (item.RemindBeforeMinutes <= 0) return "准点提醒";
+        var offsets = item.NormalizedOffsets();
+        if (offsets.Count > 0)
+        {
+            parts.Add("提前 " + string.Join(" / ", offsets.Select(ShortOffset)));
+        }
 
-        return "提前 " + HumanizeMinutes(item.RemindBeforeMinutes);
+        return parts.Count == 0 ? "不提醒" : string.Join(" + ", parts);
+    }
+
+    private static string ShortOffset(int minutes)
+    {
+        if (minutes <= 0) return "准点";
+        return HumanizeMinutes(minutes).Replace(" ", string.Empty);
+    }
+
+    /// <summary>周期事件的可读描述，例如「每周（周一/三/五）· 共 8 次」。</summary>
+    public static string BuildRepeatText(ScheduleItem item)
+    {
+        if (item.Repeat == RepeatKind.None) return "无";
+
+        var text = item.Repeat switch
+        {
+            RepeatKind.Daily => "每" + (item.RepeatInterval > 1 ? item.RepeatInterval + " " : string.Empty) + "天",
+            RepeatKind.Weekdays => "工作日",
+            RepeatKind.Weekly => item.RepeatInterval > 1 ? "每 " + item.RepeatInterval + " 周" : "每周",
+            RepeatKind.Monthly => "每" + (item.RepeatInterval > 1 ? item.RepeatInterval + " " : string.Empty) + "月",
+            RepeatKind.Yearly => "每" + (item.RepeatInterval > 1 ? item.RepeatInterval + " " : string.Empty) + "年",
+            _ => "无",
+        };
+
+        if (item.Repeat == RepeatKind.Weekly && item.RepeatWeekdays.Count > 0)
+        {
+            text += "（" + string.Join("、", item.RepeatWeekdays.Distinct().OrderBy(d => d).Select(VoiceTemplate.ShortWeekdayText)) + "）";
+        }
+
+        if (item.RepeatCount.HasValue) text += " · 共 " + item.RepeatCount.Value + " 次";
+        else if (item.RepeatUntil.HasValue) text += " · 至 " + item.RepeatUntil.Value.ToString("yyyy-MM-dd");
+
+        return text;
     }
 
     public static string HumanizeMinutes(int minutes)
@@ -452,5 +866,17 @@ public sealed class MainViewModel : ObservableObject
         var text = VoiceTemplate.SingleLine(notes);
         if (text.Length == 0) return string.Empty;
         return text.Length <= 60 ? text : text.Substring(0, 57) + "...";
+    }
+}
+
+/// <summary>供静态方法复用的小工具（避免实例/静态互相调用限制）。</summary>
+internal static class MainViewModelStatic
+{
+    public static string TimeRange(ScheduleItem item, DateTime start, DateTime end)
+    {
+        if (item.AllDay) return start.ToString("yyyy-MM-dd") + " 全天";
+        var text = start.ToString("yyyy-MM-dd HH:mm");
+        if (end > start) text += " - " + end.ToString("HH:mm");
+        return text;
     }
 }

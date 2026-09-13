@@ -63,3 +63,23 @@ public sealed class DoneToTextDecorationConverter : IValueConverter
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         => Binding.DoNothing;
 }
+
+/// <summary>十六进制颜色字符串 → 画刷。</summary>
+public sealed class HexToBrushConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        => BrushCache.Get(value as string);
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => Binding.DoNothing;
+}
+
+/// <summary>十六进制颜色字符串 → 柔和底色。</summary>
+public sealed class HexToSoftBrushConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        => BrushCache.Soft(value as string);
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => Binding.DoNothing;
+}

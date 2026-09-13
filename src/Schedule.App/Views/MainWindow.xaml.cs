@@ -10,7 +10,7 @@ using Schedule.Core.Storage;
 
 namespace Schedule.App.Views;
 
-/// <summary>主窗口。</summary>
+/// <summary>主窗口：列表 / 周 / 月三种视图。</summary>
 public partial class MainWindow : Window
 {
     private readonly AppHost _host;
@@ -32,6 +32,8 @@ public partial class MainWindow : Window
         _host.Reminders.Updated += OnRemindersUpdated;
         _host.SettingsChanged += OnSettingsChanged;
 
+        WeekBody.SizeChanged += (_, e) => ViewModel.UpdateWeekWidth(e.NewSize.Width);
+
         Loaded += OnLoaded;
         Closing += OnClosing;
         StateChanged += OnStateChanged;
@@ -43,7 +45,13 @@ public partial class MainWindow : Window
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         DataDirText.Text = AppPaths.DataDirectory;
+        SyncViewButtons();
         ViewModel.Refresh();
+
+        if (ViewModel.IsWeekView && WeekBody.ActualWidth > 0)
+        {
+            ViewModel.UpdateWeekWidth(WeekBody.ActualWidth);
+        }
     }
 
     private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
@@ -84,10 +92,11 @@ public partial class MainWindow : Window
             return;
         }
 
+        SyncViewButtons();
         ViewModel.Refresh();
     }
 
-    /// <summary>提醒轮询每 15 秒触发一次，只更新状态栏即可，避免打断用户滚动。</summary>
+    /// <summary>提醒轮询每 15 秒触发一次，只更新状态栏，避免打断用户操作。</summary>
     private void SafeRefreshStatus()
     {
         if (!Dispatcher.CheckAccess())
@@ -122,7 +131,109 @@ public partial class MainWindow : Window
             ViewModel.Refresh();
             e.Handled = true;
         }
+        else if (e.Key is Key.D1 or Key.D2 or Key.D3 && Keyboard.Modifiers == ModifierKeys.Control)
+        {
+            ViewModel.ViewMode = e.Key == Key.D1 ? ScheduleViewMode.List
+                : e.Key == Key.D2 ? ScheduleViewMode.Week
+                : ScheduleViewMode.Month;
+            SyncViewButtons();
+            e.Handled = true;
+        }
     }
+
+    // ================= 视图切换 =================
+
+    private void ViewList_Click(object sender, RoutedEventArgs e) => SwitchView(ScheduleViewMode.List);
+
+    private void ViewWeek_Click(object sender, RoutedEventArgs e) => SwitchView(ScheduleViewMode.Week);
+
+    private void ViewMonth_Click(object sender, RoutedEventArgs e) => SwitchView(ScheduleViewMode.Month);
+
+    private void SwitchView(ScheduleViewMode mode)
+    {
+        ViewModel.ViewMode = mode;
+        SyncViewButtons();
+
+        if (mode == ScheduleViewMode.Week && WeekBody.ActualWidth > 0)
+        {
+            ViewModel.UpdateWeekWidth(WeekBody.ActualWidth);
+        }
+    }
+
+    private void SyncViewButtons()
+    {
+        ListModeButton.IsChecked = ViewModel.IsListView;
+        WeekModeButton.IsChecked = ViewModel.IsWeekView;
+        MonthModeButton.IsChecked = ViewModel.IsMonthView;
+    }
+
+    private void Prev_Click(object sender, RoutedEventArgs e) => ViewModel.GoPrevious();
+
+    private void Next_Click(object sender, RoutedEventArgs e) => ViewModel.GoNext();
+
+    private void Today_Click(object sender, RoutedEventArgs e) => ShowToday();
+
+    /// <summary>切换到「今天」（托盘菜单也会调用）。</summary>
+    public void ShowToday()
+    {
+        if (ViewModel.IsListView)
+        {
+            var today = ViewModel.Filters.FirstOrDefault(f => f.Value == TimeFilter.Today);
+            if (today != null) ViewModel.SelectedFilter = today;
+            return;
+        }
+
+        ViewModel.GoToday();
+    }
+
+    // ================= 日历交互 =================
+
+    private void WeekSlot_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount != 2) return;
+        if (sender is not Canvas canvas || canvas.DataContext is not WeekColumnViewModel column) return;
+
+        var hourHeight = Math.Max(1, ViewModel.HourHeight);
+        var y = e.GetPosition(canvas).Y;
+        var minutes = (int)Math.Round(y / hourHeight * 60 / 15) * 15;
+        minutes = Math.Clamp(minutes, 0, (24 * 60) - 15);
+
+        BeginCreateItemAt(column.Date.ToDateTime(TimeOnly.MinValue).AddMinutes(minutes));
+        e.Handled = true;
+    }
+
+    private void WeekBlock_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: WeekBlockViewModel block })
+        {
+            EditItem(block.Item);
+            e.Handled = true;
+        }
+    }
+
+    private void MonthCell_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: MonthCellViewModel cell }) return;
+
+        ViewModel.SelectDay(cell.Date);
+
+        if (e.ClickCount == 2)
+        {
+            BeginCreateItemAt(cell.Date.ToDateTime(new TimeOnly(9, 0)));
+            e.Handled = true;
+        }
+    }
+
+    private void MonthChip_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: MonthChipViewModel chip })
+        {
+            EditItem(chip.Item);
+            e.Handled = true;
+        }
+    }
+
+    // ================= 列表交互 =================
 
     private void ScheduleList_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
     {
@@ -132,14 +243,13 @@ public partial class MainWindow : Window
 
     private void ScheduleList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
-        // 双击空白区域不处理
         var container = ItemsControl.ContainerFromElement(ScheduleList, (DependencyObject)e.OriginalSource) as ListViewItem;
-        if (container?.DataContext is ScheduleRow row) EditItem(row);
+        if (container?.DataContext is ScheduleRow row) EditItem(row.Item);
     }
 
     private void NewItem_Click(object sender, RoutedEventArgs e) => BeginCreateItem();
 
-    private void EditRow_Click(object sender, RoutedEventArgs e) => WithRow(sender, EditItem);
+    private void EditRow_Click(object sender, RoutedEventArgs e) => WithRow(sender, row => EditItem(row.Item));
 
     private void DeleteRow_Click(object sender, RoutedEventArgs e) => WithRow(sender, DeleteItem);
 
@@ -152,14 +262,25 @@ public partial class MainWindow : Window
         action(row);
     }
 
+    // ================= 新建 / 编辑 =================
+
     /// <summary>新建日程（托盘菜单也会调用）。</summary>
-    public void BeginCreateItem()
+    public void BeginCreateItem() => BeginCreateItemAt(NextRoundFiveMinutes(DateTime.Now));
+
+    /// <summary>在指定时间点新建日程（周 / 月视图双击）。</summary>
+    public void BeginCreateItemAt(DateTime start)
     {
+        var offsets = new List<int>(_host.Settings.DefaultReminderOffsets);
+        if (offsets.Count == 0) offsets.Add(_host.Settings.DefaultRemindBeforeMinutes);
+
         var item = new ScheduleItem
         {
-            Start = NextRoundHalfHour(DateTime.Now),
+            Start = start,
             ReminderEnabled = _host.Settings.DefaultReminderEnabled,
-            RemindBeforeMinutes = _host.Settings.DefaultRemindBeforeMinutes,
+            ReminderOffsets = offsets,
+            RemindBeforeMinutes = offsets.Count > 0 ? offsets.Min() : _host.Settings.DefaultRemindBeforeMinutes,
+            Color = Schedule.Core.Services.EventColors.Normalize(_host.Settings.DefaultEventColor),
+            Category = ViewModel.SelectedCategory == MainViewModel.AllCategories ? string.Empty : ViewModel.SelectedCategory,
         };
 
         var editor = new ItemEditorWindow(_host, item, isNew: true) { Owner = this };
@@ -170,9 +291,9 @@ public partial class MainWindow : Window
         ViewModel.Refresh();
     }
 
-    private void EditItem(ScheduleRow row)
+    private void EditItem(ScheduleItem source)
     {
-        var current = _host.Repository.Find(row.Item.Id);
+        var current = _host.Repository.Find(source.Id);
         if (current == null) return;
 
         var editor = new ItemEditorWindow(_host, current, isNew: false) { Owner = this };
@@ -220,14 +341,7 @@ public partial class MainWindow : Window
 
     private void Refresh_Click(object sender, RoutedEventArgs e) => ViewModel.Refresh();
 
-    /// <summary>切换到「今天」（托盘菜单也会调用）。</summary>
-    public void ShowToday()
-    {
-        var today = ViewModel.Filters.FirstOrDefault(f => f.Value == TimeFilter.Today);
-        if (today != null) ViewModel.SelectedFilter = today;
-    }
-
-    private void Today_Click(object sender, RoutedEventArgs e) => ShowToday();
+    // ================= 导入导出 / 设置 =================
 
     private void ImportCsv_Click(object sender, RoutedEventArgs e) => ImportCsv();
 
@@ -294,11 +408,12 @@ public partial class MainWindow : Window
     {
         var window = new SettingsWindow(_host) { Owner = this };
         window.ShowDialog();
+        SyncViewButtons();
         ViewModel.Refresh();
     }
 
-    /// <summary>把时间对齐到下一个 5 分钟的整点，作为新建日程的默认时间。</summary>
-    private static DateTime NextRoundHalfHour(DateTime now)
+    /// <summary>把时间对齐到下一个 5 分钟。</summary>
+    private static DateTime NextRoundFiveMinutes(DateTime now)
     {
         var add = 5 - (now.Minute % 5);
         if (add == 5) add = 0;

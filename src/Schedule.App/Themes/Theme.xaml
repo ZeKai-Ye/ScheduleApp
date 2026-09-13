@@ -276,4 +276,120 @@
         <Setter Property="Orientation" Value="Horizontal" />
     </Style>
 
+    <!-- ============ 视图切换（分段控件） ============ -->
+    <Style x:Key="SegmentButton" TargetType="RadioButton">
+        <Setter Property="Padding" Value="14,6" />
+        <Setter Property="Foreground" Value="{StaticResource Brush.Subtle}" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <Border x:Name="Bd" Background="Transparent" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource Brush.RowHover}" />
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource Brush.AccentSoft}" />
+                            <Setter Property="Foreground" Value="{StaticResource Brush.Accent}" />
+                            <Setter Property="FontWeight" Value="SemiBold" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ============ 胶囊开关（提醒档位 / 星期选择） ============ -->
+    <Style x:Key="ChipToggle" TargetType="ToggleButton">
+        <Setter Property="Margin" Value="0,0,6,6" />
+        <Setter Property="Padding" Value="12,5" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border x:Name="Bd"
+                            Background="{StaticResource Brush.Card}"
+                            BorderBrush="{StaticResource Brush.Border}"
+                            BorderThickness="1"
+                            CornerRadius="14"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource Brush.Subtle}" />
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource Brush.Accent}" />
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
+                            <Setter Property="Foreground" Value="White" />
+                            <Setter Property="FontWeight" Value="SemiBold" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ============ 颜色圆点 ============ -->
+    <Style x:Key="ColorSwatch" TargetType="RadioButton">
+        <Setter Property="Margin" Value="0,0,8,8" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="ToolTip" Value="{Binding Name}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <Grid Width="34" Height="34">
+                        <Border x:Name="Ring" CornerRadius="17" BorderThickness="2" BorderBrush="Transparent" />
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Ring" Property="BorderBrush" Value="{StaticResource Brush.Text}" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Ring" Property="BorderBrush" Value="{StaticResource Brush.Subtle}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ============ 月视图日期格 ============ -->
+    <Style x:Key="MonthCell" TargetType="Border">
+        <Setter Property="Background" Value="{Binding CellBackground}" />
+        <Setter Property="BorderBrush" Value="{Binding CellBorderBrush}" />
+        <Setter Property="BorderThickness" Value="{Binding CellBorderThickness}" />
+        <Setter Property="Opacity" Value="{Binding CellOpacity}" />
+        <Setter Property="Padding" Value="5,4" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+
+    <!-- ============ 日历导航小按钮 ============ -->
+    <Style x:Key="NavButton" TargetType="Button" BasedOn="{StaticResource BaseButton}">
+        <Setter Property="Padding" Value="9,4" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Foreground" Value="{StaticResource Brush.Subtle}" />
+    </Style>
+
+    <!-- ============ 日历事件块 ============ -->
+    <Style x:Key="WeekBlock" TargetType="Border">
+        <Setter Property="CornerRadius" Value="4" />
+        <Setter Property="Padding" Value="4,2" />
+        <Setter Property="Margin" Value="0,0,2,1" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Background" Value="{Binding SoftBrush}" />
+        <Setter Property="BorderBrush" Value="{Binding ColorBrush}" />
+        <Setter Property="BorderThickness" Value="3,0,0,0" />
+        <Setter Property="ToolTip" Value="{Binding ToolTipText}" />
+    </Style>
+
 </ResourceDictionary>
