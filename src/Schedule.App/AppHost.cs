@@ -35,6 +35,12 @@ public sealed class AppHost : IDisposable
 
     public TrayService? Tray { get; private set; }
 
+    /// <summary>本地 JSON 接口（供 AI / 脚本访问）。</summary>
+    public ApiHost? Api { get; private set; }
+
+    /// <summary>是否以无界面模式运行（--serve）。</summary>
+    public bool IsHeadless { get; private set; }
+
     public CsvImportService CsvImporter { get; } = new();
 
     /// <summary>当前设置（只读引用，修改请走 SettingsService.Replace）。</summary>
@@ -66,9 +72,21 @@ public sealed class AppHost : IDisposable
         Reminders.ReminderDue += OnReminderDue;
         Reminders.Updated += OnRemindersUpdated;
 
-        _mainWindow = new MainWindow(this);
-        _mainWindow.Show();
-        _mainWindow.Activate();
+        Api = new ApiHost(this);
+        Api.Start(options.ApiPort, enabled: !options.NoApi);
+
+        IsHeadless = options.Serve;
+
+        if (options.Serve)
+        {
+            AppLog.Info("以无界面模式启动（--serve）：仅运行本地接口与提醒调度，右键托盘图标可打开界面或退出");
+        }
+        else
+        {
+            _mainWindow = new MainWindow(this);
+            _mainWindow.Show();
+            _mainWindow.Activate();
+        }
 
         SetupTray();
         Reminders.Start();
@@ -79,7 +97,7 @@ public sealed class AppHost : IDisposable
 
         ApplyStartupSetting(Settings.StartWithWindows);
 
-        AppLog.Info("界面已启动，数据目录 " + AppPaths.DataDirectory);
+        AppLog.Info((IsHeadless ? "无界面模式已启动，数据目录 " : "界面已启动，数据目录 ") + AppPaths.DataDirectory);
     }
 
     private void SetupTray()
@@ -193,6 +211,7 @@ public sealed class AppHost : IDisposable
         try
         {
             Reminders?.Dispose();
+            Api?.Dispose();
             Tray?.Dispose();
         }
         catch (Exception ex)
@@ -212,6 +231,7 @@ public sealed class AppHost : IDisposable
         {
             _autoSaveTimer?.Stop();
             Reminders?.Dispose();
+            Api?.Dispose();
             Tray?.Dispose();
             Audio?.Dispose();
             (Voice as IDisposable)?.Dispose();

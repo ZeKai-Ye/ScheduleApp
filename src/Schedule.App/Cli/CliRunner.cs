@@ -228,6 +228,12 @@ public static class CliRunner
         output.AppendLine("语音模板：" + settings.VoiceTemplate);
         output.AppendLine("默认提醒档位：" + Schedule.Core.Models.ReminderPlan.FormatOffsets(settings.DefaultReminderOffsets));
         output.AppendLine("日志目录：" + AppPaths.LogDirectory);
+        output.AppendLine("本地接口：" + (settings.ApiEnabled
+            ? "已启用（端口 " + settings.ApiPort + "，令牌见 " + Path.Combine(AppPaths.DataDirectory, "api.json") + "）"
+            : "已禁用（设置 apiEnabled=false）"));
+        output.AppendLine("全局档位文案：" + (settings.OffsetVoiceTemplates.Count == 0
+            ? "未配置"
+            : string.Join(" / ", settings.OffsetVoiceTemplates.OrderByDescending(p => p.Key).Select(p => p.Key + " 分钟 → " + p.Value))));
         return 0;
     }
 

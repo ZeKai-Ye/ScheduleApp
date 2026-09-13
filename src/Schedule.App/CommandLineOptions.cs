@@ -30,6 +30,15 @@ public sealed class CommandLineOptions
 
     public bool Help { get; set; }
 
+    /// <summary>只启动本地接口与提醒，不显示主窗口。</summary>
+    public bool Serve { get; set; }
+
+    /// <summary>覆盖接口端口。</summary>
+    public int? ApiPort { get; set; }
+
+    /// <summary>本次启动禁用本地接口。</summary>
+    public bool NoApi { get; set; }
+
     public bool SkipPast { get; set; }
 
     public bool NoSkipDuplicates { get; set; }
@@ -110,6 +119,15 @@ public sealed class CommandLineOptions
                 case "--no-skip-duplicates":
                     options.NoSkipDuplicates = true;
                     break;
+                case "--serve":
+                    options.Serve = true;
+                    break;
+                case "--port":
+                    if (int.TryParse(Value(), out var apiPort)) options.ApiPort = apiPort;
+                    break;
+                case "--no-api":
+                    options.NoApi = true;
+                    break;
                 case "--help":
                 case "-h":
                 case "/?":
@@ -141,6 +159,12 @@ public sealed class CommandLineOptions
         "  --volume <n>          音量 0 ~ 100",
         "  --info                显示数据目录与统计信息",
         "  --out <文件>          把以上输出同时写入文件（便于脚本调用）",
+        "",
+        "本地接口（供 AI / 脚本直接读写日程）：",
+        "  --serve               只启动接口与提醒，不显示主窗口",
+        "  --port <端口>         指定接口端口（默认 43121）",
+        "  --no-api              本次启动禁用接口",
+        "  接口地址与令牌写在数据目录的 api.json，自描述在 GET /api/schema",
         "",
         "通用选项：",
         "  --data <目录>         指定数据目录（默认 %APPDATA%\\ScheduleApp）",

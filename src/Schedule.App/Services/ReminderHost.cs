@@ -129,6 +129,9 @@ public sealed class ReminderHost : IDisposable
         }
     }
 
+    /// <summary>立即触发一次提醒（供本地接口 /api/reminders/test 调用）。</summary>
+    public void FireNow(DueReminder due) => Fire(due);
+
     private void Fire(DueReminder due)
     {
         PlaySoundAndSpeak(due);
@@ -139,16 +142,13 @@ public sealed class ReminderHost : IDisposable
     {
         var settings = _host.Settings;
 
-        var template = string.IsNullOrWhiteSpace(due.Item.VoiceText)
-            ? settings.VoiceTemplate
-            : due.Item.VoiceText;
-
+        // 按「本日程 · 该档位 → 本日程 · 通用 → 全局 · 该档位 → 全局模板」解析文案
+        var template = due.Item.ResolveVoiceTemplate(due.Plan.OffsetMinutes, settings);
         var text = VoiceTemplate.Render(template, due.Item, due.Occurrence.Start, DateTime.Now, due.Plan.OffsetMinutes);
 
         if (settings.SoundEnabled)
         {
-            var file = string.IsNullOrWhiteSpace(due.Item.SoundFile) ? settings.DefaultSoundFile : due.Item.SoundFile;
-            _host.Audio.Play(file);
+            _host.Audio.Play(due.Item.ResolveSoundFile(due.Plan.OffsetMinutes, settings));
         }
 
         if (!settings.SpeechEnabled) return;
