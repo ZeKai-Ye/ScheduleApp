@@ -1,0 +1,188 @@
+using System.Windows.Threading;
+using Schedule.Core.Logging;
+using Schedule.Core.Models;
+using Schedule.Core.Scheduling;
+using Schedule.Core.Templating;
+
+namespace Schedule.App.Services;
+
+/// <summary>
+/// 提醒调度宿主：周期性检查到点的提醒，负责提示音、语音播报与弹窗，
+/// 并处理「稍后提醒」。
+/// </summary>
+public sealed class ReminderHost : IDisposable
+{
+    private sealed class SnoozeEntry
+    {
+        public required ScheduleOccurrence Occurrence { get; init; }
+
+        public required DateTime FireAt { get; init; }
+    }
+
+    private readonly AppHost _host;
+    private readonly DispatcherTimer _timer;
+    private readonly List<SnoozeEntry> _snoozes = new();
+    private DateTime _lastCheck;
+    private bool _disposed;
+
+    public ReminderHost(AppHost host)
+    {
+        _host = host;
+        _timer = new DispatcherTimer(DispatcherPriority.Normal) { Interval = TimeSpan.FromSeconds(15) };
+        _timer.Tick += (_, _) => Tick();
+    }
+
+    /// <summary>有提醒被触发（参数为具体发生）。</summary>
+    public event EventHandler<ScheduleOccurrence>? ReminderDue;
+
+    /// <summary>调度状态发生变化（用于刷新界面倒计时）。</summary>
+    public event EventHandler? Updated;
+
+    public int IntervalSeconds
+    {
+        get => (int)_timer.Interval.TotalSeconds;
+        set => _timer.Interval = TimeSpan.FromSeconds(Math.Clamp(value, 5, 300));
+    }
+
+    public void Start()
+    {
+        _lastCheck = DateTime.Now;
+        _timer.Start();
+        Tick();
+    }
+
+    public void Stop() => _timer.Stop();
+
+    /// <summary>安排一次「稍后提醒」。</summary>
+    public void Snooze(ScheduleOccurrence occurrence, int minutes)
+    {
+        var entry = new SnoozeEntry
+        {
+            Occurrence = occurrence,
+            FireAt = DateTime.Now.AddMinutes(Math.Max(1, minutes)),
+        };
+
+        _snoozes.Add(entry);
+        AppLog.Info("稍后提醒：" + occurrence.Item.Title + " -> " + entry.FireAt.ToString("HH:mm"));
+        Updated?.Invoke(this, EventArgs.Empty);
+    }
+
+    public IReadOnlyList<DateTime> PendingSnoozeTimes => _snoozes.Select(s => s.FireAt).ToList();
+
+    public void Tick()
+    {
+        if (_disposed) return;
+
+        try
+        {
+            CheckDueReminders();
+            CheckSnoozes();
+            Updated?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("提醒检查失败", ex);
+        }
+    }
+
+    private void CheckDueReminders()
+    {
+        var now = DateTime.Now;
+        var from = _lastCheck;
+
+        // 休眠 / 关机唤醒后避免一次性弹出大量历史提醒
+        if (now - from > TimeSpan.FromHours(2))
+        {
+            AppLog.Warn("检测到时间跳跃（可能刚从休眠恢复），仅补发最近 2 小时内的提醒");
+            from = now.AddHours(-2);
+        }
+
+        if (from >= now) from = now.AddSeconds(-1);
+        _lastCheck = now;
+
+        var items = _host.Repository.Snapshot();
+        var due = ReminderPlanner.CollectDue(items, from, now);
+        if (due.Count == 0) return;
+
+        foreach (var occurrence in due)
+        {
+            ReminderPlanner.MarkFired(occurrence.Item, occurrence);
+            AppLog.Info("触发提醒：" + occurrence.Item.Title + " @ " + occurrence.Start.ToString("yyyy-MM-dd HH:mm"));
+            Fire(occurrence);
+        }
+
+        _host.Repository.MarkDirty();
+        _host.Repository.Save();
+    }
+
+    private void CheckSnoozes()
+    {
+        if (_snoozes.Count == 0) return;
+
+        var now = DateTime.Now;
+        var due = _snoozes.Where(s => s.FireAt <= now).ToList();
+        foreach (var entry in due)
+        {
+            _snoozes.Remove(entry);
+            Fire(entry.Occurrence);
+        }
+    }
+
+    private void Fire(ScheduleOccurrence occurrence)
+    {
+        PlaySoundAndSpeak(occurrence);
+        ReminderDue?.Invoke(this, occurrence);
+    }
+
+    private void PlaySoundAndSpeak(ScheduleOccurrence occurrence)
+    {
+        var settings = _host.Settings;
+
+        var template = string.IsNullOrWhiteSpace(occurrence.Item.VoiceText)
+            ? settings.VoiceTemplate
+            : occurrence.Item.VoiceText;
+
+        var text = VoiceTemplate.Render(template, occurrence.Item, occurrence.Start, DateTime.Now);
+
+        if (settings.SoundEnabled)
+        {
+            var file = string.IsNullOrWhiteSpace(occurrence.Item.SoundFile) ? settings.DefaultSoundFile : occurrence.Item.SoundFile;
+            _host.Audio.Play(file);
+        }
+
+        if (!settings.SpeechEnabled) return;
+
+        var delay = settings.SoundEnabled && settings.SoundBeforeSpeech ? TimeSpan.FromSeconds(1.6) : TimeSpan.Zero;
+        if (delay <= TimeSpan.Zero)
+        {
+            Speak(text, settings);
+            return;
+        }
+
+        var oneShot = new DispatcherTimer(DispatcherPriority.Normal) { Interval = delay };
+        oneShot.Tick += (_, _) =>
+        {
+            oneShot.Stop();
+            Speak(text, settings);
+        };
+        oneShot.Start();
+    }
+
+    private void Speak(string text, AppSettings settings)
+    {
+        _host.Voice.Speak(new SpeechRequest
+        {
+            Text = text,
+            VoiceId = settings.VoiceId,
+            Rate = settings.VoiceRate,
+            Volume = settings.VoiceVolume,
+        });
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        _timer.Stop();
+        _snoozes.Clear();
+    }
+}
