@@ -43,6 +43,37 @@
                         </Grid>
                         <CheckBox x:Name="AlwaysOnTopCheck" Content="提醒弹窗始终置顶显示" Margin="0,10,0,0" />
 
+                        <TextBlock Text="提醒弹窗显示位置" Style="{StaticResource SectionTitle}" Margin="2,18,0,6" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="160" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <ComboBox x:Name="ReminderPositionBox" SelectionChanged="ReminderPosition_Changed">
+                                <ComboBoxItem Content="右下角（默认）" />
+                                <ComboBoxItem Content="左下角" />
+                                <ComboBoxItem Content="右上角" />
+                                <ComboBoxItem Content="左上角" />
+                                <ComboBoxItem Content="屏幕中央" />
+                                <ComboBoxItem Content="自定义坐标" />
+                            </ComboBox>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="14,0,0,0">
+                                <TextBlock Text="X" VerticalAlignment="Center" Foreground="{StaticResource Brush.Subtle}" />
+                                <TextBox x:Name="ReminderPositionXBox" Width="72" Margin="6,0,0,0" TextChanged="ReminderPositionInput_Changed" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="14,0,0,0">
+                                <TextBlock Text="Y" VerticalAlignment="Center" Foreground="{StaticResource Brush.Subtle}" />
+                                <TextBox x:Name="ReminderPositionYBox" Width="72" Margin="6,0,0,0" TextChanged="ReminderPositionInput_Changed" />
+                            </StackPanel>
+                            <Button Grid.Column="3" Content="试一次位置" Style="{StaticResource PrimaryButton}"
+                                    HorizontalAlignment="Right" Click="PreviewPosition_Click" ToolTip="弹出一个预览窗，拖动它即可直接调整并记住位置" />
+                        </Grid>
+                        <TextBlock x:Name="ReminderPositionHint" Style="{StaticResource FieldHint}" />
+                        <CheckBox x:Name="ReminderRememberPositionCheck" Content="拖动提醒弹窗后自动记住位置" Margin="0,8,0,0" />
+                        <CheckBox x:Name="ReminderFollowCursorCheck" Content="弹窗出现在鼠标所在的显示器（多屏时）" Margin="0,8,0,0" />
+
                         <TextBlock Text="提示音" Style="{StaticResource SectionTitle}" Margin="2,18,0,6" />
                         <CheckBox x:Name="SoundEnabledCheck" Content="提醒时播放提示音" />
                         <Grid Margin="0,8,0,0">
@@ -236,7 +267,23 @@
                         <TextBlock Text="窗口行为" Style="{StaticResource SectionTitle}" />
                         <CheckBox x:Name="MinimizeToTrayCheck" Content="最小化时隐藏到系统托盘" />
                         <CheckBox x:Name="CloseToTrayCheck" Content="点击关闭按钮时最小化到托盘（而不是退出）" Margin="0,8,0,0" />
-                        <CheckBox x:Name="StartWithWindowsCheck" Content="开机自动启动" Margin="0,8,0,0" />
+                        <TextBlock Text="桌面集成" Style="{StaticResource SectionTitle}" Margin="2,20,0,6" />
+                        <CheckBox x:Name="StartWithWindowsCheck" Content="开机自动启动" />
+                        <StackPanel Orientation="Horizontal" Margin="22,8,0,0">
+                            <TextBlock Text="启动参数" VerticalAlignment="Center" Foreground="{StaticResource Brush.Subtle}" />
+                            <TextBox x:Name="StartupArgumentsBox" Width="150" Margin="8,0,0,0"
+                                     ToolTip="默认 --minimized；需要开机就提供接口可再写 --serve" />
+                            <CheckBox x:Name="StartMinimizedCheck" Content="启动后最小化到托盘" Margin="16,0,0,0" />
+                        </StackPanel>
+                        <TextBlock x:Name="AutostartStatusText" Style="{StaticResource FieldHint}" Margin="22,4,0,0" />
+
+                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                            <Button Content="创建桌面快捷方式" Click="DesktopShortcut_Click" />
+                            <Button Content="删除" Style="{StaticResource GhostButton}" Margin="8,0,0,0" Click="DeleteDesktopShortcut_Click" />
+                            <Button Content="创建开始菜单快捷方式" Margin="18,0,0,0" Click="StartMenuShortcut_Click" />
+                            <Button Content="删除" Style="{StaticResource GhostButton}" Margin="8,0,0,0" Click="DeleteStartMenuShortcut_Click" />
+                        </StackPanel>
+                        <TextBlock x:Name="ShortcutStatusText" Style="{StaticResource FieldHint}" />
                         <CheckBox x:Name="ShowCompletedCheck" Content="主界面显示已完成 / 已取消的日程" Margin="0,8,0,0" />
 
                         <TextBlock Text="数据位置" Style="{StaticResource SectionTitle}" Margin="2,20,0,6" />

@@ -181,6 +181,19 @@ public partial class SettingsWindow : Window
             : _draft.DefaultRemindBeforeMinutes.ToString();
         WeekStartCheck.IsChecked = _draft.WeekStartsOnMonday;
 
+        // 提醒弹窗位置
+        ReminderPositionBox.SelectedIndex = (int)_draft.ReminderPosition;
+        ReminderPositionXBox.Text = _draft.ReminderPositionX.ToString();
+        ReminderPositionYBox.Text = _draft.ReminderPositionY.ToString();
+        ReminderRememberPositionCheck.IsChecked = _draft.ReminderRememberPosition;
+        ReminderFollowCursorCheck.IsChecked = _draft.ReminderFollowCursorScreen;
+        UpdateReminderPositionHint();
+
+        // 桌面集成
+        StartupArgumentsBox.Text = _draft.StartupArguments;
+        StartMinimizedCheck.IsChecked = _draft.StartMinimized;
+        RefreshSystemStatus();
+
         DataDirBox.Text = AppPaths.DataDirectory;
         AboutText.Text = "日程助手 ScheduleApp v" + (typeof(SettingsWindow).Assembly.GetName().Version?.ToString(3) ?? "0.1.0")
             + "　·　基于 .NET 9 + WPF 的原生轻量实现，零第三方依赖"
@@ -224,6 +237,86 @@ public partial class SettingsWindow : Window
         TemplateBox.Text = text.Insert(caret, token);
         TemplateBox.CaretIndex = caret + token.Length;
         TemplateBox.Focus();
+    }
+
+    /// <summary>刷新开机启动与快捷方式的真实状态（读系统而不是读设置）。</summary>
+    private void RefreshSystemStatus()
+    {
+        var (mode, command) = StartupService.Detect();
+
+        AutostartStatusText.Text = mode == AutostartMode.Disabled
+            ? "当前未启用开机启动。"
+            : "已启用（" + StartupService.Describe(mode) + "）：" + command;
+
+        var desktop = ShortcutService.Exists("desktop");
+        var startMenu = ShortcutService.Exists("startmenu");
+
+        ShortcutStatusText.Text = "桌面：" + (desktop ? "已创建" : "未创建")
+            + "　开始菜单：" + (startMenu ? "已创建" : "未创建")
+            + "　（保存后按设置同步开机启动）";
+    }
+
+    private void UpdateReminderPositionHint()
+    {
+        if (ReminderPositionHint == null) return;
+
+        var mode = (ReminderPositionMode)Math.Max(0, ReminderPositionBox.SelectedIndex);
+
+        ReminderPositionHint.Text = mode switch
+        {
+            ReminderPositionMode.Custom => "X / Y 为弹窗左上角的屏幕坐标（设备无关单位）；越界会自动贴回可见区域。",
+            ReminderPositionMode.Center => "X / Y 为相对屏幕中央的偏移（正数向右 / 向下）。",
+            _ => "X / Y 为相对该角落的偏移（正数向内移动；默认留 18 像素边距）。",
+        };
+    }
+
+    private void ReminderPosition_Changed(object sender, SelectionChangedEventArgs e) => UpdateReminderPositionHint();
+
+    private void ReminderPositionInput_Changed(object sender, TextChangedEventArgs e) => UpdateReminderPositionHint();
+
+    private void PreviewPosition_Click(object sender, RoutedEventArgs e)
+    {
+        var mode = (ReminderPositionMode)Math.Max(0, ReminderPositionBox.SelectedIndex);
+        var x = ReadInt(ReminderPositionXBox.Text, 0, -20000, 20000);
+        var y = ReadInt(ReminderPositionYBox.Text, 0, -20000, 20000);
+
+        // 先按当前输入落地，再弹预览，所见即所得
+        _host.SetReminderPosition(mode, x, y);
+        _host.Reminders.ShowPositionPreview();
+
+        StatusText.Text = "已按「" + ReminderPositionMath.Describe(mode) + "」弹出预览窗，拖动它可继续微调。";
+    }
+
+    private void DesktopShortcut_Click(object sender, RoutedEventArgs e) => CreateShortcut("desktop");
+
+    private void StartMenuShortcut_Click(object sender, RoutedEventArgs e) => CreateShortcut("startmenu");
+
+    private void CreateShortcut(string target)
+    {
+        if (_host.SetShortcut(target, true, null, out var path, out var error))
+        {
+            MessageBox.Show(this, "已创建快捷方式：\n" + path, "快捷方式", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        else
+        {
+            MessageBox.Show(this, "创建失败：" + error, "快捷方式", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+
+        RefreshSystemStatus();
+    }
+
+    private void DeleteDesktopShortcut_Click(object sender, RoutedEventArgs e) => DeleteShortcut("desktop");
+
+    private void DeleteStartMenuShortcut_Click(object sender, RoutedEventArgs e) => DeleteShortcut("startmenu");
+
+    private void DeleteShortcut(string target)
+    {
+        if (!_host.SetShortcut(target, false, null, out _, out var error))
+        {
+            MessageBox.Show(this, "删除失败：" + error, "快捷方式", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+
+        RefreshSystemStatus();
     }
 
     private void CategoryColorCycle_Click(object sender, RoutedEventArgs e)
@@ -343,6 +436,15 @@ public partial class SettingsWindow : Window
         settings.HourHeight = ReadInt(HourHeightBox.Text, settings.HourHeight, 32, 140);
         settings.MonthCellCapacity = ReadInt(MonthCapacityBox.Text, settings.MonthCellCapacity, 1, 8);
         settings.WeekStartsOnMonday = WeekStartCheck.IsChecked == true;
+
+        settings.ReminderPosition = (ReminderPositionMode)Math.Max(0, ReminderPositionBox.SelectedIndex);
+        settings.ReminderPositionX = ReadInt(ReminderPositionXBox.Text, settings.ReminderPositionX, -20000, 20000);
+        settings.ReminderPositionY = ReadInt(ReminderPositionYBox.Text, settings.ReminderPositionY, -20000, 20000);
+        settings.ReminderRememberPosition = ReminderRememberPositionCheck.IsChecked == true;
+        settings.ReminderFollowCursorScreen = ReminderFollowCursorCheck.IsChecked == true;
+
+        settings.StartupArguments = (StartupArgumentsBox.Text ?? string.Empty).Trim();
+        settings.StartMinimized = StartMinimizedCheck.IsChecked == true;
 
         var offsets = ParseOffsets(DefaultOffsetsBox.Text);
         settings.DefaultReminderOffsets = offsets.Count > 0 ? offsets : new List<int> { 10 };
