@@ -21,6 +21,18 @@ public static class CliRunner
             {
                 output.AppendLine(CommandLineOptions.Usage);
             }
+            else if (!string.IsNullOrWhiteSpace(options.ShortcutTarget))
+            {
+                exitCode = CreateShortcut(options, output);
+            }
+            else if (!string.IsNullOrWhiteSpace(options.RemoveShortcutTarget))
+            {
+                exitCode = RemoveShortcut(options, output);
+            }
+            else if (options.StartupEnabled.HasValue)
+            {
+                exitCode = SetStartup(options, output);
+            }
             else if (options.ListVoices)
             {
                 exitCode = ListVoices(output);
@@ -74,6 +86,55 @@ public static class CliRunner
         }
 
         return exitCode;
+    }
+
+    private static int CreateShortcut(CommandLineOptions options, StringBuilder output)
+    {
+        if (ShortcutService.TryCreate(options.ShortcutTarget!, null, options.ShortcutDirectory, out var path, out var error))
+        {
+            output.AppendLine("已创建快捷方式：" + path);
+            return 0;
+        }
+
+        output.AppendLine("创建快捷方式失败：" + error);
+        return 6;
+    }
+
+    private static int RemoveShortcut(CommandLineOptions options, StringBuilder output)
+    {
+        if (ShortcutService.TryDelete(options.RemoveShortcutTarget!, options.ShortcutDirectory, out var path, out var error))
+        {
+            output.AppendLine("已删除快捷方式：" + path);
+            return 0;
+        }
+
+        output.AppendLine("删除快捷方式失败：" + error);
+        return 6;
+    }
+
+    private static int SetStartup(CommandLineOptions options, StringBuilder output)
+    {
+        var enabled = options.StartupEnabled!.Value;
+        var arguments = options.StartupArguments ?? "--minimized";
+
+        if (!StartupService.Apply(enabled, arguments, out var mode, out var error))
+        {
+            output.AppendLine("设置开机启动失败：" + error);
+            return 6;
+        }
+
+        if (enabled)
+        {
+            output.AppendLine("开机启动已启用（" + StartupService.Describe(mode == "StartupFolder" ? AutostartMode.StartupFolder : AutostartMode.Registry) + "）");
+            output.AppendLine("执行命令：" + StartupService.BuildCommand(arguments));
+        }
+        else
+        {
+            output.AppendLine("开机启动已停用。");
+        }
+
+        if (!string.IsNullOrEmpty(error)) output.AppendLine("[提示] " + error);
+        return 0;
     }
 
     private static int ListVoices(StringBuilder output)
@@ -228,6 +289,15 @@ public static class CliRunner
         output.AppendLine("语音模板：" + settings.VoiceTemplate);
         output.AppendLine("默认提醒档位：" + Schedule.Core.Models.ReminderPlan.FormatOffsets(settings.DefaultReminderOffsets));
         output.AppendLine("日志目录：" + AppPaths.LogDirectory);
+        var (autostartMode, autostartCommand) = StartupService.Detect();
+        output.AppendLine("开机启动：" + StartupService.Describe(autostartMode)
+            + (autostartCommand.Length > 0 ? "（" + autostartCommand + "）" : string.Empty));
+        output.AppendLine("桌面快捷方式：" + (ShortcutService.Exists("desktop") ? "已创建" : "未创建")
+            + "；开始菜单：" + (ShortcutService.Exists("startmenu") ? "已创建" : "未创建"));
+        output.AppendLine("提醒弹窗位置：" + Schedule.Core.Models.ReminderPositionMath.Describe(settings.ReminderPosition)
+            + (settings.ReminderPosition == Schedule.Core.Models.ReminderPositionMode.Custom
+                ? "（" + settings.ReminderPositionX + ", " + settings.ReminderPositionY + "）"
+                : string.Empty));
         output.AppendLine("本地接口：" + (settings.ApiEnabled
             ? "已启用（端口 " + settings.ApiPort + "，令牌见 " + Path.Combine(AppPaths.DataDirectory, "api.json") + "）"
             : "已禁用（设置 apiEnabled=false）"));

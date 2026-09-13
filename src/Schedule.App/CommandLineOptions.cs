@@ -39,12 +39,34 @@ public sealed class CommandLineOptions
     /// <summary>本次启动禁用本地接口。</summary>
     public bool NoApi { get; set; }
 
+    /// <summary>启动后直接最小化到托盘。</summary>
+    public bool Minimized { get; set; }
+
+    /// <summary>界面冒烟自检：构造全部窗口后退出（开发 / CI 用）。</summary>
+    public bool UiSmoke { get; set; }
+
+    /// <summary>创建快捷方式（desktop / startmenu）。</summary>
+    public string? ShortcutTarget { get; set; }
+
+    /// <summary>删除快捷方式（desktop / startmenu）。</summary>
+    public string? RemoveShortcutTarget { get; set; }
+
+    /// <summary>快捷方式输出目录（调试 / 便携场景）。</summary>
+    public string? ShortcutDirectory { get; set; }
+
+    /// <summary>开机启动开关（命令行动作）。</summary>
+    public bool? StartupEnabled { get; set; }
+
+    /// <summary>开机启动附加参数。</summary>
+    public string? StartupArguments { get; set; }
+
     public bool SkipPast { get; set; }
 
     public bool NoSkipDuplicates { get; set; }
 
     public bool HasCliAction =>
-        ImportFile != null || ExportFile != null || SpeakText != null || ListVoices || ShowInfo || Help;
+        ImportFile != null || ExportFile != null || SpeakText != null || ListVoices || ShowInfo || Help
+        || ShortcutTarget != null || RemoveShortcutTarget != null || StartupEnabled.HasValue || UiSmoke;
 
     public static CommandLineOptions Parse(string[] args)
     {
@@ -128,6 +150,27 @@ public sealed class CommandLineOptions
                 case "--no-api":
                     options.NoApi = true;
                     break;
+                case "--minimized":
+                    options.Minimized = true;
+                    break;
+                case "--ui-smoke":
+                    options.UiSmoke = true;
+                    break;
+                case "--shortcut":
+                    options.ShortcutTarget = Value() ?? "desktop";
+                    break;
+                case "--remove-shortcut":
+                    options.RemoveShortcutTarget = Value() ?? "desktop";
+                    break;
+                case "--shortcut-dir":
+                    options.ShortcutDirectory = Value();
+                    break;
+                case "--startup":
+                    options.StartupEnabled = (Value() ?? "on").ToLowerInvariant() is "on" or "true" or "1" or "yes";
+                    break;
+                case "--startup-args":
+                    options.StartupArguments = Value();
+                    break;
                 case "--help":
                 case "-h":
                 case "/?":
@@ -165,6 +208,15 @@ public sealed class CommandLineOptions
         "  --port <端口>         指定接口端口（默认 43121）",
         "  --no-api              本次启动禁用接口",
         "  接口地址与令牌写在数据目录的 api.json，自描述在 GET /api/schema",
+        "",
+        "桌面集成：",
+        "  --shortcut [desktop|startmenu]        创建快捷方式（默认桌面）",
+        "  --remove-shortcut [desktop|startmenu] 删除快捷方式",
+        "  --shortcut-dir <目录>                 快捷方式输出目录（调试用）",
+        "  --startup on|off                      启用 / 停用开机启动",
+        "  --startup-args <参数>                 开机启动附加参数（默认 --minimized）",
+        "  --minimized                           启动后直接最小化到托盘",
+        "  --ui-smoke                            界面冒烟自检：依次构造全部窗口后退出",
         "",
         "通用选项：",
         "  --data <目录>         指定数据目录（默认 %APPDATA%\\ScheduleApp）",

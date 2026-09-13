@@ -132,6 +132,28 @@ public sealed class ReminderHost : IDisposable
     /// <summary>立即触发一次提醒（供本地接口 /api/reminders/test 调用）。</summary>
     public void FireNow(DueReminder due) => Fire(due);
 
+    /// <summary>
+    /// 只弹一次「位置预览」窗口，不播放提示音也不朗读——
+    /// 便于在设置里确认弹窗位置与大小，拖动它还能顺手记住位置。
+    /// </summary>
+    public void ShowPositionPreview()
+    {
+        var preview = new ScheduleItem
+        {
+            Title = "位置预览",
+            Notes = "这是提醒弹窗的预览。拖动它可以调整位置（若已开启「记住位置」会自动保存）。",
+            Category = "设置",
+            Start = DateTime.Now.AddMinutes(5),
+            ReminderOffsets = new List<int> { 5 },
+        };
+
+        var occurrence = OccurrenceCalculator.Create(preview, preview.Start);
+        var plan = occurrence.Reminders.FirstOrDefault()
+                   ?? new ReminderPlan { OffsetMinutes = 0, FireAt = DateTime.Now };
+
+        ReminderDue?.Invoke(this, new DueReminder { Item = preview, Occurrence = occurrence, Plan = plan });
+    }
+
     private void Fire(DueReminder due)
     {
         PlaySoundAndSpeak(due);

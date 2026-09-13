@@ -1,6 +1,7 @@
 using Schedule.Core.Api;
 using Schedule.Core.Models;
 using Schedule.Core.Scheduling;
+using Schedule.Core.Storage;
 
 namespace Schedule.App.Services;
 
@@ -60,5 +61,30 @@ public sealed class ApiActions : IApiActions
         });
 
         return true;
+    }
+
+    public bool SetShortcut(string target, bool create, string? directoryOverride, out string? path, out string? error)
+        => create
+            ? ShortcutService.TryCreate(target, null, directoryOverride, out path, out error)
+            : ShortcutService.TryDelete(target, directoryOverride, out path, out error);
+
+    public bool SetAutostart(bool enabled, string? arguments, out string? mode, out string? error)
+        => StartupService.Apply(enabled, arguments, out mode, out error);
+
+    public SystemStatusInfo GetSystemStatus()
+    {
+        var (mode, command) = StartupService.Detect();
+
+        return new SystemStatusInfo
+        {
+            Supported = true,
+            ExecutablePath = ShortcutService.ExecutablePath(),
+            DataDirectory = AppPaths.DataDirectory,
+            DesktopShortcutExists = ShortcutService.Exists("desktop"),
+            StartMenuShortcutExists = ShortcutService.Exists("startmenu"),
+            AutostartEnabled = mode != AutostartMode.Disabled,
+            AutostartMode = mode.ToString(),
+            AutostartCommand = command,
+        };
     }
 }

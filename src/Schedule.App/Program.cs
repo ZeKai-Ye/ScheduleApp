@@ -109,7 +109,22 @@ internal static class Program
 
         EnableBindingTraceIfRequested();
 
-        // 1) 命令行模式（导入 / 导出 / 语音 / 信息），不启动界面
+        // 1) 界面冒烟自检（构造全部窗口，不做别的）
+        if (options.UiSmoke)
+        {
+            var smokeApp = new App();
+            smokeApp.InitializeComponent();
+
+            var smokeHost = new AppHost();
+            App.Host = smokeHost;
+            smokeHost.Start(new CommandLineOptions { Serve = true });
+
+            var smokeCode = UiSmoke.Run(smokeHost);
+            smokeHost.Dispose();
+            return smokeCode;
+        }
+
+        // 2) 命令行模式（导入 / 导出 / 语音 / 信息 / 快捷方式），不启动界面
         if (options.HasCliAction)
         {
             return CliRunner.Run(options);
