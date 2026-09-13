@@ -11,8 +11,6 @@ namespace Schedule.App;
 /// </summary>
 internal static class Program
 {
-    private const string ActivateEventName = @"Local\ScheduleApp.Activate.v1";
-
     [STAThread]
     public static int Main(string[] args)
     {
@@ -24,6 +22,39 @@ internal static class Program
         {
             ReportFatal(ex);
             return 1;
+        }
+    }
+
+    /// <summary>
+    /// 设置环境变量 SCHEDULEAPP_BINDING_TRACE=1 时，把 WPF 数据绑定错误写入日志目录。
+    /// 绑定问题不会抛异常，只会静默失效，排障时非常有用。
+    /// </summary>
+    private static void EnableBindingTraceIfRequested()
+    {
+        var setting = Environment.GetEnvironmentVariable("SCHEDULEAPP_BINDING_TRACE");
+        if (string.IsNullOrWhiteSpace(setting)) return;
+
+        // 1 / warn = 只记问题；all = 输出全部绑定活动（用于确认诊断本身有效）
+        var level = string.Equals(setting, "all", StringComparison.OrdinalIgnoreCase)
+            ? System.Diagnostics.SourceLevels.All
+            : System.Diagnostics.SourceLevels.Warning;
+
+        try
+        {
+            var path = Path.Combine(AppPaths.LogDirectory, "binding-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".log");
+            var listener = new System.Diagnostics.TextWriterTraceListener(path) { TraceOutputOptions = System.Diagnostics.TraceOptions.None };
+
+            System.Diagnostics.PresentationTraceSources.Refresh();
+            var source = System.Diagnostics.PresentationTraceSources.DataBindingSource;
+            source.Listeners.Add(listener);
+            source.Switch.Level = level;
+            listener.Flush();
+
+            AppLog.Info("已启用 WPF 绑定诊断，输出到 " + path);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Warn("启用绑定诊断失败：" + ex.Message);
         }
     }
 
@@ -76,6 +107,8 @@ internal static class Program
             AppLog.Warn(AppPaths.LastFallbackReason!);
         }
 
+        EnableBindingTraceIfRequested();
+
         // 1) 命令行模式（导入 / 导出 / 语音 / 信息），不启动界面
         if (options.HasCliAction)
         {
@@ -121,7 +154,7 @@ internal static class Program
     {
         try
         {
-            using var handle = EventWaitHandle.OpenExisting(ActivateEventName);
+            using var handle = EventWaitHandle.OpenExisting(AppPaths.ActivateEventName);
             handle.Set();
         }
         catch (Exception)
@@ -132,7 +165,7 @@ internal static class Program
 
     private static void StartActivationListener(AppHost host)
     {
-        var handle = new EventWaitHandle(false, EventResetMode.AutoReset, ActivateEventName);
+        var handle = new EventWaitHandle(false, EventResetMode.AutoReset, AppPaths.ActivateEventName);
         var thread = new Thread(() =>
         {
             while (true)
