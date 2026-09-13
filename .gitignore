@@ -30,6 +30,9 @@ packages/
 
 # ---- App runtime data (local/portable mode) ----
 data/
+.verify*/
+artifacts/
+publish/
 *.log
 debug.log
 

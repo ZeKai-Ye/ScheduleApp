@@ -36,22 +36,32 @@
 
 ## 关键机制
 
-### 1. 提醒调度模型（时间窗口 + 已触发标记）
-`ReminderHost` 每 15 秒调用一次 `ReminderPlanner.CollectDue(items, lastCheck, now)`：
+### 1. 提醒调度模型（时间窗口 + 多档位 + 已触发标记）
+一条日程可以有多个**提醒档位**（`ReminderOffsets`，例如 30 / 15 / 5 / 0 分钟），每个档位各自触发：
 
-- **时间窗口**：只处理 `(lastCheck, now]` 区间，程序重启 / 休眠唤醒都不会漏提醒
-- **窗口扩张**：提醒时刻 = 开始时间 − 提前量，因此展开区间必须按提前量向两端扩张
-  （否则「提前 1 天」的日程永远命中不了）；绝对提醒时间（`RemindAtOverride`）与开始时间解耦，需单独纳入
-- **去重**：每条日程记录 `LastFiredOccurrence`，标记后不再重复弹窗
+- **档位展开**：`ScheduleItem.ComputeReminders(occurrenceStart)` 把档位换算成具体触发时刻（`ReminderPlan`），
+  返回按时间升序的计划列表；绝对提醒时间（`RemindAtOverride`）与开始时间解耦，需要单独纳入
+- **时间窗口**：`ReminderHost` 每 15 秒调用一次 `ReminderPlanner.CollectDue(items, lastCheck, now)`，
+  只处理 `(lastCheck, now]` 区间，程序重启 / 休眠唤醒都不会漏提醒
+- **窗口扩张**：某档位的触发时刻 = 发生时间 − 提前量，因此展开区间要按**最大档位**向两端扩张，
+  否则「提前 1 天」的档位永远命中不了
+- **去重**：每条日程用 `FiredReminders` 记录「(发生时间, 档位) → 触发时刻」，
+  因此 30 分钟档触发后不会影响 5 分钟档；旧字段 `LastFiredOccurrence` 在加载时会被迁移成等价记录
+- **剪枝不依赖机器时钟**：`PruneFiredReminders` 以「最近一次触发对应的发生时间」为基准，
+  而不是 `DateTime.Now`——否则日程时间与系统时间相差较大时，刚写入的记录会被立即删除而重复提醒
 - **休眠保护**：时间跳跃超过 2 小时时只补发最近 2 小时，避免唤醒后弹窗轰炸
-- **稍后提醒**：内存中的待触发队列，到点后重新走播报 + 弹窗流程
+- **稍后提醒**：内存中的待触发队列，到点后重新走「提示音 → 语音 → 弹窗」流程
 
-### 2. 重复规则展开（OccurrenceCalculator）
-- 支持每天 / 工作日 / 每周 / 每月 / 每年，全部基于基准时间做 `AddDays/AddMonths/AddYears`，
-  天然处理月末压缩（1 月 31 日 → 2 月 28 日）与闰年（2 月 29 日 → 2 月 28 日）
+### 2. 周期事件展开（OccurrenceCalculator）
+- 规则：每天 / 工作日 / 每周（可**多选星期**）/ 每月 / 每年，另加 `RepeatInterval`（每 N 个周期）与
+  `RepeatCount`（共 N 次）、`RepeatUntil`（截止日期，谁先到用谁）
+- 全部基于基准时间做 `AddDays/AddMonths/AddYears`，天然处理月末压缩（1 月 31 日 → 2 月 28 日）
+  与闰年（2 月 29 日 → 2 月 28 日）
 - **快速定位**：按月 / 周 / 天估算起始下标，避免「2000 年开始的每日日程」展开时线性空转
-  （自测里有 2000 条日程 + 25 年历史的性能断言）
-- 每次发生继承基准时长，且独立计算 `ReminderAt`
+  （自测里有 2000 条日程 + 25 年历史的性能断言）；仅当设置了 `RepeatCount` 时退化为顺序生成——
+  此时总量有上界，正确性优先
+- 每周多选星期走独立的「按周推进」通道，并保证不产生早于开始时间的实例
+- 每次发生继承基准时长，且独立计算全部提醒档位
 
 ### 3. CSV 编码识别（零依赖）
 .NET Core 默认不含 GBK 代码页表，而中文 Excel 导出的 CSV 大量使用 GBK。本项目的做法：
@@ -91,6 +101,23 @@ Main
  ├─ 注册 AppDomain / Dispatcher 全局异常处理（记录日志 + 提示，不让进程静默退出）
  └─ AppHost.Start：装配仓储/设置/语音/音频/提醒/托盘/主窗口 + 60 秒自动保存
 ```
+
+### 8. 日历布局引擎（周 / 月）
+`Scheduling/CalendarLayout.cs` 是纯计算模块（无任何 UI 依赖，因而可被自测覆盖）：
+
+- `BuildMonth(items, year, month, today, capacity, weekStartsOnMonday)`：固定 **6 × 7 = 42 格**，
+  从当月 1 日所在周的周一开始；每格收集当天发生（全天在前、其余按开始时间升序），
+  并给出 `VisibleCount` / `HiddenCount` 供界面折叠成「+N」
+- `BuildWeek(items, weekStart, today, minMinutes, maxMinutes)`：跨天事件**按天切块**（结束时刻恰为
+  0 点归前一天），再对同一天的时间块做**重叠分列**：先找传递性重叠簇，再贪心分配列号，
+  得到每块的 `Column / ColumnCount`；界面据此计算像素位置与宽度
+- 展开只做一次（`OccurrenceCalculator.Expand` 覆盖整个可见区间），避免逐格重复展开
+
+### 9. 事件配色
+- 解析顺序：日程自带 `Color` → `CategoryColors` 分类映射 → 按分类名 **FNV-1a 稳定散列** 取调色板
+- 刻意不用 `string.GetHashCode()`：它在 .NET Core 中每个进程种子不同，会导致同一条日程每次启动换颜色
+- 界面侧统一由 `Mvvm/BrushCache` 产出**冻结画刷**并缓存（实心 / 半透明两种），
+  因此 XAML 里不需要任何颜色转换器
 
 ## 扩展点
 

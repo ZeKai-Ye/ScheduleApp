@@ -53,6 +53,8 @@ if ($LASTEXITCODE -ne 0) { throw "自测失败" }
 | 检查语音引擎 | `ScheduleApp.exe --voices` |
 | 查看运行时日志 | 数据目录下 `logs\app-yyyyMMdd.log` |
 | 缩短提醒轮询间隔 | `ReminderHost.IntervalSeconds` 设为 5 秒 |
+| 诊断 WPF 绑定错误 | 设环境变量 `SCHEDULEAPP_BINDING_TRACE=1`（或 `all`）后启动，日志目录生成 `binding-*.log` |
+| 并行运行多个实例 | 用不同的 `--data` 目录（单实例互斥体按数据目录隔离） |
 
 ## 代码约定
 - `Nullable` 与 `ImplicitUsings` 全开，构建保持 **0 警告**
