@@ -17,6 +17,7 @@
             <TextBlock x:Name="TitleText" FontSize="20" FontWeight="SemiBold" Margin="0,10,0,0" TextWrapping="Wrap" />
             <TextBlock x:Name="TimeText" FontSize="14" Foreground="{StaticResource Brush.Accent}" Margin="0,8,0,0" />
             <TextBlock x:Name="CountdownText" FontSize="12" Foreground="{StaticResource Brush.Subtle}" Margin="0,4,0,0" />
+            <TextBlock x:Name="PositionHintText" FontSize="11" Foreground="{StaticResource Brush.Subtle}" Margin="0,2,0,0" />
 
             <TextBlock x:Name="NotesText" Margin="0,12,0,0" TextWrapping="Wrap" Foreground="{StaticResource Brush.Text}" MaxHeight="120" />
 

@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Threading;
 using Schedule.App.Services;
 using Schedule.Core.Models;
@@ -13,6 +14,8 @@ public partial class ReminderWindow : Window
     private readonly AppHost _host;
     private readonly DueReminder _due;
     private readonly DispatcherTimer? _autoCloseTimer;
+    private bool _positioning;
+    private bool _movedByUser;
 
     public ReminderWindow(AppHost host, DueReminder due)
     {
@@ -58,7 +61,27 @@ public partial class ReminderWindow : Window
         }
 
         Topmost = host.Settings.ReminderAlwaysOnTop;
-        PositionBottomRight();
+
+        // 位置在 Loaded 里计算：此时 ActualWidth / ActualHeight 才是最终尺寸
+        Loaded += (_, _) =>
+        {
+            _positioning = true;
+            ReminderPositioner.Place(this, _host.Settings, CascadeIndex());
+            _positioning = false;
+            UpdatePositionHint(false);
+        };
+
+        LocationChanged += (_, _) =>
+        {
+            if (!_positioning) _movedByUser = true;
+        };
+
+        MouseLeftButtonUp += (_, _) =>
+        {
+            if (_movedByUser) RememberPosition();
+        };
+
+        Closed += (_, _) => RememberPosition();
 
         var autoClose = host.Settings.ReminderAutoCloseSeconds;
         if (autoClose > 0)
@@ -83,21 +106,41 @@ public partial class ReminderWindow : Window
         return false;
     }
 
-    /// <summary>把窗口放到工作区右下角，多个提醒依次向上错开。</summary>
-    private void PositionBottomRight()
+    /// <summary>同屏多个提醒依次错开的下标。</summary>
+    private static int CascadeIndex() => Math.Max(0, Application.Current.Windows.Count - 1) % 5;
+
+    /// <summary>用户拖动后记住位置（可在设置里关闭）。</summary>
+    private void RememberPosition()
     {
-        try
+        if (!_movedByUser) return;
+
+        _movedByUser = false;
+        if (!_host.Settings.ReminderRememberPosition) return;
+
+        _host.RememberReminderPosition(Left, Top);
+        UpdatePositionHint(true);
+    }
+
+    private void UpdatePositionHint(bool remembered)
+    {
+        var mode = _host.Settings.ReminderPosition;
+        var text = "位置：" + ReminderPositionMath.Describe(mode);
+
+        if (mode == ReminderPositionMode.Custom && !remembered)
         {
-            var area = SystemParameters.WorkArea;
-            var offset = (Application.Current.Windows.Count - 1) % 5;
-            Left = area.Right - Width - 18;
-            Top = area.Bottom - ActualHeight - 18 - (offset * 34);
+            text = "位置：自定义";
         }
-        catch (Exception)
+
+        if (remembered)
         {
-            Left = 100;
-            Top = 100;
+            text += "（已记住，可在设置里改）";
         }
+        else if (_host.Settings.ReminderRememberPosition)
+        {
+            text += "（拖动弹窗可记住新位置）";
+        }
+
+        PositionHintText.Text = text;
     }
 
     private void Dismiss_Click(object sender, RoutedEventArgs e) => Close();
