@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <RootNamespace>Schedule.App</RootNamespace>
+    <AssemblyName>ScheduleApp</AssemblyName>
+    <UseWPF>true</UseWPF>
+    <!-- 托盘图标使用 WinForms NotifyIcon（WPF 无原生托盘支持） -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <!-- 语音提醒直接调用 Windows SAPI5 COM，零 NuGet 依赖 -->
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+    <!-- Win11 高 DPI：由 WinForms/WPF 运行时统一设置，避免 manifest 与项目属性冲突 -->
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <StartupObject>Schedule.App.Program</StartupObject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 托盘 / 窗口图标从程序集资源读取 -->
+    <Resource Include="Assets\app.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      同时启用 WPF 与 WinForms 时，两套隐式 using 会造成
+      Application / ComboBox / KeyEventArgs 等类型二义性。
+      这里移除 WinForms 的隐式 using，需要处（托盘、图标）显式 using 即可。
+    -->
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+    <!-- WPF 隐式 using 集不含 System.IO / System.Net.Http，这里补回来 -->
+    <Using Include="System.IO" />
+    <Using Include="System.Net.Http" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Schedule.Core\Schedule.Core.csproj" />
+  </ItemGroup>
+
+</Project>

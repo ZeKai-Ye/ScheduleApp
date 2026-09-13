@@ -1,0 +1,44 @@
+# ---- Build output ----
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Pp]ublish/
+artifacts/
+*.dll
+*.exe
+*.pdb
+*.cache
+project.lock.json
+*.tlog
+*.binlog
+
+# ---- Visual Studio / Rider / VS Code ----
+.vs/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vscode/*
+!.vscode/settings.json.example
+
+# ---- .NET tooling ----
+*.nupkg
+*.snupkg
+packages/
+.dotnet/
+
+# ---- App runtime data (local/portable mode) ----
+data/
+*.log
+debug.log
+
+# ---- OS noise ----
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+
+# ---- Local secrets / user overrides ----
+*.local.json
+local.settings.json

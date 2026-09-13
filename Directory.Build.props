@@ -1,0 +1,20 @@
+<Project>
+
+  <!-- 全解决方案统一编译约定：一处修改，三个项目同时生效 -->
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <SatelliteResourceLanguages>zh-Hans;en</SatelliteResourceLanguages>
+    <Version>0.1.0</Version>
+    <Product>日程助手 ScheduleApp</Product>
+    <Company>ScheduleApp</Company>
+    <Copyright>Copyright (c) 2025</Copyright>
+    <!-- 本项目仅面向 Windows 11，无需平台兼容性告警 -->
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>
+  </PropertyGroup>
+
+</Project>

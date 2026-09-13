@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    纯逻辑层：不引用任何 UI / Windows 专有 API。
+    可被 WPF 前端、单元测试、未来的 CLI / 后台服务复用。
+  -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <RootNamespace>Schedule.Core</RootNamespace>
+    <AssemblyName>Schedule.Core</AssemblyName>
+  </PropertyGroup>
+
+</Project>
