@@ -165,7 +165,9 @@ public static class CliRunner
             SkipPastItems = options.SkipPast,
             SkipDuplicates = !options.NoSkipDuplicates,
             DefaultCategory = settings.CsvDefaultCategory,
+            DefaultColor = settings.DefaultEventColor,
             DefaultReminderEnabled = settings.DefaultReminderEnabled,
+            DefaultReminderOffsets = new List<int>(settings.DefaultReminderOffsets),
             DefaultRemindBeforeMinutes = settings.DefaultRemindBeforeMinutes,
         };
 
@@ -224,6 +226,7 @@ public static class CliRunner
         output.AppendLine("语音引擎：" + (voices.IsAvailable ? "可用（" + voices.GetVoices().Count + " 个音色）" : "不可用"));
         output.AppendLine("当前音色：" + (string.IsNullOrWhiteSpace(settings.VoiceName) ? "系统默认" : settings.VoiceName));
         output.AppendLine("语音模板：" + settings.VoiceTemplate);
+        output.AppendLine("默认提醒档位：" + Schedule.Core.Models.ReminderPlan.FormatOffsets(settings.DefaultReminderOffsets));
         output.AppendLine("日志目录：" + AppPaths.LogDirectory);
         return 0;
     }

@@ -39,15 +39,16 @@ public sealed class TrayService : IDisposable
     }
 
     /// <summary>更新托盘悬停提示与菜单里的下一次提醒。</summary>
-    public void UpdateNextReminder(ScheduleOccurrence? occurrence)
+    public void UpdateNextReminder(DueReminder? reminder)
     {
         var text = "下一次提醒：无";
         var tooltip = "日程助手";
 
-        if (occurrence != null)
+        if (reminder != null)
         {
-            text = "下一次：" + occurrence.Item.Title + " " + occurrence.ReminderAt.ToString("MM-dd HH:mm");
-            tooltip = "日程助手 - 下一次 " + occurrence.ReminderAt.ToString("HH:mm") + " " + occurrence.Item.Title;
+            text = "下一次：" + reminder.Item.Title + " " + reminder.FireAt.ToString("MM-dd HH:mm")
+                + "（" + reminder.Plan.OffsetText + "）";
+            tooltip = "日程助手 - 下一次 " + reminder.FireAt.ToString("HH:mm") + " " + reminder.Item.Title;
         }
 
         try

@@ -7,14 +7,14 @@ using Schedule.Core.Templating;
 namespace Schedule.App.Services;
 
 /// <summary>
-/// 提醒调度宿主：周期性检查到点的提醒，负责提示音、语音播报与弹窗，
-/// 并处理「稍后提醒」。
+/// 提醒调度宿主：周期性检查到点的提醒档位，负责提示音、语音播报与弹窗，
+/// 并处理「稍后提醒」。一条日程的多档提醒（30/15/5 分钟前等）各自独立触发。
 /// </summary>
 public sealed class ReminderHost : IDisposable
 {
     private sealed class SnoozeEntry
     {
-        public required ScheduleOccurrence Occurrence { get; init; }
+        public required DueReminder Due { get; init; }
 
         public required DateTime FireAt { get; init; }
     }
@@ -32,8 +32,8 @@ public sealed class ReminderHost : IDisposable
         _timer.Tick += (_, _) => Tick();
     }
 
-    /// <summary>有提醒被触发（参数为具体发生）。</summary>
-    public event EventHandler<ScheduleOccurrence>? ReminderDue;
+    /// <summary>有提醒档位到点（参数含日程、发生时间与档位）。</summary>
+    public event EventHandler<DueReminder>? ReminderDue;
 
     /// <summary>调度状态发生变化（用于刷新界面倒计时）。</summary>
     public event EventHandler? Updated;
@@ -54,16 +54,16 @@ public sealed class ReminderHost : IDisposable
     public void Stop() => _timer.Stop();
 
     /// <summary>安排一次「稍后提醒」。</summary>
-    public void Snooze(ScheduleOccurrence occurrence, int minutes)
+    public void Snooze(DueReminder due, int minutes)
     {
         var entry = new SnoozeEntry
         {
-            Occurrence = occurrence,
+            Due = due,
             FireAt = DateTime.Now.AddMinutes(Math.Max(1, minutes)),
         };
 
         _snoozes.Add(entry);
-        AppLog.Info("稍后提醒：" + occurrence.Item.Title + " -> " + entry.FireAt.ToString("HH:mm"));
+        AppLog.Info("稍后提醒：" + due.Item.Title + " -> " + entry.FireAt.ToString("HH:mm"));
         Updated?.Invoke(this, EventArgs.Empty);
     }
 
@@ -104,11 +104,12 @@ public sealed class ReminderHost : IDisposable
         var due = ReminderPlanner.CollectDue(items, from, now);
         if (due.Count == 0) return;
 
-        foreach (var occurrence in due)
+        foreach (var reminder in due)
         {
-            ReminderPlanner.MarkFired(occurrence.Item, occurrence);
-            AppLog.Info("触发提醒：" + occurrence.Item.Title + " @ " + occurrence.Start.ToString("yyyy-MM-dd HH:mm"));
-            Fire(occurrence);
+            ReminderPlanner.MarkFired(reminder.Item, reminder);
+            AppLog.Info("触发提醒：" + reminder.Item.Title + " @ " + reminder.Occurrence.Start.ToString("yyyy-MM-dd HH:mm")
+                + "（" + reminder.Plan.OffsetText + "）");
+            Fire(reminder);
         }
 
         _host.Repository.MarkDirty();
@@ -124,29 +125,29 @@ public sealed class ReminderHost : IDisposable
         foreach (var entry in due)
         {
             _snoozes.Remove(entry);
-            Fire(entry.Occurrence);
+            Fire(entry.Due);
         }
     }
 
-    private void Fire(ScheduleOccurrence occurrence)
+    private void Fire(DueReminder due)
     {
-        PlaySoundAndSpeak(occurrence);
-        ReminderDue?.Invoke(this, occurrence);
+        PlaySoundAndSpeak(due);
+        ReminderDue?.Invoke(this, due);
     }
 
-    private void PlaySoundAndSpeak(ScheduleOccurrence occurrence)
+    private void PlaySoundAndSpeak(DueReminder due)
     {
         var settings = _host.Settings;
 
-        var template = string.IsNullOrWhiteSpace(occurrence.Item.VoiceText)
+        var template = string.IsNullOrWhiteSpace(due.Item.VoiceText)
             ? settings.VoiceTemplate
-            : occurrence.Item.VoiceText;
+            : due.Item.VoiceText;
 
-        var text = VoiceTemplate.Render(template, occurrence.Item, occurrence.Start, DateTime.Now);
+        var text = VoiceTemplate.Render(template, due.Item, due.Occurrence.Start, DateTime.Now, due.Plan.OffsetMinutes);
 
         if (settings.SoundEnabled)
         {
-            var file = string.IsNullOrWhiteSpace(occurrence.Item.SoundFile) ? settings.DefaultSoundFile : occurrence.Item.SoundFile;
+            var file = string.IsNullOrWhiteSpace(due.Item.SoundFile) ? settings.DefaultSoundFile : due.Item.SoundFile;
             _host.Audio.Play(file);
         }
 

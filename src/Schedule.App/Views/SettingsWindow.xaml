@@ -141,6 +141,70 @@
                 </ScrollViewer>
             </TabItem>
 
+            <!-- ================= 外观与默认值 ================= -->
+            <TabItem Header="外观与默认值">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="18,16">
+                    <StackPanel>
+                        <TextBlock Text="视图" Style="{StaticResource SectionTitle}" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Margin="0,0,10,0">
+                                <TextBlock Text="启动默认视图" FontSize="11" Foreground="{StaticResource Brush.Subtle}" Margin="0,0,0,3" />
+                                <ComboBox x:Name="DefaultViewBox">
+                                    <ComboBoxItem Content="列表" />
+                                    <ComboBoxItem Content="周视图" />
+                                    <ComboBoxItem Content="月视图" />
+                                </ComboBox>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Margin="0,0,10,0">
+                                <TextBlock Text="周视图每小时高度" FontSize="11" Foreground="{StaticResource Brush.Subtle}" Margin="0,0,0,3" />
+                                <TextBox x:Name="HourHeightBox" ToolTip="像素，建议 44 - 90" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Margin="0,0,10,0">
+                                <TextBlock Text="月视图每格条数" FontSize="11" Foreground="{StaticResource Brush.Subtle}" Margin="0,0,0,3" />
+                                <TextBox x:Name="MonthCapacityBox" ToolTip="1 - 8" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="3">
+                                <TextBlock Text="默认提醒档位（分钟）" FontSize="11" Foreground="{StaticResource Brush.Subtle}" Margin="0,0,0,3" />
+                                <TextBox x:Name="DefaultOffsetsBox" ToolTip="例如 30,10,0 表示提前 30 分钟、10 分钟与准点各提醒一次" />
+                            </StackPanel>
+                        </Grid>
+
+                        <CheckBox x:Name="WeekStartCheck" Content="一周从周一开始（否则从周日开始）" Margin="0,14,0,0" />
+
+                        <TextBlock Text="分类配色（点击色块切换颜色，「自动」表示按分类名散列取色）"
+                                   Style="{StaticResource SectionTitle}" Margin="2,20,0,6" />
+                        <ScrollViewer MaxHeight="220" VerticalScrollBarVisibility="Auto">
+                            <ItemsControl x:Name="CategoryColorList">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <DockPanel Margin="0,0,0,6">
+                                            <Button DockPanel.Dock="Right" Content="自动" Style="{StaticResource GhostButton}"
+                                                    Margin="6,0,0,0" Click="CategoryColorReset_Click" />
+                                            <Button DockPanel.Dock="Right" Click="CategoryColorCycle_Click" Padding="3"
+                                                    BorderThickness="0" Background="Transparent" Cursor="Hand" ToolTip="点击切换颜色">
+                                                <Border Width="22" Height="22" CornerRadius="11" Background="{Binding Brush}"
+                                                        BorderBrush="#22000000" BorderThickness="1" />
+                                            </Button>
+                                            <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding Display}" VerticalAlignment="Center" Margin="10,0,0,0"
+                                                       FontSize="11" Foreground="{StaticResource Brush.Subtle}" HorizontalAlignment="Right" />
+                                        </DockPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                        <TextBlock Style="{StaticResource FieldHint}"
+                                   Text="日程自带的颜色优先于分类配色；列表与周 / 月视图都会用该颜色区分事件。" />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
             <!-- ================= 常规 ================= -->
             <TabItem Header="常规">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="18,16">

@@ -81,10 +81,24 @@ public partial class CsvImportWindow : Window
         ModeBox.Items.Add(new ComboBoxItem { Content = "覆盖全部日程（先清空）", Tag = "replace" });
         ModeBox.SelectedIndex = 0;
 
-        DefaultRemindBox.Text = host.Settings.DefaultRemindBeforeMinutes.ToString();
+        DefaultRemindBox.Text = host.Settings.DefaultReminderOffsets.Count > 0
+            ? string.Join(",", host.Settings.DefaultReminderOffsets)
+            : host.Settings.DefaultRemindBeforeMinutes.ToString();
         DefaultCategoryBox.Text = host.Settings.CsvDefaultCategory;
 
         Loaded += (_, _) => Reload();
+    }
+
+    /// <summary>解析「30,10,0」形式的默认档位。</summary>
+    private static List<int> ParseOffsets(string? text)
+    {
+        var result = new List<int>();
+        foreach (var part in (text ?? string.Empty).Split(new[] { ',', '，', '、', ';', '；', ' ' }, StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (int.TryParse(part.Trim(), out var minutes) && minutes >= 0) result.Add(minutes);
+        }
+
+        return result.Distinct().OrderByDescending(v => v).ToList();
     }
 
     private static int EncodingIndex(string encoding) => encoding?.ToLowerInvariant() switch
@@ -142,10 +156,10 @@ public partial class CsvImportWindow : Window
             SkipDuplicates = SkipDuplicatesCheck.IsChecked == true,
             SkipPastItems = SkipPastCheck.IsChecked == true,
             DefaultCategory = DefaultCategoryBox.Text.Trim(),
+            DefaultColor = _host.Settings.DefaultEventColor,
             DefaultReminderEnabled = _host.Settings.DefaultReminderEnabled,
-            DefaultRemindBeforeMinutes = int.TryParse(DefaultRemindBox.Text, out var minutes)
-                ? Math.Max(0, minutes)
-                : _host.Settings.DefaultRemindBeforeMinutes,
+            DefaultReminderOffsets = ParseOffsets(DefaultRemindBox.Text),
+            DefaultRemindBeforeMinutes = _host.Settings.DefaultRemindBeforeMinutes,
             SourceTag = Path.GetFileName(_filePath),
         };
 

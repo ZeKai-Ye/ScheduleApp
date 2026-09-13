@@ -132,13 +132,13 @@ public sealed class AppHost : IDisposable
         }
     }
 
-    private void OnReminderDue(object? sender, ScheduleOccurrence occurrence)
+    private void OnReminderDue(object? sender, DueReminder reminder)
     {
         try
         {
-            var window = new ReminderWindow(this, occurrence);
+            var window = new ReminderWindow(this, reminder);
             window.Show();
-            Tray?.ShowBalloon("日程提醒", occurrence.Item.Title);
+            Tray?.ShowBalloon("日程提醒", reminder.Item.Title + "（" + reminder.Plan.OffsetText + "）");
         }
         catch (Exception ex)
         {

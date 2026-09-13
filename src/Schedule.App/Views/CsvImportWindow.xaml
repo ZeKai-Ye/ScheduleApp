@@ -60,8 +60,8 @@
                     <ComboBox x:Name="ModeBox" />
                 </StackPanel>
                 <StackPanel Grid.Row="0" Grid.Column="3">
-                    <TextBlock Text="默认提前提醒（分钟）" Style="{StaticResource SectionTitle}" />
-                    <TextBox x:Name="DefaultRemindBox" />
+                    <TextBlock Text="默认提醒档位（分钟，可多档）" Style="{StaticResource SectionTitle}" />
+                    <TextBox x:Name="DefaultRemindBox" ToolTip="例如 30,10,0；CSV 里已填提醒的行不受影响" />
                 </StackPanel>
 
                 <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,12,8,0">
