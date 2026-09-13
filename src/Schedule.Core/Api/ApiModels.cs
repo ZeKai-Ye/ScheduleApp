@@ -87,6 +87,38 @@ public interface IApiActions
     bool Speak(string text, string? voiceId, int? rate, int? volume, out string? error);
 
     bool TriggerReminder(Guid itemId, int offsetMinutes, out string? error);
+
+    /// <summary>创建 / 删除桌面或开始菜单快捷方式。</summary>
+    bool SetShortcut(string target, bool create, string? directoryOverride, out string? path, out string? error);
+
+    /// <summary>启用 / 停用开机启动。</summary>
+    bool SetAutostart(bool enabled, string? arguments, out string? mode, out string? error);
+
+    /// <summary>读取系统状态（可执行文件、快捷方式、开机启动）。</summary>
+    SystemStatusInfo GetSystemStatus();
+}
+
+/// <summary>宿主系统状态。</summary>
+public sealed class SystemStatusInfo
+{
+    public string ExecutablePath { get; init; } = string.Empty;
+
+    public string DataDirectory { get; init; } = string.Empty;
+
+    public bool DesktopShortcutExists { get; init; }
+
+    public bool StartMenuShortcutExists { get; init; }
+
+    public bool AutostartEnabled { get; init; }
+
+    /// <summary>Registry / StartupFolder / Disabled。</summary>
+    public string AutostartMode { get; init; } = "Disabled";
+
+    /// <summary>开机启动实际执行的命令行。</summary>
+    public string AutostartCommand { get; init; } = string.Empty;
+
+    /// <summary>宿主是否支持这些系统能力。</summary>
+    public bool Supported { get; init; }
 }
 
 /// <summary>无语音能力时的空实现（自测与 --serve --no-voice 场景）。</summary>
@@ -107,6 +139,22 @@ public sealed class NullApiActions : IApiActions
         error = "当前进程未提供提醒能力（Core 测试宿主）";
         return false;
     }
+
+    public bool SetShortcut(string target, bool create, string? directoryOverride, out string? path, out string? error)
+    {
+        path = null;
+        error = "当前进程未提供快捷方式能力（Core 测试宿主）";
+        return false;
+    }
+
+    public bool SetAutostart(bool enabled, string? arguments, out string? mode, out string? error)
+    {
+        mode = null;
+        error = "当前进程未提供开机启动能力（Core 测试宿主）";
+        return false;
+    }
+
+    public SystemStatusInfo GetSystemStatus() => new() { Supported = false };
 }
 
 /// <summary>接口使用的 JSON 约定。</summary>

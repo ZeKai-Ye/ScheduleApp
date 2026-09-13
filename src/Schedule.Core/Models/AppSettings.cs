@@ -32,6 +32,21 @@ public sealed class AppSettings
     /// <summary>提醒弹窗是否置顶显示。</summary>
     public bool ReminderAlwaysOnTop { get; set; } = true;
 
+    /// <summary>提醒弹窗出现的位置。</summary>
+    public ReminderPositionMode ReminderPosition { get; set; } = ReminderPositionMode.BottomRight;
+
+    /// <summary>位置偏移 / 自定义绝对 X（含义随 ReminderPosition 变化）。</summary>
+    public int ReminderPositionX { get; set; }
+
+    /// <summary>位置偏移 / 自定义绝对 Y（含义随 ReminderPosition 变化）。</summary>
+    public int ReminderPositionY { get; set; }
+
+    /// <summary>拖动提醒弹窗后自动记住位置（切换为自定义位置）。</summary>
+    public bool ReminderRememberPosition { get; set; } = true;
+
+    /// <summary>弹窗跟随鼠标所在显示器（关闭则使用主显示器）。</summary>
+    public bool ReminderFollowCursorScreen { get; set; } = true;
+
     // ---------- 语音 ----------
     public bool SpeechEnabled { get; set; } = true;
 
@@ -101,6 +116,12 @@ public sealed class AppSettings
     // ---------- 系统 ----------
     public bool StartWithWindows { get; set; }
 
+    /// <summary>开机启动时直接最小化到托盘（不弹主窗口）。</summary>
+    public bool StartMinimized { get; set; } = true;
+
+    /// <summary>开机启动时附加的命令行参数（例如 --serve）。</summary>
+    public string StartupArguments { get; set; } = string.Empty;
+
     public bool MinimizeToTray { get; set; } = true;
 
     public bool CloseToTray { get; set; } = true;
@@ -122,6 +143,11 @@ public sealed class AppSettings
         SnoozeMinutes = other.SnoozeMinutes;
         ReminderAutoCloseSeconds = other.ReminderAutoCloseSeconds;
         ReminderAlwaysOnTop = other.ReminderAlwaysOnTop;
+        ReminderPosition = other.ReminderPosition;
+        ReminderPositionX = other.ReminderPositionX;
+        ReminderPositionY = other.ReminderPositionY;
+        ReminderRememberPosition = other.ReminderRememberPosition;
+        ReminderFollowCursorScreen = other.ReminderFollowCursorScreen;
         SpeechEnabled = other.SpeechEnabled;
         VoiceId = other.VoiceId;
         VoiceName = other.VoiceName;
@@ -145,6 +171,8 @@ public sealed class AppSettings
         LookAheadDays = other.LookAheadDays;
         ShowCompleted = other.ShowCompleted;
         StartWithWindows = other.StartWithWindows;
+        StartMinimized = other.StartMinimized;
+        StartupArguments = other.StartupArguments;
         MinimizeToTray = other.MinimizeToTray;
         CloseToTray = other.CloseToTray;
         CsvEncoding = other.CsvEncoding;

@@ -83,6 +83,7 @@ public sealed class ScheduleApi
                 "export" => RequireGet(request, () => Export(request)),
                 "settings" => SettingsResource(request),
                 "reload" => RequirePost(request, Reload),
+                "system" => SystemResource(request, segments),
                 _ => ApiResponse.Error(404, "未知接口：" + request.Path, "可用接口见 GET /api/schema"),
             };
         }
@@ -179,6 +180,9 @@ public sealed class ScheduleApi
                 new { method = "GET", path = "/api/settings", desc = "读取全局设置（含语音与档位文案）" },
                 new { method = "PATCH", path = "/api/settings", desc = "修改全局设置（只改提供的字段）" },
                 new { method = "POST", path = "/api/reload", desc = "从磁盘重新加载（手工改过 json 后调用）" },
+                new { method = "GET", path = "/api/system/info", desc = "可执行文件路径、桌面/开始菜单快捷方式是否存在、开机启动方式与命令行" },
+                new { method = "POST", path = "/api/system/shortcut", desc = "创建/删除快捷方式：{\"target\":\"desktop\"|\"startmenu\",\"create\":true,\"directory\":\"可选目录\"}" },
+                new { method = "POST", path = "/api/system/autostart", desc = "开机启动：{\"enabled\":true,\"arguments\":\"--minimized\"}" },
             },
             itemFields = new
             {
@@ -819,6 +823,35 @@ public sealed class ScheduleApi
                         settings.CategoryColors = ReadStringMap(value);
                         applied.Add(pair.Key);
                         break;
+                    case "reminderposition":
+                        settings.ReminderPosition = Enum.TryParse<ReminderPositionMode>(value.ToString(), ignoreCase: true, out var position)
+                            ? position
+                            : settings.ReminderPosition;
+                        applied.Add(pair.Key);
+                        break;
+                    case "reminderpositionx": settings.ReminderPositionX = value.GetInt32(); applied.Add(pair.Key); break;
+                    case "reminderpositiony": settings.ReminderPositionY = value.GetInt32(); applied.Add(pair.Key); break;
+                    case "reminderrememberposition": settings.ReminderRememberPosition = value.GetBoolean(); applied.Add(pair.Key); break;
+                    case "reminderfollowcursorscreen": settings.ReminderFollowCursorScreen = value.GetBoolean(); applied.Add(pair.Key); break;
+                    case "startminimized": settings.StartMinimized = value.GetBoolean(); applied.Add(pair.Key); break;
+                    case "startuparguments": settings.StartupArguments = value.ToString(); applied.Add(pair.Key); break;
+                    case "startwithwindows":
+                    {
+                        var enabled = value.GetBoolean();
+                        settings.StartWithWindows = enabled;
+
+                        if (_actions.SetAutostart(enabled, BuildStartupArguments(settings), out var mode, out var autostartError))
+                        {
+                            notes.Add("开机启动：" + (enabled ? "已启用（" + mode + "）" : "已停用"));
+                        }
+                        else
+                        {
+                            notes.Add("开机启动设置未生效：" + (autostartError ?? "宿主不支持"));
+                        }
+
+                        applied.Add(pair.Key);
+                        break;
+                    }
                     case "apienabled": settings.ApiEnabled = value.GetBoolean(); applied.Add(pair.Key); notes.Add("apiEnabled 需要重启程序后生效"); break;
                     case "apiport": settings.ApiPort = Math.Clamp(value.GetInt32(), 1024, 65535); applied.Add(pair.Key); notes.Add("apiPort 需要重启程序后生效"); break;
                     default: unknown.Add(pair.Key); break;
@@ -844,6 +877,89 @@ public sealed class ScheduleApi
             notes,
             settings = ToSettingsDto(),
         });
+    }
+
+    // ==================== 系统（快捷方式 / 开机启动） ====================
+
+    private ApiResponse SystemResource(ApiRequest request, List<string> segments)
+    {
+        var action = segments.Count > 2 ? segments[2].ToLowerInvariant() : "info";
+
+        switch (action)
+        {
+            case "info":
+                if (request.Method != "GET") return ApiResponse.Error(405, "该接口只支持 GET。");
+                return ApiResponse.Json(new
+                {
+                    system = _actions.GetSystemStatus(),
+                    executablePath = _actions.GetSystemStatus().ExecutablePath,
+                    dataDirectory = AppPaths.DataDirectory,
+                    autostartArguments = BuildStartupArguments(_settings.Current),
+                    settingsFile = AppPaths.SettingsFile,
+                });
+
+            case "shortcut":
+            {
+                if (request.Method != "POST") return ApiResponse.Error(405, "该接口只支持 POST。");
+
+                using var document = JsonDocument.Parse(string.IsNullOrWhiteSpace(request.Body) ? "{}" : request.Body);
+                var root = document.RootElement;
+
+                var target = root.TryGetProperty("target", out var targetElement) ? targetElement.ToString() : "desktop";
+                var create = !root.TryGetProperty("create", out var createElement) || createElement.ValueKind != JsonValueKind.False;
+                var directory = root.TryGetProperty("directory", out var dirElement) ? dirElement.ToString() : null;
+
+                if (!_actions.SetShortcut(target, create, directory, out var path, out var error))
+                {
+                    return ApiResponse.Error(501, "当前进程无法操作快捷方式。", error);
+                }
+
+                return ApiResponse.Json(new { target, created = create, path });
+            }
+
+            case "autostart":
+            {
+                if (request.Method != "POST") return ApiResponse.Error(405, "该接口只支持 POST。");
+
+                using var document = JsonDocument.Parse(string.IsNullOrWhiteSpace(request.Body) ? "{}" : request.Body);
+                var root = document.RootElement;
+
+                if (!root.TryGetProperty("enabled", out var enabledElement) || enabledElement.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+                {
+                    return ApiResponse.Error(400, "需要提供 enabled（true / false）。");
+                }
+
+                var enabled = enabledElement.GetBoolean();
+                var arguments = root.TryGetProperty("arguments", out var argsElement) ? argsElement.ToString() : null;
+
+                if (!_actions.SetAutostart(enabled, arguments, out var mode, out var error))
+                {
+                    return ApiResponse.Error(501, "当前进程无法设置开机启动。", error);
+                }
+
+                _settings.Current.StartWithWindows = enabled;
+                if (arguments != null) _settings.Current.StartupArguments = arguments;
+                _settings.MarkDirty();
+                _settings.Save();
+                _settings.RaiseChanged();
+
+                return ApiResponse.Json(new { enabled, mode, arguments, status = _actions.GetSystemStatus() });
+            }
+
+            default:
+                return ApiResponse.Error(404, "未知系统接口：" + action, "可用：info / shortcut / autostart");
+        }
+    }
+
+    /// <summary>按设置拼出开机启动附加参数。</summary>
+    private static string BuildStartupArguments(AppSettings settings)
+    {
+        var parts = new List<string>();
+
+        if (settings.StartMinimized) parts.Add("--minimized");
+        if (!string.IsNullOrWhiteSpace(settings.StartupArguments)) parts.Add(settings.StartupArguments.Trim());
+
+        return string.Join(" ", parts);
     }
 
     private ApiResponse Reload()
@@ -883,6 +999,14 @@ public sealed class ScheduleApi
             snoozeMinutes = settings.SnoozeMinutes,
             reminderAutoCloseSeconds = settings.ReminderAutoCloseSeconds,
             reminderAlwaysOnTop = settings.ReminderAlwaysOnTop,
+            reminderPosition = settings.ReminderPosition,
+            reminderPositionX = settings.ReminderPositionX,
+            reminderPositionY = settings.ReminderPositionY,
+            reminderRememberPosition = settings.ReminderRememberPosition,
+            reminderFollowCursorScreen = settings.ReminderFollowCursorScreen,
+            startWithWindows = settings.StartWithWindows,
+            startMinimized = settings.StartMinimized,
+            startupArguments = settings.StartupArguments,
             defaultEventColor = settings.DefaultEventColor,
             categoryColors = settings.CategoryColors,
             defaultView = settings.DefaultView,
