@@ -1,0 +1,178 @@
+<Window x:Class="Schedule.App.Views.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="设置"
+        Width="720" Height="680"
+        MinWidth="640" MinHeight="560"
+        WindowStartupLocation="CenterOwner">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TabControl Grid.Row="0" Background="{StaticResource Brush.Card}" BorderBrush="{StaticResource Brush.Border}">
+            <!-- ================= 提醒 ================= -->
+            <TabItem Header="提醒">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="18,16">
+                    <StackPanel>
+                        <TextBlock Text="新建日程的默认值" Style="{StaticResource SectionTitle}" />
+                        <StackPanel Orientation="Horizontal">
+                            <TextBox x:Name="DefaultRemindBox" Width="80" />
+                            <TextBlock Text="分钟前提醒" VerticalAlignment="Center" Margin="8,0,0,0" Foreground="{StaticResource Brush.Subtle}" />
+                        </StackPanel>
+                        <CheckBox x:Name="DefaultReminderCheck" Content="新建日程时默认启用提醒" Margin="0,10,0,0" />
+
+                        <TextBlock Text="提醒弹窗" Style="{StaticResource SectionTitle}" Margin="2,18,0,6" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,20,0">
+                                <TextBlock Text="稍后提醒默认" VerticalAlignment="Center" Foreground="{StaticResource Brush.Subtle}" />
+                                <TextBox x:Name="SnoozeBox" Width="60" Margin="8,0,0,0" />
+                                <TextBlock Text="分钟" VerticalAlignment="Center" Margin="6,0,0,0" Foreground="{StaticResource Brush.Subtle}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                <TextBlock Text="自动关闭" VerticalAlignment="Center" Foreground="{StaticResource Brush.Subtle}" />
+                                <TextBox x:Name="AutoCloseBox" Width="60" Margin="8,0,0,0" />
+                                <TextBlock Text="秒（0 = 不自动关闭）" VerticalAlignment="Center" Margin="6,0,0,0" Foreground="{StaticResource Brush.Subtle}" />
+                            </StackPanel>
+                        </Grid>
+                        <CheckBox x:Name="AlwaysOnTopCheck" Content="提醒弹窗始终置顶显示" Margin="0,10,0,0" />
+
+                        <TextBlock Text="提示音" Style="{StaticResource SectionTitle}" Margin="2,18,0,6" />
+                        <CheckBox x:Name="SoundEnabledCheck" Content="提醒时播放提示音" />
+                        <Grid Margin="0,8,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="SoundFileBox" ToolTip="留空使用系统默认提示音" />
+                            <Button Grid.Column="1" Content="浏览" Margin="8,0,0,0" Click="BrowseSound_Click" />
+                            <Button Grid.Column="2" Content="试听" Margin="8,0,0,0" Click="TestSound_Click" />
+                            <Button Grid.Column="3" Content="清除" Margin="8,0,0,0" Click="ClearSound_Click" />
+                        </Grid>
+                        <CheckBox x:Name="SoundBeforeSpeechCheck" Content="先播放提示音，再朗读语音" Margin="0,10,0,0" />
+
+                        <TextBlock Text="数据与导入" Style="{StaticResource SectionTitle}" Margin="2,18,0,6" />
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="主窗口默认展示" VerticalAlignment="Center" Foreground="{StaticResource Brush.Subtle}" />
+                            <TextBox x:Name="LookAheadBox" Width="70" Margin="8,0,0,0" />
+                            <TextBlock Text="天内的日程" VerticalAlignment="Center" Margin="6,0,0,0" Foreground="{StaticResource Brush.Subtle}" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                            <TextBlock Text="导入后默认分类" VerticalAlignment="Center" Foreground="{StaticResource Brush.Subtle}" />
+                            <TextBox x:Name="CsvCategoryBox" Width="140" Margin="8,0,0,0" />
+                            <TextBlock Text="保留备份份数" VerticalAlignment="Center" Margin="20,0,0,0" Foreground="{StaticResource Brush.Subtle}" />
+                            <TextBox x:Name="BackupBox" Width="60" Margin="8,0,0,0" />
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ================= 语音 ================= -->
+            <TabItem Header="语音播报">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="18,16">
+                    <StackPanel>
+                        <CheckBox x:Name="SpeechEnabledCheck" Content="启用语音播报（到点自动朗读）" />
+                        <TextBlock x:Name="VoiceEngineText" Style="{StaticResource FieldHint}" Margin="2,8,0,0" />
+
+                        <TextBlock Text="音色" Style="{StaticResource SectionTitle}" Margin="2,16,0,6" />
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Content="刷新" Margin="8,0,0,0" Click="RefreshVoices_Click" />
+                            <ComboBox x:Name="VoiceBox" DisplayMemberPath="Text" />
+                        </DockPanel>
+
+                        <TextBlock Text="语速与音量" Style="{StaticResource SectionTitle}" Margin="2,16,0,6" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="语速" VerticalAlignment="Center" Width="36" Foreground="{StaticResource Brush.Subtle}" />
+                            <Slider x:Name="RateSlider" Grid.Column="1" Minimum="-10" Maximum="10" TickFrequency="1" IsSnapToTickEnabled="True" />
+                            <TextBlock x:Name="RateText" Grid.Column="2" Width="60" VerticalAlignment="Center" TextAlignment="Right" />
+                        </Grid>
+                        <Grid Margin="0,6,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="音量" VerticalAlignment="Center" Width="36" Foreground="{StaticResource Brush.Subtle}" />
+                            <Slider x:Name="VolumeSlider" Grid.Column="1" Minimum="0" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" />
+                            <TextBlock x:Name="VolumeText" Grid.Column="2" Width="60" VerticalAlignment="Center" TextAlignment="Right" />
+                        </Grid>
+
+                        <TextBlock Text="播报模板" Style="{StaticResource SectionTitle}" Margin="2,16,0,6" />
+                        <TextBox x:Name="TemplateBox" AcceptsReturn="True" Height="60" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" />
+                        <TextBlock Style="{StaticResource FieldHint}"
+                                   Text="占位符：{title} 标题、{time} 开始时间、{date} 日期、{weekday} 星期、{category} 分类、{notes} 备注、{priority} 优先级、{countdown} 倒计时、{status} 状态" />
+                        <WrapPanel Margin="0,8,0,0">
+                            <Button Content="标题" Tag="{}{title}" Style="{StaticResource GhostButton}" Click="InsertToken_Click" />
+                            <Button Content="时间" Tag="{}{time}" Style="{StaticResource GhostButton}" Click="InsertToken_Click" />
+                            <Button Content="日期" Tag="{}{date}" Style="{StaticResource GhostButton}" Click="InsertToken_Click" />
+                            <Button Content="星期" Tag="{}{weekday}" Style="{StaticResource GhostButton}" Click="InsertToken_Click" />
+                            <Button Content="分类" Tag="{}{category}" Style="{StaticResource GhostButton}" Click="InsertToken_Click" />
+                            <Button Content="备注" Tag="{}{notes}" Style="{StaticResource GhostButton}" Click="InsertToken_Click" />
+                            <Button Content="优先级" Tag="{}{priority}" Style="{StaticResource GhostButton}" Click="InsertToken_Click" />
+                            <Button Content="倒计时" Tag="{}{countdown}" Style="{StaticResource GhostButton}" Click="InsertToken_Click" />
+                            <Button Content="状态" Tag="{}{status}" Style="{StaticResource GhostButton}" Click="InsertToken_Click" />
+                        </WrapPanel>
+
+                        <Border Background="#FFF9FAFB" CornerRadius="6" Padding="12,10" Margin="0,12,0,0">
+                            <StackPanel>
+                                <TextBlock Text="试听效果" Style="{StaticResource SectionTitle}" />
+                                <TextBlock x:Name="PreviewText" TextWrapping="Wrap" FontSize="13" />
+                            </StackPanel>
+                        </Border>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                            <Button Content="试听（使用上面的模板与音色）" Style="{StaticResource PrimaryButton}" Click="TestVoice_Click" />
+                            <Button Content="停止播报" Margin="8,0,0,0" Click="StopVoice_Click" />
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ================= 常规 ================= -->
+            <TabItem Header="常规">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="18,16">
+                    <StackPanel>
+                        <TextBlock Text="窗口行为" Style="{StaticResource SectionTitle}" />
+                        <CheckBox x:Name="MinimizeToTrayCheck" Content="最小化时隐藏到系统托盘" />
+                        <CheckBox x:Name="CloseToTrayCheck" Content="点击关闭按钮时最小化到托盘（而不是退出）" Margin="0,8,0,0" />
+                        <CheckBox x:Name="StartWithWindowsCheck" Content="开机自动启动" Margin="0,8,0,0" />
+                        <CheckBox x:Name="ShowCompletedCheck" Content="主界面显示已完成 / 已取消的日程" Margin="0,8,0,0" />
+
+                        <TextBlock Text="数据位置" Style="{StaticResource SectionTitle}" Margin="2,20,0,6" />
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Content="打开目录" Margin="8,0,0,0" Click="OpenDataDir_Click" />
+                            <TextBox x:Name="DataDirBox" IsReadOnly="True" />
+                        </DockPanel>
+                        <TextBlock Style="{StaticResource FieldHint}"
+                                   Text="日程保存在 schedules.json，设置保存在 settings.json，每次保存都会在 backups 目录留下备份。把 portable.txt 放到程序目录即可切换为便携模式（数据存放到程序目录下的 data 文件夹）。" />
+
+                        <TextBlock Text="关于" Style="{StaticResource SectionTitle}" Margin="2,20,0,6" />
+                        <TextBlock x:Name="AboutText" TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource Brush.Subtle}" />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+
+        <DockPanel Grid.Row="1" Margin="0,12,0,0">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button Content="恢复默认" Click="Reset_Click" Margin="0,0,8,0" />
+                <Button Content="取消" Click="Cancel_Click" Margin="0,0,8,0" IsCancel="True" />
+                <Button Content="保存" Style="{StaticResource PrimaryButton}" Click="Save_Click" IsDefault="True" />
+            </StackPanel>
+            <TextBlock x:Name="StatusText" VerticalAlignment="Center" FontSize="12" Foreground="{StaticResource Brush.Subtle}" />
+        </DockPanel>
+    </Grid>
+</Window>

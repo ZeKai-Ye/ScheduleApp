@@ -1,0 +1,145 @@
+<Window x:Class="Schedule.App.Views.CsvImportWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="导入 CSV"
+        Width="940" Height="720"
+        MinWidth="820" MinHeight="600"
+        WindowStartupLocation="CenterOwner">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- 文件与编码 -->
+        <Border Grid.Row="0" Style="{StaticResource Card}" Padding="14,12">
+            <StackPanel>
+                <DockPanel>
+                    <TextBlock Text="CSV 文件" Style="{StaticResource SectionTitle}" VerticalAlignment="Center" />
+                    <TextBlock x:Name="EncodingText" DockPanel.Dock="Right" FontSize="11" Foreground="{StaticResource Brush.Subtle}" VerticalAlignment="Center" />
+                </DockPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="FilePathBox" IsReadOnly="True" />
+                    <Button Grid.Column="1" Content="重新选择" Margin="8,0,0,0" Click="ChooseFile_Click" />
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- 选项 -->
+        <Border Grid.Row="1" Style="{StaticResource Card}" Padding="14,12" Margin="0,10,0,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,8,0">
+                    <TextBlock Text="文件编码" Style="{StaticResource SectionTitle}" />
+                    <ComboBox x:Name="EncodingBox" />
+                </StackPanel>
+                <StackPanel Grid.Row="0" Grid.Column="1" Margin="0,0,8,0">
+                    <TextBlock Text="表头" Style="{StaticResource SectionTitle}" />
+                    <ComboBox x:Name="HeaderBox" />
+                </StackPanel>
+                <StackPanel Grid.Row="0" Grid.Column="2" Margin="0,0,8,0">
+                    <TextBlock Text="导入方式" Style="{StaticResource SectionTitle}" />
+                    <ComboBox x:Name="ModeBox" />
+                </StackPanel>
+                <StackPanel Grid.Row="0" Grid.Column="3">
+                    <TextBlock Text="默认提前提醒（分钟）" Style="{StaticResource SectionTitle}" />
+                    <TextBox x:Name="DefaultRemindBox" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,12,8,0">
+                    <TextBlock Text="未指定分类时使用" Style="{StaticResource SectionTitle}" />
+                    <TextBox x:Name="DefaultCategoryBox" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="1" Grid.Column="2" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,30,0,0">
+                    <CheckBox x:Name="SkipDuplicatesCheck" Content="跳过重复日程" IsChecked="True" />
+                    <CheckBox x:Name="SkipPastCheck" Content="跳过已经过去的日程" Margin="16,0,0,0" />
+                </StackPanel>
+
+                <TextBlock Grid.Row="2" Grid.ColumnSpan="4" x:Name="WarningText"
+                           Margin="0,10,0,0" FontSize="11" Foreground="{StaticResource Brush.Warning}" TextWrapping="Wrap" />
+            </Grid>
+        </Border>
+
+        <!-- 列映射 + 预览 -->
+        <Grid Grid.Row="2" Margin="0,10,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="330" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Style="{StaticResource Card}" Padding="12,12" Margin="0,0,10,0">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Text="列映射（自动识别，可手工调整）" Style="{StaticResource SectionTitle}" />
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <ItemsControl x:Name="MappingList">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="118" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="12" />
+                                            <TextBlock Text="{Binding Hint}" FontSize="10" Foreground="{StaticResource Brush.Subtle}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <ComboBox Grid.Column="1"
+                                                  ItemsSource="{Binding Choices}"
+                                                  SelectedItem="{Binding Selected, Mode=TwoWay}"
+                                                  DisplayMemberPath="Text" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+
+            <Border Grid.Column="1" Style="{StaticResource Card}" Padding="12,12">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" x:Name="PreviewTitle" Text="数据预览" Style="{StaticResource SectionTitle}" />
+                    <TextBox x:Name="PreviewBox"
+                             IsReadOnly="True"
+                             AcceptsReturn="True"
+                             TextWrapping="NoWrap"
+                             FontFamily="Consolas, Microsoft YaHei UI"
+                             FontSize="12"
+                             VerticalScrollBarVisibility="Auto"
+                             HorizontalScrollBarVisibility="Auto" />
+                </DockPanel>
+            </Border>
+        </Grid>
+
+        <!-- 报告 -->
+        <Border Grid.Row="3" Style="{StaticResource Card}" Padding="12,10" Margin="0,10,0,0">
+            <ScrollViewer MaxHeight="120" VerticalScrollBarVisibility="Auto">
+                <TextBlock x:Name="ReportText" TextWrapping="Wrap" FontSize="12" />
+            </ScrollViewer>
+        </Border>
+
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="重新预览" Click="Reload_Click" Margin="0,0,8,0" />
+            <Button Content="开始导入" Style="{StaticResource PrimaryButton}" Click="Import_Click" Margin="0,0,8,0" />
+            <Button Content="关闭" Click="Close_Click" />
+        </StackPanel>
+    </Grid>
+</Window>
