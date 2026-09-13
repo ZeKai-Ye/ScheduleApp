@@ -19,7 +19,66 @@ public sealed class OffsetChoice : ObservableObject
     }
 }
 
-/// <summary>颜色选项。Hex 为空表示「跟随分类」自动配色。</summary>
+/// <summary>按档位的播报文案 / 铃声编辑行。</summary>
+public sealed class OffsetVoiceRow : ObservableObject
+{
+    private string _text = string.Empty;
+    private string _soundFile = string.Empty;
+
+    public required int Minutes { get; init; }
+
+    public required string Label { get; init; }
+
+    public string Text
+    {
+        get => _text;
+        set
+        {
+            if (SetProperty(ref _text, value)) OnPropertyChanged(nameof(SourceHint));
+        }
+    }
+
+    public string SoundFile
+    {
+        get => _soundFile;
+        set
+        {
+            if (!SetProperty(ref _soundFile, value)) return;
+            OnPropertyChanged(nameof(SoundLabel));
+            OnPropertyChanged(nameof(SoundTooltip));
+        }
+    }
+
+    public string SoundLabel => string.IsNullOrEmpty(SoundFile) ? "铃声" : "铃声 ✓";
+
+    public string SoundTooltip => string.IsNullOrEmpty(SoundFile)
+        ? "为该档位选择专属提示音"
+        : SoundFile + "（点击可更换，「清」可移除）";
+
+    public string SourceHint => string.IsNullOrWhiteSpace(Text) ? "留空 → 用通用 / 全局设置" : "本档位专属";
+}
+
+/// <summary>全局「按档位默认文案」编辑行（设置页）。</summary>
+public sealed class OffsetTextRow : ObservableObject
+{
+    private string _text = string.Empty;
+
+    public required int Minutes { get; init; }
+
+    public required string Label { get; init; }
+
+    public string Text
+    {
+        get => _text;
+        set => SetProperty(ref _text, value);
+    }
+
+    public string Hint => Minutes == 0 ? "准点" : "提前 " + Minutes + " 分钟";
+}
+
+/// <summary>
+/// 颜色选项。Hex 为空表示「跟随分类」自动配色。
+/// </summary>
 public sealed class ColorChoice : ObservableObject
 {
     private static readonly Brush AutoBrush = CreateAutoBrush();

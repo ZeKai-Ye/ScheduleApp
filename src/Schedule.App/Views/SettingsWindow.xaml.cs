@@ -24,7 +24,10 @@ public sealed class VoiceChoice
 public partial class SettingsWindow : Window
 {
     private readonly AppHost _host;
+    private static readonly int[] OffsetPresets = { 0, 5, 10, 15, 30, 60, 120, 1440 };
+
     private readonly List<CategoryColorChoice> _categoryColors = new();
+    private readonly List<OffsetTextRow> _offsetVoiceRows = new();
     private AppSettings _draft;
     private List<VoiceChoice> _voiceChoices = new();
     private bool _loading = true;
@@ -42,6 +45,7 @@ public partial class SettingsWindow : Window
         LoadVoices();
         LoadCategoryColors();
         LoadValues();
+        BuildOffsetVoiceRows();
 
         RateSlider.ValueChanged += (_, _) => { UpdateSliderTexts(); UpdatePreview(); };
         VolumeSlider.ValueChanged += (_, _) => UpdateSliderTexts();
@@ -110,6 +114,33 @@ public partial class SettingsWindow : Window
                 new() { Name = "（暂无分类：给日程填上分类后即可在此配色）", Hex = string.Empty },
             };
         }
+    }
+
+    /// <summary>构建「按档位全局默认文案」编辑行。</summary>
+    private void BuildOffsetVoiceRows()
+    {
+        var minutes = new SortedSet<int>(OffsetPresets);
+
+        foreach (var offset in _draft.DefaultReminderOffsets) minutes.Add(offset);
+        foreach (var offset in _draft.OffsetVoiceTemplates.Keys) minutes.Add(offset);
+        foreach (var offset in _offsetVoiceRows.Select(r => r.Minutes)) minutes.Add(offset);
+
+        _offsetVoiceRows.Clear();
+
+        foreach (var value in minutes.OrderByDescending(m => m))
+        {
+            _draft.OffsetVoiceTemplates.TryGetValue(value, out var text);
+
+            _offsetVoiceRows.Add(new OffsetTextRow
+            {
+                Minutes = value,
+                Label = value == 0 ? "准点提醒" : "提前 " + value + " 分钟",
+                Text = text ?? string.Empty,
+            });
+        }
+
+        GlobalOffsetVoiceList.ItemsSource = null;
+        GlobalOffsetVoiceList.ItemsSource = _offsetVoiceRows;
     }
 
     private void LoadValues()
@@ -270,6 +301,7 @@ public partial class SettingsWindow : Window
         _draft = new AppSettings();
         LoadCategoryColors();
         LoadValues();
+        BuildOffsetVoiceRows();
         UpdatePreview();
         StatusText.Text = "已恢复默认值，点击「保存」生效。";
     }
@@ -318,6 +350,11 @@ public partial class SettingsWindow : Window
         {
             settings.DefaultRemindBeforeMinutes = settings.DefaultReminderOffsets.Min();
         }
+
+        settings.OffsetVoiceTemplates = _offsetVoiceRows
+            .Where(r => !string.IsNullOrWhiteSpace(r.Text))
+            .GroupBy(r => r.Minutes)
+            .ToDictionary(g => g.Key, g => g.First().Text.Trim());
 
         var colors = new Dictionary<string, string>(StringComparer.CurrentCultureIgnoreCase);
         foreach (var item in _categoryColors)

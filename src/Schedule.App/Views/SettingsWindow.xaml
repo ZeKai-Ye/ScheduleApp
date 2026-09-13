@@ -126,6 +126,30 @@
                             <Button Content="状态" Tag="{}{status}" Style="{StaticResource GhostButton}" Click="InsertToken_Click" />
                         </WrapPanel>
 
+                        <TextBlock Text="按档位的全局默认文案（日程自身没有文案时生效）"
+                                   Style="{StaticResource SectionTitle}" Margin="2,16,0,6" />
+                        <ItemsControl x:Name="GlobalOffsetVoiceList">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="120" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Label}" FontSize="12" />
+                                            <TextBlock Text="{Binding Hint}" FontSize="10" Foreground="{StaticResource Brush.Subtle}" />
+                                        </StackPanel>
+                                        <TextBox Grid.Column="1" Margin="6,0,0,0"
+                                                 Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}"
+                                                 ToolTip="例如：还有 30 分钟、{title} 即将开始；留空表示使用下面的全局模板" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Style="{StaticResource FieldHint}"
+                                   Text="优先级：日程的档位文案 &gt; 日程通用文案 &gt; 这里的档位文案 &gt; 上面的全局模板。都支持 {title} {time} {countdown} {offset} 等占位符。" />
+
                         <Border Background="#FFF9FAFB" CornerRadius="6" Padding="12,10" Margin="0,12,0,0">
                             <StackPanel>
                                 <TextBlock Text="试听效果" Style="{StaticResource SectionTitle}" />

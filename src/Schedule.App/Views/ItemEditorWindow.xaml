@@ -193,6 +193,34 @@
 
                 <TextBlock x:Name="ReminderSummaryText" Style="{StaticResource FieldHint}" Margin="2,8,0,0" />
 
+                <TextBlock Text="按档位自定义播报（可选：不同时间点说不同的话）" Style="{StaticResource SectionTitle}" Margin="2,14,0,6" />
+                <ItemsControl x:Name="OffsetDetailList">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="112" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding Label}" FontSize="12" />
+                                    <TextBlock Text="{Binding SourceHint}" FontSize="10" Foreground="{StaticResource Brush.Subtle}" />
+                                </StackPanel>
+                                <TextBox Grid.Column="1" Margin="6,0,0,0"
+                                         Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}"
+                                         ToolTip="该档位专属播报文案，支持全部占位符" />
+                                <Button Grid.Column="2" Content="{Binding SoundLabel}" Margin="6,0,0,0"
+                                        Click="OffsetSound_Click" ToolTip="{Binding SoundTooltip}" />
+                                <Button Grid.Column="3" Content="清" Style="{StaticResource GhostButton}" Margin="4,0,0,0"
+                                        Click="OffsetSoundClear_Click" ToolTip="清除该档位铃声" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock x:Name="OffsetDetailHint" Style="{StaticResource FieldHint}" />
+
                 <!-- ============ 语音 / 铃声 ============ -->
                 <TextBlock Text="语音播报内容（留空使用全局模板）" Style="{StaticResource SectionTitle}" Margin="2,16,0,6" />
                 <TextBox x:Name="VoiceTextBox" AcceptsReturn="True" Height="52" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" />

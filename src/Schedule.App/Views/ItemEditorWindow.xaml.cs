@@ -21,6 +21,7 @@ public partial class ItemEditorWindow : Window
     private readonly AppHost _host;
     private readonly ScheduleItem _working;
     private readonly List<OffsetChoice> _offsetChoices = new();
+    private readonly List<OffsetVoiceRow> _offsetRows = new();
     private readonly List<ColorChoice> _colorChoices = new();
     private readonly List<WeekdayChoice> _weekdayChoices = new();
     private bool _loading = true;
@@ -44,6 +45,7 @@ public partial class ItemEditorWindow : Window
         BuildColorChoices();
         BuildWeekdayChoices();
         LoadValues();
+        RebuildOffsetDetails();
 
         _loading = false;
 
@@ -57,6 +59,9 @@ public partial class ItemEditorWindow : Window
         VoiceTextBox.TextChanged += (_, _) => UpdateVoicePreview();
         CategoryBox.SelectionChanged += (_, _) => UpdateVoicePreview();
         NotesBox.TextChanged += (_, _) => UpdateVoicePreview();
+
+        // 自定义档位输入完成后（失焦）再重建明细行，避免打字时列表被刷新
+        CustomOffsetsBox.LostFocus += (_, _) => RebuildOffsetDetails();
 
         UpdateRepeatPanels();
         UpdateRepeatSummary();
@@ -239,7 +244,72 @@ public partial class ItemEditorWindow : Window
         UpdateReminderSummary();
     }
 
-    private void ReminderInput_Changed(object sender, RoutedEventArgs e) => UpdateReminderSummary();
+    private void ReminderInput_Changed(object sender, RoutedEventArgs e)
+    {
+        UpdateReminderSummary();
+        RebuildOffsetDetails();
+    }
+
+    /// <summary>为每个已选档位提供「专属播报文案 + 专属铃声」编辑行。</summary>
+    private void RebuildOffsetDetails()
+    {
+        if (_loading || OffsetDetailList == null) return;
+
+        var kept = _offsetRows.ToDictionary(r => r.Minutes, r => (r.Text, r.SoundFile));
+        var offsets = CollectOffsets();
+
+        _offsetRows.Clear();
+
+        foreach (var minutes in offsets)
+        {
+            var row = new OffsetVoiceRow
+            {
+                Minutes = minutes,
+                Label = ReminderPlan.DescribeOffset(minutes),
+            };
+
+            if (kept.TryGetValue(minutes, out var previous))
+            {
+                row.Text = previous.Text;
+                row.SoundFile = previous.SoundFile;
+            }
+            else
+            {
+                _working.ReminderVoiceTexts.TryGetValue(minutes, out var text);
+                _working.ReminderSoundFiles.TryGetValue(minutes, out var sound);
+                row.Text = text ?? string.Empty;
+                row.SoundFile = sound ?? string.Empty;
+            }
+
+            _offsetRows.Add(row);
+        }
+
+        OffsetDetailList.ItemsSource = null;
+        OffsetDetailList.ItemsSource = _offsetRows;
+
+        OffsetDetailHint.Text = _offsetRows.Count == 0
+            ? "先勾选上面的提醒档位，这里会为每个档位提供单独的播报文案与铃声。"
+            : "优先级：本档位专属文案 > 本日程通用文案 > 全局档位文案 > 全局模板。";
+    }
+
+    private void OffsetSound_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not OffsetVoiceRow row) return;
+
+        var dialog = new OpenFileDialog
+        {
+            Title = "为「" + row.Label + "」选择提示音",
+            Filter = "音频文件 (*.wav;*.mp3;*.wma;*.m4a)|*.wav;*.mp3;*.wma;*.m4a|所有文件 (*.*)|*.*",
+            CheckFileExists = true,
+        };
+
+        if (dialog.ShowDialog(this) == true) row.SoundFile = dialog.FileName;
+    }
+
+    private void OffsetSoundClear_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is OffsetVoiceRow row) row.SoundFile = string.Empty;
+    }
 
     private void ReminderText_Changed(object sender, TextChangedEventArgs e) => UpdateReminderSummary();
 
@@ -540,6 +610,17 @@ public partial class ItemEditorWindow : Window
                 ? new List<int>(_host.Settings.DefaultReminderOffsets)
                 : new List<int> { _host.Settings.DefaultRemindBeforeMinutes };
         }
+
+        // 收集「按档位」的专属文案与铃声
+        item.ReminderVoiceTexts = _offsetRows
+            .Where(r => !string.IsNullOrWhiteSpace(r.Text))
+            .GroupBy(r => r.Minutes)
+            .ToDictionary(g => g.Key, g => g.First().Text.Trim());
+
+        item.ReminderSoundFiles = _offsetRows
+            .Where(r => !string.IsNullOrWhiteSpace(r.SoundFile))
+            .GroupBy(r => r.Minutes)
+            .ToDictionary(g => g.Key, g => g.First().SoundFile.Trim());
 
         item.ReminderEnabled = ReminderEnabledCheck.IsChecked == true && (offsets.Count > 0 || absolute != null);
         item.ReminderOffsets = offsets;
