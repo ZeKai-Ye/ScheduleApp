@@ -1,4 +1,4 @@
-#Requires -Version 7.0
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
     日程助手 ScheduleApp 构建脚本：清理 → 构建 → 自测 →（可选）运行 / 发布。
