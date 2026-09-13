@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Schedule.Core.Models;
+using Schedule.Core.Services;
 
 namespace Schedule.Core.Csv;
 
@@ -285,32 +286,72 @@ public sealed class CsvImportService
         FieldParsers.TryParsePriority(Get(CsvField.Priority), out var priority);
         item.Priority = priority;
 
-        FieldParsers.TryParseRepeat(Get(CsvField.Repeat), out var repeat);
-        item.Repeat = repeat;
+        // 重复规则：类型 + 间隔 + 星期集合 + 次数 + 截止，允许被独立列覆盖
+        if (FieldParsers.TryParseRepeatDetail(Get(CsvField.Repeat), out var repeatSpec))
+        {
+            item.Repeat = repeatSpec.Kind;
+            item.RepeatInterval = repeatSpec.Interval;
+            item.RepeatWeekdays = new List<DayOfWeek>(repeatSpec.Weekdays);
+            item.RepeatCount = repeatSpec.Count;
+            item.RepeatUntil = repeatSpec.Until;
+        }
+
+        if (FieldParsers.TryParseInt(Get(CsvField.RepeatInterval), out var interval) && interval > 0)
+        {
+            item.RepeatInterval = interval;
+        }
+
+        if (FieldParsers.TryParseInt(Get(CsvField.RepeatCount), out var repeatCount) && repeatCount > 0)
+        {
+            item.RepeatCount = repeatCount;
+        }
+
+        if (FieldParsers.TryParseWeekdays(Get(CsvField.Weekdays), out var weekdays))
+        {
+            item.RepeatWeekdays = weekdays;
+            if (item.Repeat is RepeatKind.None or RepeatKind.Weekly) item.Repeat = RepeatKind.Weekly;
+        }
+
+        if (item.Repeat == RepeatKind.None)
+        {
+            item.RepeatInterval = 1;
+            item.RepeatWeekdays.Clear();
+            item.RepeatCount = null;
+            item.RepeatUntil = null;
+        }
 
         FieldParsers.TryParseStatus(Get(CsvField.Status), out var status);
         item.Status = status;
 
-        // 提醒
+        // 颜色：列值优先，其次导入默认色，最后跟随分类自动配色
+        item.Color = FieldParsers.TryParseColor(Get(CsvField.Color), out var parsedColor)
+            ? parsedColor
+            : EventColors.Normalize(options.DefaultColor);
+
+        // 多档提醒：支持「30,15,5」「提前30分钟、提前5分钟」等写法
         var remindText = Get(CsvField.Remind);
-        if (FieldParsers.TryParseRemind(remindText, item.Start, out var spec))
+        if (FieldParsers.TryParseRemindOffsets(remindText, item.Start, out var remindSpec))
         {
-            item.ReminderEnabled = spec.Enabled;
-            if (spec.Absolute.HasValue)
+            item.ReminderEnabled = remindSpec.Enabled;
+            item.ReminderOffsets = new List<int>(remindSpec.Offsets);
+            item.RemindAtOverride = remindSpec.Absolute;
+
+            if (remindSpec.Offsets.Count > 0)
             {
-                item.RemindAtOverride = spec.Absolute;
-                var offset = (int)Math.Round((item.Start - spec.Absolute.Value).TotalMinutes);
-                item.RemindBeforeMinutes = offset > 0 ? offset : 0;
+                item.RemindBeforeMinutes = remindSpec.Offsets.Min();
             }
-            else
+            else if (remindSpec.Absolute.HasValue)
             {
-                item.RemindBeforeMinutes = spec.BeforeMinutes;
+                var offset = (int)Math.Round((item.Start - remindSpec.Absolute.Value).TotalMinutes);
+                item.RemindBeforeMinutes = offset > 0 ? offset : 0;
             }
         }
         else
         {
             item.ReminderEnabled = options.DefaultReminderEnabled;
-            item.RemindBeforeMinutes = options.DefaultRemindBeforeMinutes;
+            item.ReminderOffsets = new List<int>(options.DefaultReminderOffsets);
+            if (item.ReminderOffsets.Count == 0) item.ReminderOffsets.Add(options.DefaultRemindBeforeMinutes);
+            item.RemindBeforeMinutes = item.ReminderOffsets.Min();
         }
 
         item.VoiceText = Get(CsvField.Voice).Trim();
@@ -328,9 +369,14 @@ public sealed class CsvImportService
         target.End = source.End;
         target.AllDay = source.AllDay;
         target.Priority = source.Priority;
+        target.Color = source.Color;
         target.Repeat = source.Repeat;
+        target.RepeatInterval = source.RepeatInterval;
+        target.RepeatWeekdays = new List<DayOfWeek>(source.RepeatWeekdays);
+        target.RepeatCount = source.RepeatCount;
         target.RepeatUntil = source.RepeatUntil;
         target.ReminderEnabled = source.ReminderEnabled;
+        target.ReminderOffsets = new List<int>(source.ReminderOffsets);
         target.RemindBeforeMinutes = source.RemindBeforeMinutes;
         target.RemindAtOverride = source.RemindAtOverride;
         target.VoiceText = source.VoiceText;
@@ -340,6 +386,7 @@ public sealed class CsvImportService
         target.Source = source.Source;
         target.UpdatedAt = now;
         target.LastFiredOccurrence = null;
+        target.FiredReminders = new List<ReminderFireRecord>();
     }
 
     private CsvTextSource ReadText(CsvImportOptions options)

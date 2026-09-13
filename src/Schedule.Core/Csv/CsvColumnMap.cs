@@ -8,7 +8,7 @@ public static class CsvColumnMap
     /// <summary>字段的识别别名（中英文）。匹配时会先做归一化（去空白/标点、转小写）。</summary>
     private static readonly Dictionary<CsvField, string[]> Aliases = new()
     {
-        [CsvField.Remind] = new[] { "提醒", "提醒时间", "提前", "提前提醒", "提前量", "提醒设置", "提醒分钟", "闹钟", "remind", "remindbefore", "reminder", "alarm", "notify", "advance" },
+        [CsvField.Remind] = new[] { "提醒", "提醒时间", "提前", "提前提醒", "提前量", "提醒设置", "提醒分钟", "提醒档位", "闹钟", "remind", "remindbefore", "reminder", "alarm", "notify", "advance" },
         [CsvField.Voice] = new[] { "语音", "语音内容", "语音提醒", "播报", "播报内容", "朗读", "语音播报", "voice", "speech", "tts", "voicetext" },
         [CsvField.Sound] = new[] { "铃声", "提示音", "音频", "声音", "提醒音", "sound", "ringtone", "audio" },
         [CsvField.End] = new[] { "结束", "结束时间", "截止", "截止时间", "结束日期", "终止", "结束时刻", "end", "endtime", "finish", "until", "to" },
@@ -19,6 +19,10 @@ public static class CsvColumnMap
         [CsvField.Category] = new[] { "分类", "类别", "类型", "标签", "分组", "组", "项目", "场景", "category", "tag", "tags", "group", "type", "kind", "label" },
         [CsvField.Priority] = new[] { "优先级", "重要", "重要程度", "紧急", "priority", "level", "importance" },
         [CsvField.Repeat] = new[] { "重复", "重复规则", "循环", "频率", "周期", "repeat", "recurrence", "rrule", "frequency", "cycle" },
+        [CsvField.RepeatInterval] = new[] { "重复间隔", "间隔", "每几天", "每几周", "间隔数", "interval", "every", "step" },
+        [CsvField.RepeatCount] = new[] { "重复次数", "次数", "共几次", "count", "times", "occurrences" },
+        [CsvField.Weekdays] = new[] { "星期", "周几", "星期几", "每周几", "重复星期", "weekday", "weekdays", "dayofweek" },
+        [CsvField.Color] = new[] { "颜色", "色彩", "事件颜色", "色", "color", "colour" },
         [CsvField.AllDay] = new[] { "全天", "整天", "是否全天", "allday", "fullday", "isallday", "wholeday" },
         [CsvField.Status] = new[] { "状态", "是否完成", "完成", "进度", "status", "done", "completed", "finished" },
     };
@@ -28,7 +32,8 @@ public static class CsvColumnMap
     {
         CsvField.Remind, CsvField.Voice, CsvField.Sound, CsvField.End, CsvField.Start,
         CsvField.Date, CsvField.Title, CsvField.Notes, CsvField.Category,
-        CsvField.Priority, CsvField.Repeat, CsvField.AllDay, CsvField.Status,
+        CsvField.Priority, CsvField.Repeat, CsvField.RepeatInterval, CsvField.RepeatCount,
+        CsvField.Weekdays, CsvField.Color, CsvField.AllDay, CsvField.Status,
     };
 
     public static IReadOnlyList<CsvField> AllFields => MatchOrder;
@@ -43,6 +48,10 @@ public static class CsvColumnMap
         CsvField.Category => "分类",
         CsvField.Priority => "优先级",
         CsvField.Repeat => "重复",
+        CsvField.RepeatInterval => "重复间隔",
+        CsvField.RepeatCount => "重复次数",
+        CsvField.Weekdays => "星期",
+        CsvField.Color => "颜色",
         CsvField.AllDay => "全天",
         CsvField.Remind => "提前提醒",
         CsvField.Voice => "语音播报内容",
@@ -58,14 +67,18 @@ public static class CsvColumnMap
         CsvField.End => "结束时间，可留空",
         CsvField.Date => "单独的日期列（与开始时间拼接）",
         CsvField.Notes => "详细说明",
-        CsvField.Category => "分类 / 标签",
+        CsvField.Category => "分类 / 标签，决定自动配色",
         CsvField.Priority => "高 / 中 / 低",
-        CsvField.Repeat => "每天 / 每周 / 每月 / 工作日 / 每年",
+        CsvField.Repeat => "每天 / 每周 / 每月 / 工作日 / 每 2 周",
+        CsvField.RepeatInterval => "每隔几个周期，例如 2",
+        CsvField.RepeatCount => "共重复几次，例如 10",
+        CsvField.Weekdays => "每周重复的星期，例如 周一、三、五",
+        CsvField.Color => "颜色：红 / 蓝 / #2563EB / 留空跟随分类",
         CsvField.AllDay => "是 / 否",
-        CsvField.Remind => "10 / 10分钟 / 1小时 / 2025-01-01 08:00 / 不提醒",
+        CsvField.Remind => "30,15,5 / 提前10分钟 / 1小时 / 2025-01-01 08:00 / 不提醒",
         CsvField.Voice => "自定义播报文本，留空用全局模板",
         CsvField.Sound => "自定义提示音文件路径",
-        CsvField.Status => "待办 / 已完成",
+        CsvField.Status => "待办 / 已完成 / 已取消",
         _ => string.Empty,
     };
 
