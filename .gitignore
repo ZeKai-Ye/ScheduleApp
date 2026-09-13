@@ -33,6 +33,7 @@ data/
 .verify*/
 artifacts/
 publish/
+dist/
 *.log
 debug.log
 
