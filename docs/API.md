@@ -62,6 +62,9 @@ FENCE
 | GET | `/api/settings` | 读取全局设置（含语音与档位文案） |
 | PATCH | `/api/settings` | 修改全局设置 |
 | POST | `/api/reload` | 从磁盘重新加载（手工改过 json 后） |
+| GET | `/api/system/info` | 可执行文件路径、桌面/开始菜单快捷方式是否存在、开机启动方式与命令行 |
+| POST | `/api/system/shortcut` | 创建 / 删除快捷方式 |
+| POST | `/api/system/autostart` | 启用 / 停用开机启动 |
 
 时间字段接受宽松写法：`2025-06-03 14:00`、`2025-06-03T14:00:00`、`2025/6/3 14:00`、`明天 9:00` 均可。
 未识别的字段不会静默忽略，会通过响应头 `X-Ignored-Fields` 告诉你（避免拼错字段名却不自知）。
@@ -182,7 +185,36 @@ curl -s -X POST -H "$H" -H "Content-Type: application/json" "$BASE/api/import" -
 }'
 FENCE
 
-## 6. 约定与错误
+## 6. 桌面集成与弹窗位置
+
+```bash
+# 看系统状态：快捷方式在不在、开机启动怎么落地的
+curl -s -H "$H" "$BASE/api/system/info"
+
+# 创建桌面快捷方式（directory 可选，用于便携 / 调试）
+curl -s -X POST -H "$H" -H "Content-Type: application/json" "$BASE/api/system/shortcut" \
+  -d '{"target":"desktop","create":true}'
+# 删除开始菜单快捷方式
+curl -s -X POST -H "$H" -H "Content-Type: application/json" "$BASE/api/system/shortcut" \
+  -d '{"target":"startmenu","create":false}'
+
+# 开机启动：默认附加 --minimized（进托盘不弹窗）
+curl -s -X POST -H "$H" -H "Content-Type: application/json" "$BASE/api/system/autostart" \
+  -d '{"enabled":true,"arguments":"--minimized"}'
+# 关闭
+curl -s -X POST -H "$H" -H "Content-Type: application/json" "$BASE/api/system/autostart" -d '{"enabled":false}'
+
+# 把提醒弹窗固定到左上角并微调
+curl -s -X PATCH -H "$H" -H "Content-Type: application/json" "$BASE/api/settings" \
+  -d '{"reminderPosition":"TopLeft","reminderPositionX":120,"reminderPositionY":80,"reminderRememberPosition":true}'
+```
+
+`autostart` 返回的 `mode` 是真实落地方式：`Registry`（注册表 Run 键）或 `StartupFolder`（启动文件夹快捷方式）。
+宿主无法完成时返回 **501** 并附原因（例如被安全软件拦截）。
+`reminderPosition` 可取 `BottomRight` `BottomLeft` `TopRight` `TopLeft` `Center` `Custom`；
+前五种下 X / Y 是相对该基准的偏移，`Custom` 下是弹窗左上角的屏幕坐标（越界自动贴回可见区域）。
+
+## 7. 约定与错误
 
 - 状态码：`200` 成功、`201` 已创建、`204` 已删除、`400` 参数/JSON 错误、**`401` 令牌错误**、
   `404` 不存在、`405` 方法不允许、`411` 用了 chunked 传输（请带 `Content-Length`）、
@@ -192,7 +224,7 @@ FENCE
 - 每个请求都会切到 UI 线程执行，因此与界面操作天然串行、不会打架
 - 用了 `--serve` 时没有主窗口，但提醒弹窗照常出现；托盘图标可打开界面或退出
 
-## 7. CSV 中的等价写法
+## 8. CSV 中的等价写法
 
 CSV 的 `语音内容` / `提醒铃声` 列支持 `档位:文案` 形式（用 `|` 分隔），与接口字段一一对应：
 

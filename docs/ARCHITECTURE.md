@@ -143,6 +143,25 @@ Main
 `DescribeVoiceSource` 会返回命中来源，因此界面、弹窗与接口都能告诉用户「这句话是哪儿来的」，
 避免「改了设置却没生效」这类难以排查的疑惑。
 
+### 12. 桌面集成（快捷方式 / 开机启动）
+- `Services/ShortcutService.cs`：用 COM 的 `WScript.Shell` 生成 .lnk，零第三方依赖；
+  统一收口桌面 / 开始菜单 / 启动文件夹三个位置，并支持 `directoryOverride`（调试与便携场景）
+- `Services/StartupService.cs`：**两级落地**——先写 `HKCU\\...\\Run`，被拒时回退为启动文件夹快捷方式；
+  `Detect()` 读的是**系统真实状态**而不是设置文件，因此界面能显示「设置说启用了但注册表里没有」这类不一致；
+  程序启动时 `SyncAutostartSetting` 会把设置与系统对齐（路径或参数变化时重写一次）
+- 开机启动命令 = `"exe" + 参数`；参数由 `StartMinimized` 与 `StartupArguments` 组合而来
+
+### 13. 提醒弹窗定位
+- `ReminderPositionMath.Compute` 是纯函数：输入位置策略、偏移、窗口尺寸、工作区矩形（含级联下标），
+  输出左上角坐标并**夹取到可见区域**（副屏负坐标、任务栏占位、窗口比工作区还大都能正确处理），
+  因此在 Core 测试里被完整覆盖
+- WinForms 的 `Screen.WorkingArea` 是**设备像素**，而 WPF 的 `Left/Top` 是设备无关单位；
+  `ReminderPositioner` 统一在设备像素下计算，再按 `VisualTreeHelper.GetDpi` 的缩放比例换算回去——
+  否则 125% / 150% 缩放下弹窗会明显偏移
+- 默认跟随鼠标所在显示器（`ReminderFollowCursorScreen`），可切换为固定主屏
+- 拖动弹窗后由 `AppHost.RememberReminderPosition` 写回 `Custom` 坐标（`ReminderRememberPosition` 可关闭）；
+  位置预览走 `ReminderHost.ShowPositionPreview`，只弹窗不发声
+
 ## 扩展点
 
 | 需求 | 做法 |
