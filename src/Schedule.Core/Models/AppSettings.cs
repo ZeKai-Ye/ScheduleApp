@@ -57,6 +57,22 @@ public sealed class AppSettings
 
     public bool SoundBeforeSpeech { get; set; } = true;
 
+    /// <summary>
+    /// 全局「按档位」的默认播报文案（键 = 提前分钟数）。
+    /// 未被日程自身文案覆盖时生效，例如 { 30: "还有 30 分钟", 0: "现在开始" }。
+    /// </summary>
+    public Dictionary<int, string> OffsetVoiceTemplates { get; set; } = new();
+
+    // ---------- 本地接口（供 AI / 脚本直接读写日程） ----------
+    /// <summary>是否启用本地 HTTP JSON 接口。</summary>
+    public bool ApiEnabled { get; set; } = true;
+
+    /// <summary>接口端口（仅监听 127.0.0.1）。</summary>
+    public int ApiPort { get; set; } = 43121;
+
+    /// <summary>接口访问令牌，首次启动自动生成。</summary>
+    public string ApiToken { get; set; } = string.Empty;
+
     // ---------- 外观 ----------
     /// <summary>分类 → 颜色（#RRGGBB）。未配置的分类按名称稳定散列取色。</summary>
     public Dictionary<string, string> CategoryColors { get; set; } = new(StringComparer.CurrentCultureIgnoreCase);
@@ -115,6 +131,10 @@ public sealed class AppSettings
         SoundEnabled = other.SoundEnabled;
         DefaultSoundFile = other.DefaultSoundFile;
         SoundBeforeSpeech = other.SoundBeforeSpeech;
+        OffsetVoiceTemplates = new Dictionary<int, string>(other.OffsetVoiceTemplates);
+        ApiEnabled = other.ApiEnabled;
+        ApiPort = other.ApiPort;
+        ApiToken = other.ApiToken;
         CategoryColors = new Dictionary<string, string>(other.CategoryColors, StringComparer.CurrentCultureIgnoreCase);
         DefaultEventColor = other.DefaultEventColor;
         HourHeight = other.HourHeight;

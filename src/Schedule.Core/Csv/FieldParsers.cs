@@ -62,6 +62,10 @@ public static class FieldParsers
         @"(?:到|至|截止|until)\s*(\d{4}[-/.]\d{1,2}[-/.]\d{1,2})",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+    private static readonly Regex OffsetTextPartRegex = new(
+        @"^(?<key>\d+|\*|默认|通用)\s*[:：]\s*(?<value>.*)$",
+        RegexOptions.Compiled);
+
     private static readonly Regex WeekdayCharsRegex = new(
         @"(?:周|週|星期|礼拜)\s*([一二三四五六日天、,，和及\s]+)",
         RegexOptions.Compiled);
@@ -69,20 +73,6 @@ public static class FieldParsers
     private static readonly string[] DisableWords =
     {
         "不提醒", "无", "否", "关闭", "不", "none", "off", "no", "false", "disabled", "never", "-",
-    };
-
-    private static readonly Dictionary<string, string> ColorNames = new(StringComparer.CurrentCultureIgnoreCase)
-    {
-        ["红"] = "#DC2626", ["红色"] = "#DC2626", ["red"] = "#DC2626",
-        ["橙"] = "#EA580C", ["橙色"] = "#EA580C", ["orange"] = "#EA580C",
-        ["黄"] = "#CA8A04", ["黄色"] = "#CA8A04", ["yellow"] = "#CA8A04", ["琥珀"] = "#CA8A04",
-        ["绿"] = "#16A34A", ["绿色"] = "#16A34A", ["green"] = "#16A34A",
-        ["青"] = "#0891B2", ["青色"] = "#0891B2", ["cyan"] = "#0891B2",
-        ["蓝"] = "#2563EB", ["蓝色"] = "#2563EB", ["blue"] = "#2563EB",
-        ["紫"] = "#7C3AED", ["紫色"] = "#7C3AED", ["purple"] = "#7C3AED",
-        ["粉"] = "#DB2777", ["粉色"] = "#DB2777", ["玫红"] = "#DB2777", ["pink"] = "#DB2777",
-        ["灰"] = "#64748B", ["灰色"] = "#64748B", ["gray"] = "#64748B", ["grey"] = "#64748B",
-        ["棕"] = "#B45309", ["棕色"] = "#B45309", ["brown"] = "#B45309",
     };
 
     // ============ 提醒 ============
@@ -446,28 +436,114 @@ public static class FieldParsers
         return false;
     }
 
-    /// <summary>解析事件颜色：支持 #RRGGBB / #RGB / 中文色名 / 英文色名。</summary>
-    public static bool TryParseColor(string? text, out string color)
+    /// <summary>
+    /// 解析「按档位」的文案 / 铃声写法，例如 ~~30:还有30分钟|5:马上开始|*:通用文案~~。
+    /// 只有当**每一段**都是 ~~档位:值~~ 形式时才按编码解析，否则整串作为普通文本返回，
+    /// 这样像 ~~8:30 开会：记得带材料~~ 这样的普通文案不会被误判。
+    /// 分隔符只用 ~~|~~（Windows 文件名里不允许出现），因此文件路径可以安全地放在值里。
+    /// </summary>
+    public static bool TryParseOffsetTexts(
+        string? text,
+        out Dictionary<int, string> perOffset,
+        out string plain,
+        IReadOnlyCollection<int>? knownOffsets = null)
     {
-        color = string.Empty;
+        perOffset = new Dictionary<int, string>();
+        plain = string.Empty;
         if (string.IsNullOrWhiteSpace(text)) return false;
 
-        var raw = TextNormalizer.Clean(text);
-        var normalized = EventColors.Normalize(raw);
-        if (normalized.Length == 7)
+        var raw = text.Trim();
+        var parts = raw.Split('|', StringSplitOptions.RemoveEmptyEntries)
+            .Select(p => p.Trim())
+            .Where(p => p.Length > 0)
+            .ToList();
+
+        if (parts.Count == 0)
         {
-            color = normalized;
+            plain = raw;
             return true;
         }
 
-        if (ColorNames.TryGetValue(raw, out var mapped))
+        foreach (var part in parts)
         {
-            color = mapped;
+            if (OffsetTextPartRegex.IsMatch(part)) continue;
+
+            // 不是编码形式：整串当作普通文案
+            perOffset.Clear();
+            plain = raw;
             return true;
         }
 
-        return false;
+        // 全部形如 键:值 时，还要确认键确实是「这个日程的提醒档位」，
+        // 否则 "8:30 开会" 这类普通文案会被误判成档位 8。
+        var keys = parts.Select(p => OffsetTextPartRegex.Match(p).Groups["key"].Value).ToList();
+
+        if (knownOffsets != null)
+        {
+            foreach (var key in keys)
+            {
+                if (key is "*" or "默认" or "通用") continue;
+
+                if (!int.TryParse(key, out var minutes) || !knownOffsets.Contains(minutes))
+                {
+                    perOffset.Clear();
+                    plain = raw;
+                    return true;
+                }
+            }
+        }
+        else if (!raw.Contains('|') && !keys.Any(k => k is "*" or "默认" or "通用"))
+        {
+            // 没有日程上下文时，要求显式分隔符或 *: 标记才认定为编码形式
+            perOffset.Clear();
+            plain = raw;
+            return true;
+        }
+
+        var generic = new List<string>();
+
+        foreach (var part in parts)
+        {
+            var match = OffsetTextPartRegex.Match(part);
+            var key = match.Groups["key"].Value;
+            var value = match.Groups["value"].Value.Trim();
+
+            if (key is "*" or "默认" or "通用")
+            {
+                if (value.Length > 0) generic.Add(value);
+                continue;
+            }
+
+            if (int.TryParse(key, out var minutes) && minutes >= 0)
+            {
+                perOffset[minutes] = value;
+            }
+        }
+
+        plain = string.Join("|", generic);
+        return true;
     }
+
+    /// <summary>把「档位 → 文案」编码成 CSV 单元格文本。</summary>
+    public static string FormatOffsetTexts(IReadOnlyDictionary<int, string>? perOffset, string? fallback)
+    {
+        var parts = new List<string>();
+
+        if (perOffset != null)
+        {
+            foreach (var pair in perOffset.OrderByDescending(p => p.Key))
+            {
+                if (!string.IsNullOrWhiteSpace(pair.Value)) parts.Add(pair.Key + ":" + pair.Value);
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(fallback)) parts.Add("*:" + fallback);
+        return string.Join("|", parts);
+    }
+
+    /// <summary>解析事件颜色：支持 #RRGGBB / #RGB / 中文色名 / 英文色名。</summary>
+    public static bool TryParseColor(string? text, out string color)
+        => EventColors.TryParse(TextNormalizer.Clean(text), out color);
 
     /// <summary>解析非负整数（用于重复间隔 / 重复次数）。</summary>
     public static bool TryParseInt(string? text, out int value)

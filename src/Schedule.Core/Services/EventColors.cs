@@ -120,6 +120,45 @@ public static class EventColors
 
     public static bool IsValid(string? value) => Normalize(value).Length == 7;
 
+    /// <summary>中文 / 英文色名表（与十六进制写法共用一套解析入口）。</summary>
+    private static readonly Dictionary<string, string> ColorNames = new(StringComparer.CurrentCultureIgnoreCase)
+    {
+        ["红"] = "#DC2626", ["红色"] = "#DC2626", ["red"] = "#DC2626",
+        ["橙"] = "#EA580C", ["橙色"] = "#EA580C", ["orange"] = "#EA580C",
+        ["黄"] = "#CA8A04", ["黄色"] = "#CA8A04", ["yellow"] = "#CA8A04", ["琥珀"] = "#CA8A04",
+        ["绿"] = "#16A34A", ["绿色"] = "#16A34A", ["green"] = "#16A34A",
+        ["青"] = "#0891B2", ["青色"] = "#0891B2", ["cyan"] = "#0891B2",
+        ["蓝"] = "#2563EB", ["蓝色"] = "#2563EB", ["blue"] = "#2563EB",
+        ["紫"] = "#7C3AED", ["紫色"] = "#7C3AED", ["purple"] = "#7C3AED",
+        ["粉"] = "#DB2777", ["粉色"] = "#DB2777", ["玫红"] = "#DB2777", ["pink"] = "#DB2777",
+        ["灰"] = "#64748B", ["灰色"] = "#64748B", ["gray"] = "#64748B", ["grey"] = "#64748B",
+        ["棕"] = "#B45309", ["棕色"] = "#B45309", ["brown"] = "#B45309",
+    };
+
+    /// <summary>解析颜色：先按十六进制，再按中英文色名。无法识别返回 false。</summary>
+    public static bool TryParse(string? value, out string color)
+    {
+        color = string.Empty;
+        if (string.IsNullOrWhiteSpace(value)) return false;
+
+        var text = value.Trim();
+
+        var hex = Normalize(text);
+        if (hex.Length == 7)
+        {
+            color = hex;
+            return true;
+        }
+
+        if (ColorNames.TryGetValue(text, out var mapped))
+        {
+            color = mapped;
+            return true;
+        }
+
+        return false;
+    }
+
     /// <summary>生成带透明度的画刷颜色字符串（用于日历色块背景）。</summary>
     public static string WithAlpha(string hex, byte alpha = 0x33)
     {

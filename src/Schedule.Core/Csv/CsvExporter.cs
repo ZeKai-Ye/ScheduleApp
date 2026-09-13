@@ -11,7 +11,7 @@ public static class CsvExporter
     public static readonly string[] Headers =
     {
         "标题", "开始时间", "结束时间", "全天", "分类", "颜色", "优先级",
-        "重复", "重复间隔", "星期", "重复次数", "提前提醒", "语音内容", "备注", "状态",
+        "重复", "重复间隔", "星期", "重复次数", "提前提醒", "语音内容", "提醒铃声", "备注", "状态",
     };
 
     public static string ToCsv(IEnumerable<ScheduleItem> items)
@@ -37,7 +37,8 @@ public static class CsvExporter
                 WeekdaysText(item),
                 item.RepeatCount.HasValue ? item.RepeatCount.Value.ToString() : string.Empty,
                 RemindText(item),
-                item.VoiceText,
+                FieldParsers.FormatOffsetTexts(item.ReminderVoiceTexts, item.VoiceText),
+                FieldParsers.FormatOffsetTexts(item.ReminderSoundFiles, item.SoundFile),
                 item.Notes,
                 StatusText(item.Status),
             };

@@ -2,7 +2,7 @@ using Schedule.Core.Models;
 
 namespace Schedule.Core.Services;
 
-/// <summary>日程数据校验（导入与手工编辑共用）。</summary>
+/// <summary>日程数据校验（导入、界面编辑与本地接口共用）。</summary>
 public static class ScheduleItemValidator
 {
     public static List<string> Validate(ScheduleItem item)
@@ -74,6 +74,20 @@ public static class ScheduleItemValidator
             errors.Add("指定的提醒音频文件不存在：" + item.SoundFile);
         }
 
+        foreach (var pair in item.ReminderSoundFiles)
+        {
+            if (!string.IsNullOrWhiteSpace(pair.Value) && !File.Exists(pair.Value))
+            {
+                errors.Add("档位 " + pair.Key + " 的提醒音频文件不存在：" + pair.Value);
+            }
+        }
+
+        var known = new HashSet<int>(item.NormalizedOffsets());
+        foreach (var offset in item.ReminderVoiceTexts.Keys)
+        {
+            if (!known.Contains(offset)) errors.Add("档位 " + offset + " 的自定义播报文案没有对应的提醒档位。");
+        }
+
         return errors;
     }
 
@@ -97,6 +111,8 @@ public static class ScheduleItemValidator
         if (item.ReminderOffsets == null) item.ReminderOffsets = new List<int>();
         if (item.RepeatWeekdays == null) item.RepeatWeekdays = new List<DayOfWeek>();
         if (item.FiredReminders == null) item.FiredReminders = new List<ReminderFireRecord>();
+        if (item.ReminderVoiceTexts == null) item.ReminderVoiceTexts = new Dictionary<int, string>();
+        if (item.ReminderSoundFiles == null) item.ReminderSoundFiles = new Dictionary<int, string>();
 
         // 旧版单档提醒 → 档位列表
         if (item.ReminderOffsets.Count == 0 && item.ReminderEnabled && item.RemindBeforeMinutes >= 0 && item.RemindBeforeMinutes != 10)
@@ -114,6 +130,28 @@ public static class ScheduleItemValidator
         {
             notes.Add("清理了非法提醒档位");
             item.ReminderOffsets = sanitized;
+        }
+
+        // 档位文案 / 铃声：只保留仍然存在的档位，并丢弃空值
+        var offsets = item.NormalizedOffsets();
+        if (item.ReminderVoiceTexts.Count > 0)
+        {
+            var kept = item.ReminderVoiceTexts
+                .Where(p => offsets.Contains(p.Key) && !string.IsNullOrWhiteSpace(p.Value))
+                .ToDictionary(p => p.Key, p => p.Value);
+
+            if (kept.Count != item.ReminderVoiceTexts.Count) notes.Add("清理了无对应档位的播报文案");
+            item.ReminderVoiceTexts = kept;
+        }
+
+        if (item.ReminderSoundFiles.Count > 0)
+        {
+            var kept = item.ReminderSoundFiles
+                .Where(p => offsets.Contains(p.Key) && !string.IsNullOrWhiteSpace(p.Value))
+                .ToDictionary(p => p.Key, p => p.Value);
+
+            if (kept.Count != item.ReminderSoundFiles.Count) notes.Add("清理了无对应档位的铃声设置");
+            item.ReminderSoundFiles = kept;
         }
 
         if (item.RemindBeforeMinutes < 0)
@@ -141,20 +179,9 @@ public static class ScheduleItemValidator
 
         if (item.Repeat == RepeatKind.None)
         {
-            if (item.RepeatUntil.HasValue)
-            {
-                item.RepeatUntil = null;
-            }
-
-            if (item.RepeatCount.HasValue)
-            {
-                item.RepeatCount = null;
-            }
-
-            if (item.RepeatWeekdays.Count > 0)
-            {
-                item.RepeatWeekdays.Clear();
-            }
+            if (item.RepeatUntil.HasValue) item.RepeatUntil = null;
+            if (item.RepeatCount.HasValue) item.RepeatCount = null;
+            if (item.RepeatWeekdays.Count > 0) item.RepeatWeekdays.Clear();
         }
 
         if (!string.IsNullOrWhiteSpace(item.Color))

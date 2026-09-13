@@ -59,8 +59,17 @@ public sealed class ScheduleItem
     /// <summary>绝对提醒时间；仅对首次发生生效。</summary>
     public DateTime? RemindAtOverride { get; set; }
 
-    /// <summary>自定义语音播报文本；为空则使用全局模板。</summary>
+    /// <summary>本日程的通用播报文本；为空则继续回退到全局档位文案 / 全局模板。</summary>
     public string VoiceText { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 按提醒档位自定义播报文本（键 = 提前分钟数，0 = 准点）。
+    /// 例如 { 30: "还有 30 分钟就要开会了", 5: "5 分钟后开始" }。
+    /// </summary>
+    public Dictionary<int, string> ReminderVoiceTexts { get; set; } = new();
+
+    /// <summary>按提醒档位自定义提示音（键 = 提前分钟数）。</summary>
+    public Dictionary<int, string> ReminderSoundFiles { get; set; } = new();
 
     /// <summary>自定义提醒音频文件（wav/mp3/wma/m4a）；为空则使用全局设置。</summary>
     public string SoundFile { get; set; } = string.Empty;
@@ -171,6 +180,68 @@ public sealed class ScheduleItem
         return plans.Count > 0 ? plans[0].FireAt : occurrenceStart;
     }
 
+    /// <summary>
+    /// 解析某个提醒档位实际使用的播报模板。优先级（越具体越优先）：
+    /// 1) 本日程 · 该档位文案  2) 本日程 · 通用文案
+    /// 3) 全局 · 该档位默认文案  4) 全局播报模板
+    /// 返回值可直接交给 VoiceTemplate.Render（仍支持全部占位符）。
+    /// </summary>
+    public string ResolveVoiceTemplate(int offsetMinutes, AppSettings settings)
+    {
+        if (ReminderVoiceTexts.Count > 0
+            && ReminderVoiceTexts.TryGetValue(offsetMinutes, out var perOffset)
+            && !string.IsNullOrWhiteSpace(perOffset))
+        {
+            return perOffset;
+        }
+
+        if (!string.IsNullOrWhiteSpace(VoiceText)) return VoiceText;
+
+        if (settings.OffsetVoiceTemplates.Count > 0
+            && settings.OffsetVoiceTemplates.TryGetValue(offsetMinutes, out var globalOffset)
+            && !string.IsNullOrWhiteSpace(globalOffset))
+        {
+            return globalOffset;
+        }
+
+        return settings.VoiceTemplate;
+    }
+
+    /// <summary>解析某个提醒档位实际使用的提示音文件（空字符串表示用全局提示音）。</summary>
+    public string ResolveSoundFile(int offsetMinutes, AppSettings settings)
+    {
+        if (ReminderSoundFiles.Count > 0
+            && ReminderSoundFiles.TryGetValue(offsetMinutes, out var perOffset)
+            && !string.IsNullOrWhiteSpace(perOffset))
+        {
+            return perOffset;
+        }
+
+        if (!string.IsNullOrWhiteSpace(SoundFile)) return SoundFile;
+        return settings.DefaultSoundFile;
+    }
+
+    /// <summary>描述某个档位文案的来源，便于界面与接口说明「当前生效的是什么」。</summary>
+    public string DescribeVoiceSource(int offsetMinutes, AppSettings settings)
+    {
+        if (ReminderVoiceTexts.Count > 0
+            && ReminderVoiceTexts.TryGetValue(offsetMinutes, out var perOffset)
+            && !string.IsNullOrWhiteSpace(perOffset))
+        {
+            return "本日程 · 该档位";
+        }
+
+        if (!string.IsNullOrWhiteSpace(VoiceText)) return "本日程 · 通用文案";
+
+        if (settings.OffsetVoiceTemplates.TryGetValue(offsetMinutes, out var globalOffset)
+            && !string.IsNullOrWhiteSpace(globalOffset))
+        {
+            return "全局 · 该档位文案";
+        }
+
+        return "全局模板";
+    }
+
     /// <summary>提醒档位的可读描述，例如「提前 30 分钟 / 提前 5 分钟 / 准点」。</summary>
     public string DescribeReminders()
     {
@@ -209,6 +280,8 @@ public sealed class ScheduleItem
         var copy = (ScheduleItem)MemberwiseClone();
         copy.ReminderOffsets = new List<int>(ReminderOffsets);
         copy.RepeatWeekdays = new List<DayOfWeek>(RepeatWeekdays);
+        copy.ReminderVoiceTexts = new Dictionary<int, string>(ReminderVoiceTexts);
+        copy.ReminderSoundFiles = new Dictionary<int, string>(ReminderSoundFiles);
         copy.FiredReminders = FiredReminders.Select(r => r.Clone()).ToList();
         return copy;
     }

@@ -354,8 +354,22 @@ public sealed class CsvImportService
             item.RemindBeforeMinutes = item.ReminderOffsets.Min();
         }
 
-        item.VoiceText = Get(CsvField.Voice).Trim();
-        item.SoundFile = Get(CsvField.Sound).Trim();
+        // 语音 / 铃声：支持「30:还有30分钟|5:马上开始」按档位写法，也支持普通整段文案
+        var knownOffsets = item.NormalizedOffsets();
+
+        var voiceRaw = Get(CsvField.Voice).Trim();
+        if (FieldParsers.TryParseOffsetTexts(voiceRaw, out var voiceMap, out var voicePlain, knownOffsets))
+        {
+            item.ReminderVoiceTexts = voiceMap;
+            item.VoiceText = voicePlain;
+        }
+
+        var soundRaw = Get(CsvField.Sound).Trim();
+        if (FieldParsers.TryParseOffsetTexts(soundRaw, out var soundMap, out var soundPlain, knownOffsets))
+        {
+            item.ReminderSoundFiles = soundMap;
+            item.SoundFile = soundPlain;
+        }
 
         return item;
     }
@@ -381,6 +395,8 @@ public sealed class CsvImportService
         target.RemindAtOverride = source.RemindAtOverride;
         target.VoiceText = source.VoiceText;
         target.SoundFile = source.SoundFile;
+        target.ReminderVoiceTexts = new Dictionary<int, string>(source.ReminderVoiceTexts);
+        target.ReminderSoundFiles = new Dictionary<int, string>(source.ReminderSoundFiles);
         target.Status = source.Status;
         target.Origin = ItemOrigin.CsvImport;
         target.Source = source.Source;
