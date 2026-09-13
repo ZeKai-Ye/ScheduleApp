@@ -119,6 +119,30 @@ Main
 - 界面侧统一由 `Mvvm/BrushCache` 产出**冻结画刷**并缓存（实心 / 半透明两种），
   因此 XAML 里不需要任何颜色转换器
 
+### 10. 本地接口（供 AI / 脚本访问）
+- `Api/MiniHttpServer.cs`：基于 `TcpListener` 的极简 HTTP/1.1 服务器（只绑定回环地址）。
+  刻意不用 `HttpListener`——后者需要 urlacl 或管理员权限，而 TcpListener 普通用户即可监听。
+  支持请求行 / 请求头 / `Content-Length` 正文与 `Connection: close`；分块传输明确回 411
+- `Api/ScheduleApi.cs`：路由 + DTO + **自描述 schema**，纯逻辑、不依赖 WPF，因此能被自测覆盖
+  （测试里真的起服务器、真的发 HTTP 请求，覆盖鉴权、CRUD、PUT/PATCH 语义、导入导出与错误码）
+- `Api/IApiActions`：把语音与「立即触发提醒」这类宿主能力抽象出来，Core 不反向依赖 App；
+  测试用 `NullApiActions`
+- App 侧 `Services/ApiHost.cs`：读取 / 生成令牌、启动监听、写 `api.json` 发现文件，
+  并把**每个请求都切到 UI 线程**执行——仓储、`MediaPlayer` 与 SAPI 都要求同线程访问
+- 令牌比较使用固定时间实现，避免时序侧信道；未识别字段通过响应头回传，便于 AI 发现字段拼写错误
+
+### 11. 分档播报的解析链
+`ScheduleItem.ResolveVoiceTemplate(offset, settings)` 按「越具体越优先」返回模板：
+
+1. `ReminderVoiceTexts[档位]`（本日程 · 该档位）
+2. `VoiceText`（本日程 · 通用文案）
+3. `settings.OffsetVoiceTemplates[档位]`（全局 · 该档位文案）
+4. `settings.VoiceTemplate`（全局模板）
+
+铃声同理（`ReminderSoundFiles[档位]` → `SoundFile` → `DefaultSoundFile`）。
+`DescribeVoiceSource` 会返回命中来源，因此界面、弹窗与接口都能告诉用户「这句话是哪儿来的」，
+避免「改了设置却没生效」这类难以排查的疑惑。
+
 ## 扩展点
 
 | 需求 | 做法 |

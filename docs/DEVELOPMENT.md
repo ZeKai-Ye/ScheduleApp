@@ -55,6 +55,9 @@ if ($LASTEXITCODE -ne 0) { throw "自测失败" }
 | 缩短提醒轮询间隔 | `ReminderHost.IntervalSeconds` 设为 5 秒 |
 | 诊断 WPF 绑定错误 | 设环境变量 `SCHEDULEAPP_BINDING_TRACE=1`（或 `all`）后启动，日志目录生成 `binding-*.log` |
 | 并行运行多个实例 | 用不同的 `--data` 目录（单实例互斥体按数据目录隔离） |
+| 调试本地接口 | `ScheduleApp.exe --serve --port 43121 --data D:\tmp\api`，令牌在 `<数据目录>\api.json` |
+| 查看接口自描述 | `curl -H "X-Api-Token: …" http://127.0.0.1:43121/api/schema` |
+| 接口代码位置 | `src/Schedule.Core/Api/`（服务器 + 路由，可被自测覆盖）与 `src/Schedule.App/Services/ApiHost.cs`（宿主 + 线程切换） |
 
 ## 代码约定
 - `Nullable` 与 `ImplicitUsings` 全开，构建保持 **0 警告**
