@@ -41,6 +41,9 @@ public sealed class AppHost : IDisposable
     /// <summary>是否以无界面模式运行（--serve）。</summary>
     public bool IsHeadless { get; private set; }
 
+    /// <summary>启动时是否直接最小化到托盘（--minimized / --serve）。</summary>
+    public bool StartMinimized { get; private set; }
+
     public CsvImportService CsvImporter { get; } = new();
 
     /// <summary>当前设置（只读引用，修改请走 SettingsService.Replace）。</summary>
@@ -76,10 +79,15 @@ public sealed class AppHost : IDisposable
         Api.Start(options.ApiPort, enabled: !options.NoApi);
 
         IsHeadless = options.Serve;
+        StartMinimized = options.Minimized || options.Serve;
 
         if (options.Serve)
         {
             AppLog.Info("以无界面模式启动（--serve）：仅运行本地接口与提醒调度，右键托盘图标可打开界面或退出");
+        }
+        else if (options.Minimized)
+        {
+            AppLog.Info("以最小化模式启动（--minimized）：已最小化到托盘，提醒照常触发");
         }
         else
         {
@@ -95,7 +103,7 @@ public sealed class AppHost : IDisposable
         _autoSaveTimer.Tick += (_, _) => SaveAll();
         _autoSaveTimer.Start();
 
-        ApplyStartupSetting(Settings.StartWithWindows);
+        SyncAutostartSetting();
 
         AppLog.Info((IsHeadless ? "无界面模式已启动，数据目录 " : "界面已启动，数据目录 ") + AppPaths.DataDirectory);
     }
@@ -116,13 +124,42 @@ public sealed class AppHost : IDisposable
                     ShowMainWindow();
                     _mainWindow?.ShowToday();
                 },
-                onExit: () => ExitApp());
+                onExit: () => ExitApp(),
+                onToggleAutostart: ToggleAutostartFromTray,
+                onCreateShortcut: CreateDesktopShortcutFromTray,
+                isAutostartEnabled: () => Settings.StartWithWindows);
 
             OnRemindersUpdated(this, EventArgs.Empty);
         }
         catch (Exception ex)
         {
             AppLog.Error("托盘初始化失败", ex);
+        }
+    }
+
+    private void ToggleAutostartFromTray()
+    {
+        var enable = !Settings.StartWithWindows;
+
+        if (ApplyAutostart(enable, null, out var mode, out var error))
+        {
+            Tray?.ShowBalloon("开机启动", enable ? "已启用（" + mode + "）" : "已停用");
+        }
+        else
+        {
+            Tray?.ShowBalloon("开机启动设置失败", error ?? "未知原因");
+        }
+    }
+
+    private void CreateDesktopShortcutFromTray()
+    {
+        if (SetShortcut("desktop", true, null, out var path, out var error))
+        {
+            Tray?.ShowBalloon("桌面快捷方式", "已创建：" + System.IO.Path.GetFileName(path ?? string.Empty));
+        }
+        else
+        {
+            Tray?.ShowBalloon("创建快捷方式失败", error ?? "未知原因");
         }
     }
 
@@ -189,17 +226,108 @@ public sealed class AppHost : IDisposable
     {
         SettingsService.MarkDirty();
         SettingsService.Save();
-        ApplyStartupSetting(Settings.StartWithWindows);
+        SyncAutostartSetting();
+        Tray?.UpdateAutostart(Settings.StartWithWindows);
         SettingsChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    private static void ApplyStartupSetting(bool enabled)
+    /// <summary>把「开机启动」设置与系统实际状态对齐（路径或参数变化时重写一次）。</summary>
+    private void SyncAutostartSetting()
     {
-        if (StartupService.IsEnabled() == enabled) return;
-        if (!StartupService.SetEnabled(enabled))
+        try
         {
-            AppLog.Warn("开机自启设置未生效（可能被安全软件拦截）");
+            var (mode, command) = StartupService.Detect();
+            var desired = StartupService.BuildCommand(BuildStartupArguments());
+
+            if (!Settings.StartWithWindows)
+            {
+                if (mode != AutostartMode.Disabled) StartupService.Apply(false, null, out _, out _);
+                return;
+            }
+
+            if (mode == AutostartMode.Registry && string.Equals(command, desired, StringComparison.OrdinalIgnoreCase)) return;
+
+            if (StartupService.Apply(true, BuildStartupArguments(), out var applied, out var error))
+            {
+                AppLog.Info("开机启动已同步为 " + applied + "：" + desired);
+            }
+            else
+            {
+                AppLog.Warn("开机启动设置未生效：" + error);
+            }
         }
+        catch (Exception ex)
+        {
+            AppLog.Warn("同步开机启动失败：" + ex.Message);
+        }
+    }
+
+    /// <summary>按设置拼出开机启动参数。</summary>
+    public string BuildStartupArguments()
+    {
+        var parts = new List<string>();
+
+        if (Settings.StartMinimized) parts.Add("--minimized");
+        if (!string.IsNullOrWhiteSpace(Settings.StartupArguments)) parts.Add(Settings.StartupArguments.Trim());
+
+        return string.Join(" ", parts);
+    }
+
+    /// <summary>创建 / 删除快捷方式（界面、接口、命令行共用）。</summary>
+    public bool SetShortcut(string target, bool create, string? directoryOverride, out string? path, out string? error)
+    {
+        var ok = create
+            ? ShortcutService.TryCreate(target, null, directoryOverride, out path, out error)
+            : ShortcutService.TryDelete(target, directoryOverride, out path, out error);
+
+        if (ok) NotifySettingsChanged();
+
+        return ok;
+    }
+
+    /// <summary>启用 / 停用开机启动，并同步设置。</summary>
+    public bool ApplyAutostart(bool enabled, string? arguments, out string? mode, out string? error)
+    {
+        var effective = string.IsNullOrWhiteSpace(arguments) ? BuildStartupArguments() : arguments!.Trim();
+
+        var ok = StartupService.Apply(enabled, effective, out mode, out error);
+
+        if (ok)
+        {
+            Settings.StartWithWindows = enabled;
+            Settings.StartMinimized = effective.Contains("--minimized", StringComparison.OrdinalIgnoreCase);
+            Settings.StartupArguments = effective
+                .Replace("--minimized", string.Empty, StringComparison.OrdinalIgnoreCase)
+                .Trim();
+
+            NotifySettingsChanged();
+        }
+
+        return ok;
+    }
+
+    /// <summary>记住提醒弹窗的位置（用户拖动后自动调用）。</summary>
+    public void RememberReminderPosition(double left, double top)
+    {
+        Settings.ReminderPosition = ReminderPositionMode.Custom;
+        Settings.ReminderPositionX = (int)Math.Round(left);
+        Settings.ReminderPositionY = (int)Math.Round(top);
+
+        SettingsService.MarkDirty();
+        SettingsService.Save();
+        SettingsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>设置弹窗位置（设置页用）。</summary>
+    public void SetReminderPosition(ReminderPositionMode mode, int x, int y)
+    {
+        Settings.ReminderPosition = mode;
+        Settings.ReminderPositionX = x;
+        Settings.ReminderPositionY = y;
+
+        SettingsService.MarkDirty();
+        SettingsService.Save();
+        SettingsChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>退出应用：保存数据 → 释放资源 → 关闭进程。</summary>
