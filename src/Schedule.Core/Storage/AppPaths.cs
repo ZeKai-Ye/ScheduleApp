@@ -37,7 +37,38 @@ public static class AppPaths
 
     public static string ExportDirectory => Path.Combine(DataDirectory, "export");
 
-    public static string SingleInstanceMutexName => @"Local\ScheduleApp.SingleInstance.v1";
+    /// <summary>
+    /// 单实例互斥体名称按数据目录隔离：同一个数据目录只允许一个实例（避免两个进程同时写 schedules.json），
+    /// 而使用不同 --data 的实例可以并行运行（例如便携版与安装版同时使用）。
+    /// </summary>
+    public static string SingleInstanceMutexName => @"Local\ScheduleApp.SingleInstance." + DirectoryKey;
+
+    /// <summary>用于「激活已有实例」的命名事件（同样按数据目录隔离）。</summary>
+    public static string ActivateEventName => @"Local\ScheduleApp.Activate." + DirectoryKey;
+
+    /// <summary>数据目录的稳定短哈希（FNV-1a，跨进程一致）。</summary>
+    private static string DirectoryKey
+    {
+        get
+        {
+            var path = DataDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).ToLowerInvariant();
+
+            unchecked
+            {
+                const ulong offset = 14695981039346656037;
+                const ulong prime = 1099511628211;
+
+                var hash = offset;
+                foreach (var c in path)
+                {
+                    hash ^= c;
+                    hash *= prime;
+                }
+
+                return hash.ToString("x16");
+            }
+        }
+    }
 
     /// <summary>程序所在目录（发布后即 exe 目录）。</summary>
     public static string ExecutableDirectory
