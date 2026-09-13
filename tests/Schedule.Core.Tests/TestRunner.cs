@@ -19,7 +19,11 @@ public static class TestRunner
         Run("日期时间解析", DateTimeParsingTests.Run);
         Run("CSV 解析与导入", CsvTests.Run);
         Run("重复规则", RecurrenceTests.Run);
+        Run("周期事件进阶", AdvancedRecurrenceTests.Run);
         Run("提醒调度", ReminderTests.Run);
+        Run("日历布局", CalendarLayoutTests.Run);
+        Run("事件配色", ColorTests.Run);
+        Run("CSV 新特性", CsvFeatureTests.Run);
         Run("语音模板", TemplateTests.Run);
         Run("存储与持久化", StorageTests.Run);
 

@@ -45,5 +45,11 @@ public static class TemplateTests
 
         TestRunner.Equal("星期日", VoiceTemplate.WeekdayText(DayOfWeek.Sunday), "星期文案");
         TestRunner.Equal("星期一", VoiceTemplate.WeekdayText(DayOfWeek.Monday), "星期一文案");
+
+        var offsetText = VoiceTemplate.Render("{offset}：{title}", item, item.Start, now, 30);
+        TestRunner.Equal("提前 30 分钟：项目周会", offsetText, "档位占位符");
+
+        TestRunner.Equal("准点", VoiceTemplate.Render("{offset}", item, item.Start, now, 0), "准点档位文案");
+        TestRunner.Check(VoiceTemplate.Tokens.Contains("{offset}"), "档位占位符已登记");
     }
 }
