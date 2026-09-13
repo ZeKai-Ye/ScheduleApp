@@ -5,15 +5,16 @@ namespace Schedule.Core.Templating;
 
 /// <summary>
 /// 自定义语音播报模板引擎。
-/// 支持占位符：{title} {time} {date} {weekday} {category} {notes} {priority} {countdown} {status}
+/// 支持占位符：{title} {time} {date} {weekday} {category} {notes} {priority} {countdown} {status} {offset}
 /// </summary>
 public static class VoiceTemplate
 {
-    public const string Default = "{time}，提醒您：{title}。{category}";
+    public const string Default = "{time}，提醒您：{title}。{countdown}。{category}";
 
     public static readonly string[] Tokens =
     {
-        "{title}", "{time}", "{date}", "{weekday}", "{category}", "{notes}", "{priority}", "{countdown}", "{status}",
+        "{title}", "{time}", "{date}", "{weekday}", "{category}", "{notes}",
+        "{priority}", "{countdown}", "{status}", "{offset}",
     };
 
     public static string Describe(string token) => token switch
@@ -27,15 +28,22 @@ public static class VoiceTemplate
         "{priority}" => "优先级（高/中/低）",
         "{countdown}" => "还有多久（例如：还有 10 分钟）",
         "{status}" => "状态",
+        "{offset}" => "本次提醒档位（提前 30 分钟 / 准点）",
         _ => token,
     };
 
     /// <summary>渲染播报文本。未知占位符原样保留，空值占位符会被清理掉多余标点。</summary>
-    public static string Render(string? template, ScheduleItem item, DateTime occurrenceStart, DateTime now)
+    public static string Render(
+        string? template,
+        ScheduleItem item,
+        DateTime occurrenceStart,
+        DateTime now,
+        int? offsetMinutes = null)
     {
         var text = string.IsNullOrWhiteSpace(template) ? Default : template!;
 
         var countdown = DescribeCountdown(occurrenceStart, now);
+        var offset = offsetMinutes.HasValue ? ReminderPlan.DescribeOffset(offsetMinutes.Value) : "提醒";
 
         text = text
             .Replace("{title}", item.Title ?? string.Empty)
@@ -46,13 +54,14 @@ public static class VoiceTemplate
             .Replace("{notes}", SingleLine(item.Notes))
             .Replace("{priority}", PriorityText(item.Priority))
             .Replace("{countdown}", countdown)
-            .Replace("{status}", StatusText(item.Status));
+            .Replace("{status}", StatusText(item.Status))
+            .Replace("{offset}", offset);
 
         return Tidy(text);
     }
 
     /// <summary>用示例数据渲染，供设置界面实时预览。</summary>
-    public static string Preview(string? template, DateTime now)
+    public static string Preview(string? template, DateTime now, int? offsetMinutes = 15)
     {
         var item = new ScheduleItem
         {
@@ -60,10 +69,11 @@ public static class VoiceTemplate
             Category = "工作",
             Notes = "会议室 A，带上周报",
             Priority = Priority.High,
-            Start = now.Date.AddHours(14),
+            Start = now.AddMinutes(offsetMinutes ?? 15),
+            ReminderOffsets = new List<int> { 30, 15, 5 },
         };
 
-        return Render(template, item, item.Start, now);
+        return Render(template, item, item.Start, now, offsetMinutes);
     }
 
     public static string DescribeCountdown(DateTime occurrenceStart, DateTime now)
@@ -94,6 +104,18 @@ public static class VoiceTemplate
         DayOfWeek.Friday => "星期五",
         DayOfWeek.Saturday => "星期六",
         _ => "星期日",
+    };
+
+    /// <summary>紧凑星期名（月/周视图表头用）。</summary>
+    public static string ShortWeekdayText(DayOfWeek day) => day switch
+    {
+        DayOfWeek.Monday => "周一",
+        DayOfWeek.Tuesday => "周二",
+        DayOfWeek.Wednesday => "周三",
+        DayOfWeek.Thursday => "周四",
+        DayOfWeek.Friday => "周五",
+        DayOfWeek.Saturday => "周六",
+        _ => "周日",
     };
 
     public static string PriorityText(Priority priority) => priority switch

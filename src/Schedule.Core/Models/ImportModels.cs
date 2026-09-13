@@ -39,6 +39,10 @@ public enum CsvField
     Voice = 11,
     Sound = 12,
     Status = 13,
+    Color = 14,
+    RepeatInterval = 15,
+    RepeatCount = 16,
+    Weekdays = 17,
 }
 
 /// <summary>CSV 导入选项。</summary>
@@ -69,7 +73,13 @@ public sealed class CsvImportOptions
     /// <summary>未指定分类时使用的分类。</summary>
     public string DefaultCategory { get; set; } = "导入";
 
+    /// <summary>未指定颜色时使用的颜色（空 = 跟随分类自动配色）。</summary>
+    public string DefaultColor { get; set; } = string.Empty;
+
     public bool DefaultReminderEnabled { get; set; } = true;
+
+    /// <summary>CSV 未指定提醒时使用的默认档位。</summary>
+    public List<int> DefaultReminderOffsets { get; set; } = new() { 10 };
 
     public int DefaultRemindBeforeMinutes { get; set; } = 10;
 
