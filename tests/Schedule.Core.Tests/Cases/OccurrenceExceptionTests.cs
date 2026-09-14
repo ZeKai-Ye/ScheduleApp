@@ -17,6 +17,7 @@ public static class OccurrenceExceptionTests
         FiredBookkeeping();
         Layout();
         NormalizeAndValidate();
+        PoisonedSingleItem();
         ApiOccurrence();
     }
 
@@ -404,5 +405,56 @@ public static class OccurrenceExceptionTests
             NewEnd = new DateTime(2025, 6, 11, 9, 0, 0),
         });
         TestRunner.Check(ScheduleItemValidator.Validate(badRange).Any(e => e.Contains("改期结束时间", StringComparison.Ordinal)), "校验拦截非法改期区间");
+    }
+
+    /// <summary>
+    /// 回归：旧版本在非重复日程上执行「仅这一次」改期（拖动 / 改期对话框都会），
+    /// 于是这条日程带着无意义的例外数据，之后再打开编辑窗口保存就永远被校验拦下。
+    /// </summary>
+    private static void PoisonedSingleItem()
+    {
+        var longEvent = new ScheduleItem
+        {
+            Title = "整车测试（8 小时）",
+            Start = new DateTime(2025, 6, 2, 9, 0, 0),
+            End = new DateTime(2025, 6, 2, 17, 0, 0),
+        };
+
+        longEvent.OccurrenceOverrides.Add(new OccurrenceOverride
+        {
+            OriginalStart = new DateTime(2025, 6, 2, 9, 0, 0),
+            NewStart = new DateTime(2025, 6, 2, 10, 0, 0),
+        });
+
+        TestRunner.Check(
+            ScheduleItemValidator.Validate(longEvent).Any(e => e.Contains("仅本次", StringComparison.Ordinal)),
+            "脏数据（非重复日程带例外）确实会被校验拦下");
+
+        TestRunner.Check(ScheduleItemValidator.DropOccurrenceEditsWhenNotRepeating(longEvent), "自愈：识别出需要清理");
+        TestRunner.Equal(0, longEvent.OccurrenceOverrides.Count, "例外已被清空");
+        TestRunner.Equal(0, ScheduleItemValidator.Validate(longEvent).Count, "自愈后可以正常保存");
+        TestRunner.Check(!ScheduleItemValidator.DropOccurrenceEditsWhenNotRepeating(longEvent), "没有例外时不做任何事");
+
+        // 加载历史数据时的自愈路径（仓库 Load 会调用 Normalize）
+        var onLoad = new ScheduleItem { Title = "长日程", Start = new DateTime(2025, 6, 3, 22, 0, 0), End = new DateTime(2025, 6, 4, 4, 0, 0) };
+        onLoad.ExcludedOccurrences.Add(new DateTime(2025, 6, 3, 22, 0, 0));
+        onLoad.OccurrenceOverrides.Add(new OccurrenceOverride { OriginalStart = new DateTime(2025, 6, 3, 22, 0, 0), Title = "x" });
+
+        var notes = ScheduleItemValidator.Normalize(onLoad);
+        TestRunner.Check(!onLoad.HasOccurrenceEdits, "Normalize 也会清掉非重复日程上的例外");
+        TestRunner.Check(notes.Any(n => n.Contains("仅本次", StringComparison.Ordinal)), "并记录了清理说明");
+        TestRunner.Equal(0, ScheduleItemValidator.Validate(onLoad).Count, "清理后通过校验");
+
+        // 重复日程上的例外绝不能顺手清掉
+        var series = WeeklySeries();
+        series.OccurrenceOverrides.Add(new OccurrenceOverride
+        {
+            OriginalStart = new DateTime(2025, 6, 9, 10, 0, 0),
+            NewStart = new DateTime(2025, 6, 11, 10, 0, 0),
+        });
+
+        TestRunner.Check(!ScheduleItemValidator.DropOccurrenceEditsWhenNotRepeating(series), "重复日程的例外不被清除");
+        TestRunner.Equal(1, series.OccurrenceOverrides.Count, "重复日程的例外仍在");
+        TestRunner.Equal(0, ScheduleItemValidator.Validate(series).Count, "重复日程校验通过");
     }
 }

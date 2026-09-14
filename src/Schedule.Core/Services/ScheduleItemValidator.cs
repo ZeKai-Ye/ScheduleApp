@@ -109,6 +109,20 @@ public static class ScheduleItemValidator
         return errors;
     }
 
+    /// <summary>
+    /// 清掉非重复日程上残留的「仅本次」例外（旧版本把「仅这一次」改期写到了非重复日程上，
+    /// 结果这条日程再打开编辑窗口保存时会被 <see cref="Validate"/> 拦住）。
+    /// 返回是否真的清理过。
+    /// </summary>
+    public static bool DropOccurrenceEditsWhenNotRepeating(ScheduleItem item)
+    {
+        if (item.Repeat != RepeatKind.None || !item.HasOccurrenceEdits) return false;
+
+        item.ExcludedOccurrences?.Clear();
+        item.OccurrenceOverrides?.Clear();
+        return true;
+    }
+
     /// <summary>加载历史数据时修复明显不合法的字段，返回修复说明。</summary>
     public static List<string> Normalize(ScheduleItem item)
     {
@@ -256,10 +270,8 @@ public static class ScheduleItemValidator
             }
         }
 
-        if (item.Repeat == RepeatKind.None && item.HasOccurrenceEdits)
+        if (DropOccurrenceEditsWhenNotRepeating(item))
         {
-            item.ExcludedOccurrences.Clear();
-            item.OccurrenceOverrides.Clear();
             notes.Add("清除了非重复日程上的「仅本次」例外");
         }
 

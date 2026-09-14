@@ -41,8 +41,8 @@ public static class ReminderPositionMath
     /// <param name="cascadeIndex">同屏多个弹窗时依次错开的下标。</param>
     public static (double Left, double Top) Compute(
         ReminderPositionMode mode,
-        int offsetX,
-        int offsetY,
+        double offsetX,
+        double offsetY,
         double windowWidth,
         double windowHeight,
         double workLeft,
@@ -96,6 +96,49 @@ public static class ReminderPositionMath
 
         return (Clamp(left, workLeft, workLeft + workWidth - windowWidth),
                 Clamp(top, workTop, workTop + workHeight - windowHeight));
+    }
+
+    /// <summary>
+    /// 设备无关单位（DIP，设置里保存的 X / Y 与窗口 Left / Top 都是它）→ 设备像素。
+    /// 定位计算统一在设备像素下做，否则 125% / 150% 缩放下弹窗会偏。
+    /// </summary>
+    public static double DipsToPixels(double dips, double scale)
+        => scale > 0 ? dips * scale : dips;
+
+    /// <summary>设备像素 → 设备无关单位。</summary>
+    public static double PixelsToDips(double pixels, double scale)
+        => scale > 0 ? pixels / scale : pixels;
+
+    /// <summary>
+    /// 「记住弹窗位置」的往返换算自检用：给出保存前的坐标（DIP）与屏幕缩放，
+    /// 返回下一次按同样缩放定位时实际会落到的坐标（DIP）。理想情况下应等于输入。
+    /// </summary>
+    public static (double Left, double Top) RoundTripForTest(
+        double savedLeft,
+        double savedTop,
+        double scale,
+        double windowWidthDips = 470,
+        double windowHeightDips = 300,
+        double workLeft = 0,
+        double workTop = 0,
+        double workWidth = 3840,
+        double workHeight = 2160)
+    {
+        var widthPixels = DipsToPixels(windowWidthDips, scale);
+        var heightPixels = DipsToPixels(windowHeightDips, scale);
+
+        var (left, top) = Compute(
+            ReminderPositionMode.Custom,
+            DipsToPixels(savedLeft, scale),
+            DipsToPixels(savedTop, scale),
+            widthPixels,
+            heightPixels,
+            workLeft,
+            workTop,
+            workWidth,
+            workHeight);
+
+        return (PixelsToDips(left, scale), PixelsToDips(top, scale));
     }
 
     /// <summary>把区间约束到 [min, max]；当 max &lt; min（窗口比工作区还大）时贴住 min。</summary>

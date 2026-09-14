@@ -46,10 +46,13 @@ public sealed class AppSettings
     /// <summary>提醒弹窗出现的位置。</summary>
     public ReminderPositionMode ReminderPosition { get; set; } = ReminderPositionMode.BottomRight;
 
-    /// <summary>位置偏移 / 自定义绝对 X（含义随 ReminderPosition 变化）。</summary>
+    /// <summary>
+    /// 位置偏移 / 自定义绝对 X（含义随 ReminderPosition 变化）。
+    /// 单位是设备无关单位（DIP），与窗口 Left 一致；定位时再按屏幕缩放换算成设备像素。
+    /// </summary>
     public int ReminderPositionX { get; set; }
 
-    /// <summary>位置偏移 / 自定义绝对 Y（含义随 ReminderPosition 变化）。</summary>
+    /// <summary>位置偏移 / 自定义绝对 Y（含义随 ReminderPosition 变化，单位 DIP）。</summary>
     public int ReminderPositionY { get; set; }
 
     /// <summary>拖动提醒弹窗后自动记住位置（切换为自定义位置）。</summary>

@@ -97,6 +97,31 @@ public static class PositionAndSystemTests
         TestRunner.Equal(0d, oversized.Left, "超大窗口贴左");
         TestRunner.Equal(0d, oversized.Top, "超大窗口贴上");
 
+        // 自定义坐标落在第二块屏幕（两台 1920x1080 并排的虚拟桌面）时，
+        // 不能按主屏工作区夹回去 —— 否则「拖动弹窗记住坐标」看起来没生效。
+        var secondScreen = ReminderPositionMath.Compute(
+            ReminderPositionMode.Custom, 2400, 300, WindowWidth, WindowHeight, 0, 0, 3840, 1080);
+        TestRunner.Equal(2400d, secondScreen.Left, "自定义坐标可落在第二块屏幕");
+        TestRunner.Equal(300d, secondScreen.Top, "第二块屏幕上的 Y");
+
+        var offDesktop = ReminderPositionMath.Compute(
+            ReminderPositionMode.Custom, 9000, 300, WindowWidth, WindowHeight, 0, 0, 3840, 1080);
+        TestRunner.Equal(3840d - WindowWidth, offDesktop.Left, "超出整个虚拟桌面时仍被夹回");
+
+        // 设备无关单位 ↔ 设备像素：设置里保存的 X / Y 与窗口 Left / Top 都是 DIP，
+        // 定位计算在设备像素下进行，125% / 150% 缩放下必须先换算，否则会偏。
+        TestRunner.Equal(375d, ReminderPositionMath.DipsToPixels(300, 1.25), "DIP → 设备像素");
+        TestRunner.Equal(300d, ReminderPositionMath.PixelsToDips(375, 1.25), "设备像素 → DIP");
+        TestRunner.Equal(300d, ReminderPositionMath.DipsToPixels(300, 0), "缩放非法时原样返回");
+        TestRunner.Equal(300d, ReminderPositionMath.PixelsToDips(300, -1), "负缩放时原样返回");
+
+        foreach (var scale in new[] { 1d, 1.25, 1.5, 2d })
+        {
+            var round = ReminderPositionMath.RoundTripForTest(1200, 640, scale);
+            TestRunner.Equal(1200d, Math.Round(round.Left, 6), "记住弹窗位置往返一致（X，缩放 " + scale + "）");
+            TestRunner.Equal(640d, Math.Round(round.Top, 6), "记住弹窗位置往返一致（Y，缩放 " + scale + "）");
+        }
+
         TestRunner.Equal("左下角", ReminderPositionMath.Describe(ReminderPositionMode.BottomLeft), "位置描述");
         TestRunner.Equal("自定义位置", ReminderPositionMath.Describe(ReminderPositionMode.Custom), "自定义位置描述");
     }
