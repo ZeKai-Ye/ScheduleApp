@@ -41,4 +41,7 @@ public enum ItemOrigin
 {
     Manual = 0,
     CsvImport = 1,
+
+    /// <summary>iCalendar（.ics）导入。</summary>
+    IcsImport = 2,
 }
