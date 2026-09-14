@@ -1,5 +1,16 @@
 namespace Schedule.Core.Models;
 
+/// <summary>界面主题模式（叫 AppTheme 以免与 System.Windows.ThemeMode 撞名）。</summary>
+public enum AppTheme
+{
+    /// <summary>浅色（默认）。</summary>
+    Light = 0,
+    /// <summary>夜间。</summary>
+    Dark = 1,
+    /// <summary>跟随 Windows 的应用模式。</summary>
+    System = 2,
+}
+
 /// <summary>主界面视图模式。</summary>
 public enum ScheduleViewMode
 {
@@ -107,6 +118,10 @@ public sealed class AppSettings
     /// <summary>启动时的默认视图。</summary>
     public ScheduleViewMode DefaultView { get; set; } = ScheduleViewMode.List;
 
+    /// <summary>界面主题：浅色 / 夜间 / 跟随系统。</summary>
+    public AppTheme Theme { get; set; } = AppTheme.Light;
+
+    /// <summary>旧字段（仅兼容历史数据，请使用 Theme）。</summary>
     public bool DarkTheme { get; set; }
 
     public int LookAheadDays { get; set; } = 30;
@@ -167,6 +182,7 @@ public sealed class AppSettings
         MonthCellCapacity = other.MonthCellCapacity;
         WeekStartsOnMonday = other.WeekStartsOnMonday;
         DefaultView = other.DefaultView;
+        Theme = other.Theme;
         DarkTheme = other.DarkTheme;
         LookAheadDays = other.LookAheadDays;
         ShowCompleted = other.ShowCompleted;
