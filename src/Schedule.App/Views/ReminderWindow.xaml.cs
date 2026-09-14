@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Threading;
 using Schedule.App.Services;
+using Schedule.Core.Logging;
 using Schedule.Core.Models;
 using Schedule.Core.Templating;
 
@@ -14,8 +15,14 @@ public partial class ReminderWindow : Window
     private readonly AppHost _host;
     private readonly DueReminder _due;
     private readonly DispatcherTimer? _autoCloseTimer;
+    private readonly DispatcherTimer _rememberTimer;
     private bool _positioning;
     private bool _movedByUser;
+
+    /// <summary>窗口首次定位完成前，不把 WPF 自己的位置变化当成用户拖动。</summary>
+    private bool _watchPosition;
+    private double _placedLeft;
+    private double _placedTop;
 
     public ReminderWindow(AppHost host, DueReminder due)
     {
@@ -62,18 +69,47 @@ public partial class ReminderWindow : Window
 
         Topmost = host.Settings.ReminderAlwaysOnTop;
 
+        // 拖动结束后延迟落盘：拖动过程中 LocationChanged 会连续触发，
+        // 每次都写设置既浪费又可能只记到中间位置。
+        _rememberTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(600) };
+        _rememberTimer.Tick += (_, _) =>
+        {
+            _rememberTimer.Stop();
+            RememberPosition();
+        };
+
         // 位置在 Loaded 里计算：此时 ActualWidth / ActualHeight 才是最终尺寸
         Loaded += (_, _) =>
         {
             _positioning = true;
             ReminderPositioner.Place(this, _host.Settings, CascadeIndex());
+            _placedLeft = Left;
+            _placedTop = Top;
             _positioning = false;
             UpdatePositionHint(false);
+            AppLog.Info("提醒弹窗位置：" + Left.ToString("0") + "," + Top.ToString("0")
+                + "（" + ReminderPositionMath.Describe(_host.Settings.ReminderPosition) + "）");
+        };
+
+        // 渲染完成后才开始监听位置变化：WPF 首次显示时可能还会做一次延迟定位，
+        // 若不排除会被误判成「用户拖动」，于是把自动位置错误地固化成自定义位置。
+        ContentRendered += (_, _) =>
+        {
+            _placedLeft = Left;
+            _placedTop = Top;
+            _watchPosition = true;
         };
 
         LocationChanged += (_, _) =>
         {
-            if (!_positioning) _movedByUser = true;
+            if (_positioning || !_watchPosition) return;
+
+            // 与定位结果相同（< 1.5 px 抖动）不算拖动
+            if (Math.Abs(Left - _placedLeft) < 1.5 && Math.Abs(Top - _placedTop) < 1.5) return;
+
+            _movedByUser = true;
+            _rememberTimer.Stop();
+            _rememberTimer.Start();
         };
 
         MouseLeftButtonUp += (_, _) =>
@@ -115,8 +151,14 @@ public partial class ReminderWindow : Window
         if (!_movedByUser) return;
 
         _movedByUser = false;
+        _rememberTimer.Stop();
+
         if (!_host.Settings.ReminderRememberPosition) return;
 
+        _placedLeft = Left;
+        _placedTop = Top;
+
+        // 存的是窗口 Left / Top（设备无关单位），定位时再按屏幕缩放换算成设备像素
         _host.RememberReminderPosition(Left, Top);
         UpdatePositionHint(true);
     }
@@ -201,6 +243,7 @@ public partial class ReminderWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         _autoCloseTimer?.Stop();
+        _rememberTimer.Stop();
         base.OnClosed(e);
     }
 }

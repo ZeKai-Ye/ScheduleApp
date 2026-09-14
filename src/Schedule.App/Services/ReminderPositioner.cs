@@ -22,16 +22,22 @@ public static class ReminderPositioner
             var scale = VisualTreeHelper.GetDpi(window).DpiScaleX;
             if (scale <= 0) scale = 1;
 
+            var custom = settings.ReminderPosition == ReminderPositionMode.Custom;
             var screen = ResolveScreen(settings);
 
-            var area = screen.WorkingArea;
-            var widthInDevicePixels = window.ActualWidth * scale;
-            var heightInDevicePixels = window.ActualHeight * scale;
+            // 自定义坐标按「整个虚拟桌面」约束：否则用户把弹窗拖到第二块屏幕后，
+            // 会被拉回主屏工作区，看起来就是「记住坐标没生效」。
+            var area = custom ? VirtualScreen() : screen.WorkingArea;
 
+            var widthInDevicePixels = ReminderPositionMath.DipsToPixels(window.ActualWidth, scale);
+            var heightInDevicePixels = ReminderPositionMath.DipsToPixels(window.ActualHeight, scale);
+
+            // 设置里的 X / Y 是设备无关单位（拖动弹窗保存的正是窗口 Left / Top），
+            // 而 Compute 统一按设备像素算，因此这里必须先换算，否则 125% / 150% 缩放下会偏。
             var (left, top) = ReminderPositionMath.Compute(
                 settings.ReminderPosition,
-                settings.ReminderPositionX,
-                settings.ReminderPositionY,
+                ReminderPositionMath.DipsToPixels(settings.ReminderPositionX, scale),
+                ReminderPositionMath.DipsToPixels(settings.ReminderPositionY, scale),
                 widthInDevicePixels,
                 heightInDevicePixels,
                 area.Left,
@@ -40,8 +46,8 @@ public static class ReminderPositioner
                 area.Height,
                 cascadeIndex);
 
-            window.Left = left / scale;
-            window.Top = top / scale;
+            window.Left = ReminderPositionMath.PixelsToDips(left, scale);
+            window.Top = ReminderPositionMath.PixelsToDips(top, scale);
         }
         catch (Exception ex)
         {
@@ -58,6 +64,20 @@ public static class ReminderPositioner
                 window.Left = 100;
                 window.Top = 100;
             }
+        }
+    }
+
+    /// <summary>整个虚拟桌面（所有显示器的并集，设备像素）。</summary>
+    private static System.Drawing.Rectangle VirtualScreen()
+    {
+        try
+        {
+            return System.Windows.Forms.SystemInformation.VirtualScreen;
+        }
+        catch (Exception)
+        {
+            var screen = System.Windows.Forms.Screen.PrimaryScreen;
+            return screen?.Bounds ?? new System.Drawing.Rectangle(0, 0, 1920, 1080);
         }
     }
 

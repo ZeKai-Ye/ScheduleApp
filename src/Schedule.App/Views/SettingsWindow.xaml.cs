@@ -267,9 +267,9 @@ public partial class SettingsWindow : Window
 
         ReminderPositionHint.Text = mode switch
         {
-            ReminderPositionMode.Custom => "X / Y 为弹窗左上角的屏幕坐标（设备无关单位）；越界会自动贴回可见区域。",
+            ReminderPositionMode.Custom => "X / Y 为弹窗左上角的屏幕坐标（设备无关单位，拖动弹窗会自动填这里）；越界会自动贴回可见区域，多屏时可跨屏。",
             ReminderPositionMode.Center => "X / Y 为相对屏幕中央的偏移（正数向右 / 向下）。",
-            _ => "X / Y 为相对该角落的偏移（正数向内移动；默认留 18 像素边距）。",
+            _ => "X / Y 为相对该角落的偏移（正数向内移动；默认留 18 单位边距）。",
         };
     }
 
