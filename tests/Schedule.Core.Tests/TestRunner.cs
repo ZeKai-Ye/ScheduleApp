@@ -31,6 +31,7 @@ public static class TestRunner
         Run("弹窗定位与系统", PositionAndSystemTests.Run);
         Run("重启规划", RestartPlanTests.Run);
         Run("AI 对话", AiChatTests.Run);
+        Run("AI 联网模型", AiCloudTests.Run);
         Run("语音模板", TemplateTests.Run);
         Run("存储与持久化", StorageTests.Run);
 
