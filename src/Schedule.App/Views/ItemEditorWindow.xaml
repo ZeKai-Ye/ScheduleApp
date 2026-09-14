@@ -2,8 +2,8 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="新建日程"
-        Width="700" Height="820"
-        MinWidth="620" MinHeight="560"
+        Width="780" Height="840"
+        MinWidth="640" MinHeight="560"
         WindowStartupLocation="CenterOwner"
         Style="{StaticResource AppWindow}"
 >
@@ -13,7 +13,9 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" Padding="20,18,20,12">
+        <!-- 窗口被拉窄时允许左右拖动，避免控件被裁掉看不见 -->
+        <ScrollViewer x:Name="EditorScroll" Grid.Row="0" VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Auto" Padding="20,18,20,12" MinWidth="600">
             <StackPanel>
                 <Border x:Name="ScopePanel" Visibility="Collapsed" Margin="0,0,0,14"
                         Background="{DynamicResource Brush.ScopeBackground}" BorderBrush="{DynamicResource Brush.ScopeBorder}"
@@ -98,32 +100,34 @@
 
                 <!-- ============ 颜色 ============ -->
                 <TextBlock Text="事件颜色（用于日历与列表区分）" Style="{StaticResource SectionTitle}" Margin="2,16,0,6" />
-                <DockPanel>
-                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
-                        <TextBlock Text="自定义 #" VerticalAlignment="Center" Foreground="{DynamicResource Brush.Subtle}" FontSize="12" />
-                        <TextBox x:Name="CustomColorBox" Width="86" Margin="4,0,0,0" ToolTip="例如 2563EB" TextChanged="CustomColorBox_TextChanged" />
-                    </StackPanel>
-                    <ItemsControl x:Name="ColorList">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <WrapPanel />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <StackPanel Width="48" Margin="0,0,4,0">
-                                    <RadioButton GroupName="EventColor" Style="{StaticResource ColorSwatch}"
-                                                 HorizontalAlignment="Center" Checked="ColorSwatch_Checked">
-                                        <Border Width="22" Height="22" CornerRadius="11" Background="{Binding Brush}"
-                                                BorderBrush="{DynamicResource Brush.SwatchRing}" BorderThickness="1" />
-                                    </RadioButton>
-                                    <TextBlock Text="{Binding Name}" FontSize="9" HorizontalAlignment="Center"
-                                               Foreground="{DynamicResource Brush.Subtle}" TextTrimming="CharacterEllipsis" />
-                                </StackPanel>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </DockPanel>
+                <ItemsControl x:Name="ColorList">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Width="48" Margin="0,0,4,0">
+                                <RadioButton GroupName="EventColor" Style="{StaticResource ColorSwatch}"
+                                             HorizontalAlignment="Center" Checked="ColorSwatch_Checked">
+                                    <Border Width="22" Height="22" CornerRadius="11" Background="{Binding Brush}"
+                                            BorderBrush="{DynamicResource Brush.SwatchRing}" BorderThickness="1" />
+                                </RadioButton>
+                                <TextBlock Text="{Binding Name}" FontSize="9" HorizontalAlignment="Center"
+                                           Foreground="{DynamicResource Brush.Subtle}" TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                    <TextBlock Text="自定义颜色 #" VerticalAlignment="Center" Foreground="{DynamicResource Brush.Subtle}" FontSize="12" />
+                    <TextBox x:Name="CustomColorBox" Width="110" Margin="6,0,0,0" ToolTip="例如 2563EB"
+                             TextChanged="CustomColorBox_TextChanged" />
+                    <TextBlock Text="（留空表示跟随分类配色）" VerticalAlignment="Center" Margin="8,0,0,0" FontSize="11"
+                               Foreground="{DynamicResource Brush.Subtle}" />
+                </StackPanel>
 
                 <!-- ============ 重复 / 周期 ============ -->
                 <TextBlock Text="重复与周期" Style="{StaticResource SectionTitle}" Margin="2,16,0,6" />

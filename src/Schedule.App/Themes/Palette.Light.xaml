@@ -1,7 +1,10 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <!-- 浅色主题调色板：只放调色板，切换主题时整块替换这个字典即可 -->
+    <!--
+      浅色主题调色板：只放调色板，切换主题时整块替换这个字典即可。
+      键必须与 Palette.Dark.xaml 完全一致（Theme.xaml 里全部用 DynamicResource 引用）。
+    -->
     <SolidColorBrush x:Key="Brush.Background" Color="#FFF3F4F6" />
     <SolidColorBrush x:Key="Brush.Card" Color="#FFFFFFFF" />
     <SolidColorBrush x:Key="Brush.CellMuted" Color="#FFFAFAFB" />
@@ -11,6 +14,7 @@
     <SolidColorBrush x:Key="Brush.ScopeBackground" Color="#FFEFF6FF" />
     <SolidColorBrush x:Key="Brush.ScopeBorder" Color="#FFBFDBFE" />
     <SolidColorBrush x:Key="Brush.Border" Color="#FFE5E7EB" />
+    <SolidColorBrush x:Key="Brush.Separator" Color="#FFE5E7EB" />
     <SolidColorBrush x:Key="Brush.Text" Color="#FF111827" />
     <SolidColorBrush x:Key="Brush.Subtle" Color="#FF6B7280" />
     <SolidColorBrush x:Key="Brush.SubtleSoft" Color="#FF9CA3AF" />
@@ -27,5 +31,24 @@
     <SolidColorBrush x:Key="Brush.RowSelected" Color="#FFEFF6FF" />
     <SolidColorBrush x:Key="Brush.SwatchRing" Color="#22000000" />
     <SolidColorBrush x:Key="Brush.Disabled" Color="#FFF3F4F6" />
+
+    <!-- 输入控件 -->
+    <SolidColorBrush x:Key="Brush.Input" Color="#FFFFFFFF" />
+    <SolidColorBrush x:Key="Brush.InputBorder" Color="#FFD5D9E0" />
+
+    <!-- 滚动条 -->
+    <SolidColorBrush x:Key="Brush.ScrollTrack" Color="#FFEFF1F5" />
+    <SolidColorBrush x:Key="Brush.ScrollThumb" Color="#FFC4CAD5" />
+    <SolidColorBrush x:Key="Brush.ScrollThumbHover" Color="#FF9FA7B4" />
+
+    <!-- 右键菜单 / 提示气泡 -->
+    <SolidColorBrush x:Key="Brush.MenuBackground" Color="#FFFFFFFF" />
+    <SolidColorBrush x:Key="Brush.MenuBorder" Color="#FFE2E5EA" />
+    <SolidColorBrush x:Key="Brush.MenuHighlight" Color="#FFEFF6FF" />
+    <SolidColorBrush x:Key="Brush.TooltipBackground" Color="#FFFFFFFF" />
+    <SolidColorBrush x:Key="Brush.TooltipText" Color="#FF111827" />
+
+    <!-- 滑块 -->
+    <SolidColorBrush x:Key="Brush.SliderTrack" Color="#FFDDE1E8" />
 
 </ResourceDictionary>

@@ -190,7 +190,7 @@
 
                                         <GridViewColumn Header="时间" Width="150" DisplayMemberBinding="{Binding TimeText}" />
 
-                                        <GridViewColumn Header="日程" Width="300">
+                                        <GridViewColumn Header="日程" Width="240">
                                             <GridViewColumn.CellTemplate>
                                                 <DataTemplate>
                                                     <StackPanel>
@@ -208,9 +208,9 @@
                                             </GridViewColumn.CellTemplate>
                                         </GridViewColumn>
 
-                                        <GridViewColumn Header="分类" Width="92" DisplayMemberBinding="{Binding CategoryText}" />
-                                        <GridViewColumn Header="提醒" Width="170" DisplayMemberBinding="{Binding ReminderText}" />
-                                        <GridViewColumn Header="重复" Width="140" DisplayMemberBinding="{Binding RepeatText}" />
+                                        <GridViewColumn Header="分类" Width="84" DisplayMemberBinding="{Binding CategoryText}" />
+                                        <GridViewColumn Header="提醒" Width="132" DisplayMemberBinding="{Binding ReminderText}" />
+                                        <GridViewColumn Header="重复" Width="112" DisplayMemberBinding="{Binding RepeatText}" />
 
                                         <GridViewColumn Header="优先级" Width="70">
                                             <GridViewColumn.CellTemplate>
@@ -221,7 +221,7 @@
                                             </GridViewColumn.CellTemplate>
                                         </GridViewColumn>
 
-                                        <GridViewColumn Header="操作" Width="112">
+                                        <GridViewColumn Header="操作" Width="104">
                                             <GridViewColumn.CellTemplate>
                                                 <DataTemplate>
                                                     <StackPanel Orientation="Horizontal">
@@ -509,14 +509,22 @@
                                                             <Button Content="删除" Style="{StaticResource IconButton}"
                                                                     Foreground="{DynamicResource Brush.Danger}" Click="DeleteRow_Click" />
                                                         </StackPanel>
-                                                        <StackPanel Orientation="Horizontal">
-                                                            <Rectangle Width="4" RadiusX="2" RadiusY="2" Fill="{Binding ColorBrush}" Margin="0,0,8,0" />
-                                                            <TextBlock Text="{Binding TimeText}" Width="120" Foreground="{DynamicResource Brush.Subtle}" FontSize="12" />
-                                                            <TextBlock Text="{Binding TitleText}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <Rectangle Grid.Column="0" Width="4" RadiusX="2" RadiusY="2" Fill="{Binding ColorBrush}" Margin="0,0,8,0" />
+                                                            <TextBlock Grid.Column="1" Text="{Binding TimeText}" Width="120" VerticalAlignment="Center"
+                                                                       Foreground="{DynamicResource Brush.Subtle}" FontSize="12" />
+                                                            <TextBlock Grid.Column="2" Text="{Binding TitleText}" FontWeight="SemiBold" VerticalAlignment="Center"
+                                                                       TextTrimming="CharacterEllipsis"
                                                                        TextDecorations="{Binding IsDone, Converter={StaticResource DoneToDecoration}}" />
-                                                            <TextBlock Text="{Binding ReminderText}" Margin="12,0,0,0" FontSize="11"
-                                                                       Foreground="{DynamicResource Brush.Subtle}" />
-                                                        </StackPanel>
+                                                            <TextBlock Grid.Column="3" Text="{Binding ReminderText}" Margin="12,0,0,0" FontSize="11"
+                                                                       VerticalAlignment="Center" Foreground="{DynamicResource Brush.Subtle}" />
+                                                        </Grid>
                                                     </DockPanel>
                                                 </Border>
                                             </DataTemplate>

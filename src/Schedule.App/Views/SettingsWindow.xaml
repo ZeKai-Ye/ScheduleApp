@@ -2,8 +2,8 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="设置"
-        Width="720" Height="680"
-        MinWidth="640" MinHeight="560"
+        Width="760" Height="700"
+        MinWidth="660" MinHeight="560"
         WindowStartupLocation="CenterOwner"
         Style="{StaticResource AppWindow}"
 >
@@ -13,10 +13,10 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <TabControl Grid.Row="0" Background="{DynamicResource Brush.Card}" BorderBrush="{DynamicResource Brush.Border}">
+        <TabControl x:Name="Tabs" Grid.Row="0" Background="{DynamicResource Brush.Card}" BorderBrush="{DynamicResource Brush.Border}">
             <!-- ================= 提醒 ================= -->
             <TabItem Header="提醒">
-                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="18,16">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Padding="18,16" MinWidth="580">
                     <StackPanel>
                         <TextBlock Text="新建日程的默认值" Style="{StaticResource SectionTitle}" />
                         <StackPanel Orientation="Horizontal">
@@ -110,7 +110,7 @@
 
             <!-- ================= 语音 ================= -->
             <TabItem Header="语音播报">
-                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="18,16">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Padding="18,16" MinWidth="580">
                     <StackPanel>
                         <CheckBox x:Name="SpeechEnabledCheck" Content="启用语音播报（到点自动朗读）" />
                         <TextBlock x:Name="VoiceEngineText" Style="{StaticResource FieldHint}" Margin="2,8,0,0" />
@@ -200,7 +200,7 @@
 
             <!-- ================= 外观与默认值 ================= -->
             <TabItem Header="外观与默认值">
-                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="18,16">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Padding="18,16" MinWidth="580">
                     <StackPanel>
                         <TextBlock Text="主题" Style="{StaticResource SectionTitle}" />
                         <Grid>
@@ -251,7 +251,7 @@
 
                         <TextBlock Text="分类配色（点击色块切换颜色，「自动」表示按分类名散列取色）"
                                    Style="{StaticResource SectionTitle}" Margin="2,20,0,6" />
-                        <ScrollViewer MaxHeight="220" VerticalScrollBarVisibility="Auto">
+                        <ScrollViewer MaxHeight="220" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
                             <ItemsControl x:Name="CategoryColorList">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
@@ -279,7 +279,7 @@
 
             <!-- ================= 常规 ================= -->
             <TabItem Header="常规">
-                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="18,16">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Padding="18,16" MinWidth="580">
                     <StackPanel>
                         <TextBlock Text="窗口行为" Style="{StaticResource SectionTitle}" />
                         <CheckBox x:Name="MinimizeToTrayCheck" Content="最小化时隐藏到系统托盘" />
