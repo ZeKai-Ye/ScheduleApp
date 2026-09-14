@@ -68,7 +68,7 @@ public static class AiChatTests
             Tools = AiToolCatalog.Definitions.ToList(),
             Temperature = 0.2,
             MaxTokens = 512,
-            DisableThinking = true,
+            Thinking = AiThinkingLevel.Off,
         };
 
         using var openai = new OpenAiCompatibleClient("http://127.0.0.1:1234/v1");
@@ -80,7 +80,8 @@ public static class AiChatTests
         TestRunner.Equal(9, openAiBody["tools"]!.AsArray().Count, "OpenAI 请求带上全部工具");
         TestRunner.Equal("function", openAiBody["tools"]!.AsArray()[0]!["type"]!.GetValue<string>(), "工具用 function 形状");
         TestRunner.Check(openAiBody["tools"]!.AsArray()[0]!["function"]!["parameters"]!["properties"] != null, "工具带 JSON Schema 参数");
-        TestRunner.Check(openAiBody["think"] == null, "OpenAI 服务端不传 think 字段");
+        TestRunner.Check(openAiBody["think"] == null, "非 Ollama 服务端不传 think 字段");
+        TestRunner.Equal("none", openAiBody["reasoning_effort"]!.GetValue<string>(), "最低档：OpenAI 兼容端点用 reasoning_effort=none（实测 6 秒、0 字思维链）");
 
         var wire = openAiBody["messages"]!.AsArray();
         TestRunner.Equal(4, wire.Count, "消息按顺序写入");
@@ -92,7 +93,7 @@ public static class AiChatTests
         using var ollama = new OpenAiCompatibleClient("http://127.0.0.1:11434/v1");
         var native = ollama.BuildOllamaPayload(request);
 
-        TestRunner.Equal(false, native["think"]!.GetValue<bool>(), "Ollama 原生请求带 think=false（关掉思维链）");
+        TestRunner.Equal(false, native["think"]!.GetValue<bool>(), "最低档：Ollama 原生请求带 think=false（关掉思维链）");
         TestRunner.Equal(0.2, native["options"]!["temperature"]!.GetValue<double>(), "Ollama 温度放在 options 里");
         TestRunner.Equal(512, native["options"]!["num_predict"]!.GetValue<int>(), "Ollama 输出上限用 num_predict");
         TestRunner.Equal(9, native["tools"]!.AsArray().Count, "Ollama 请求同样带工具");
@@ -104,8 +105,26 @@ public static class AiChatTests
         TestRunner.Equal("今天", nativeArguments["date"]!.GetValue<string>(), "原生参数内容保持");
         TestRunner.Equal("list_items", native["messages"]!.AsArray()[3]!["tool_name"]!.GetValue<string>(), "原生工具结果带 tool_name");
 
-        var noThinking = new AiChatRequest { Model = "m", Messages = new List<ChatMessage>(), DisableThinking = false };
-        TestRunner.Check(ollama.BuildOllamaPayload(noThinking)["think"] == null, "开启思考时不传 think（避免不支持思考的模型报错）");
+        // 思考等级映射（实测：low 依然会思考 500~700 字，medium 也要 50 秒，所以默认是最低档 Off）
+        foreach (var (level, expected) in new[]
+                 {
+                     (AiThinkingLevel.Low, "low"),
+                     (AiThinkingLevel.Medium, "medium"),
+                     (AiThinkingLevel.High, "high"),
+                 })
+        {
+            var request2 = new AiChatRequest { Model = "m", Thinking = level };
+            TestRunner.Equal(expected, ollama.BuildOllamaPayload(request2)["think"]!.GetValue<string>(), "原生 think=" + expected);
+            TestRunner.Equal(expected, openai.BuildPayload(request2)["reasoning_effort"]!.GetValue<string>(), "OpenAI reasoning_effort=" + expected);
+        }
+
+        var off = new AiChatRequest { Model = "m", Thinking = AiThinkingLevel.Off };
+        TestRunner.Equal("none", OpenAiCompatibleClient.ReasoningEffort(AiThinkingLevel.Off), "最低档的 reasoning_effort");
+        TestRunner.Equal(false, OpenAiCompatibleClient.OllamaThinkValue(AiThinkingLevel.Off)!.GetValue<bool>(), "最低档的 think 取值");
+
+        // 其它严格的服务端：非 Ollama 地址不塞 think，免得被 400
+        using var strict = new OpenAiCompatibleClient("https://api.example.com/v1", mode: AiApiMode.OpenAi);
+        TestRunner.Check(strict.BuildPayload(off)["think"] == null, "非 Ollama 地址不传 think 字段");
     }
     // ==================== 响应解析 ====================
 
@@ -290,8 +309,9 @@ public static class AiChatTests
         TestRunner.Check(session.BuildSystemPrompt().Contains("/no_think", StringComparison.Ordinal), "默认提示带 /no_think（关思考）");
 
         var thinking = new AiSession(new FakeClient(_ => Reply("好")), new RecordingActions(),
-            new AiSessionOptions { DisableThinking = false, Now = new DateTime(2026, 9, 14, 10, 0, 0) });
-        TestRunner.Check(!thinking.BuildSystemPrompt().Contains("/no_think", StringComparison.Ordinal), "开启思考时不加 /no_think");
+            new AiSessionOptions { Thinking = AiThinkingLevel.Medium, Now = new DateTime(2026, 9, 14, 10, 0, 0) });
+        TestRunner.Check(!thinking.BuildSystemPrompt().Contains("/no_think", StringComparison.Ordinal), "非最低档不加 /no_think");
+        TestRunner.Equal(AiThinkingLevel.Off, new AiSessionOptions().Thinking, "会话默认思考等级就是最低档");
         TestRunner.Check(thinking.BuildSystemPrompt().Contains("2026-09-14", StringComparison.Ordinal), "系统提示带当前时间");
         TestRunner.Check(thinking.BuildSystemPrompt().Contains("星期一", StringComparison.Ordinal), "系统提示带星期");
 
@@ -517,7 +537,7 @@ public static class AiChatTests
         TestRunner.Equal("http://127.0.0.1:11434/v1", settings.AiBaseUrl, "默认 AI 服务地址指向本机 Ollama");
         TestRunner.Equal("qwen3:8b", settings.AiModel, "默认模型 qwen3:8b");
         TestRunner.Equal(AiApiMode.Auto, settings.AiApiMode, "默认协议自动判断");
-        TestRunner.Check(settings.AiDisableThinking, "默认关闭思考（本地模型更快）");
+        TestRunner.Equal(AiThinkingLevel.Off, settings.AiThinking, "默认思考等级是最低档（关闭思考，本地模型快 5 倍以上）");
         TestRunner.Equal(0, settings.AiMaxTokens, "默认不限制输出 token");
         TestRunner.Equal(180, settings.AiTimeoutSeconds, "默认超时 180 秒");
 
@@ -527,6 +547,7 @@ public static class AiChatTests
         settings.AiMaxTokens = 1024;
         settings.AiSystemPrompt = "自定义";
         settings.AiShowToolDetails = false;
+        settings.AiThinking = AiThinkingLevel.Low;
 
         var clone = settings.Clone();
         TestRunner.Equal("qwen3:14b", clone.AiModel, "Clone 带上模型");
@@ -534,17 +555,19 @@ public static class AiChatTests
         TestRunner.Equal(1024, clone.AiMaxTokens, "Clone 带上 token 上限");
         TestRunner.Equal("自定义", clone.AiSystemPrompt, "Clone 带上系统提示");
         TestRunner.Check(!clone.AiShowToolDetails, "Clone 带上工具详情开关");
+        TestRunner.Equal(AiThinkingLevel.Low, clone.AiThinking, "Clone 带上思考等级");
 
         var target = new AppSettings();
         target.CopyFrom(settings);
         TestRunner.Equal("qwen3:14b", target.AiModel, "CopyFrom 复制模型");
         TestRunner.Equal(AiApiMode.OpenAi, target.AiApiMode, "CopyFrom 复制协议");
         TestRunner.Equal(0.7, target.AiTemperature, "CopyFrom 复制温度");
+        TestRunner.Equal(AiThinkingLevel.Low, target.AiThinking, "CopyFrom 复制思考等级");
 
         var options = AiClientFactory.CreateOptions(settings);
         TestRunner.Equal("qwen3:14b", options.Model, "会话选项取模型");
         TestRunner.Equal(1024, options.MaxTokens, "会话选项取 token 上限");
-        TestRunner.Check(!options.DisableThinking == false || true, "会话选项可读");
+        TestRunner.Equal(AiThinkingLevel.Low, options.Thinking, "会话选项取思考等级");
 
         TestRunner.Check(AiClientFactory.Describe(settings).Contains("qwen3:14b", StringComparison.Ordinal), "设置摘要带模型名");
         TestRunner.Check(AiClientFactory.DescribeProtocol(settings).Contains("OpenAI", StringComparison.Ordinal), "显式 OpenAI 协议描述");

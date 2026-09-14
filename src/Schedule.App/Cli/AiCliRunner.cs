@@ -64,6 +64,9 @@ public static class AiCliRunner
 
             output.AppendLine();
             output.AppendLine("AI：" + result.Text);
+
+            // 思考等级调到最低档时这里应该是 0 字；如果很长说明等级没生效（会明显更慢）
+            output.AppendLine("思考过程：" + (result.Reasoning?.Length ?? 0) + " 字");
             output.AppendLine();
             output.AppendLine("用时 " + result.Elapsed.TotalSeconds.ToString("0.0") + " 秒"
                 + "，工具 " + result.Tools.Count + " 次"

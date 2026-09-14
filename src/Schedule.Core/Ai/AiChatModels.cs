@@ -1,3 +1,5 @@
+using Schedule.Core.Models;
+
 namespace Schedule.Core.Ai;
 
 /// <summary>对话角色（与 OpenAI 兼容接口一致）。</summary>
@@ -94,10 +96,11 @@ public sealed class AiChatRequest
     public int MaxTokens { get; set; }
 
     /// <summary>
-    /// 让模型别输出思维链（Qwen3 这类"思考模型"会先想一大段，很慢还容易把预算用光）。
-    /// 实现方式：系统提示里加 /no_think，并在已知支持的服务端上附带 think=false。
+    /// 思考（思维链）等级。默认最低档（完全不思考）——Qwen3 这类"思考模型"会先想一大段，
+    /// 既慢又占上下文。实现：Ollama 原生用 think（false / "low" / "medium" / "high"），
+    /// OpenAI 兼容用 reasoning_effort（"none" / "low" / …），系统提示里再补 /no_think。
     /// </summary>
-    public bool DisableThinking { get; set; } = true;
+    public AiThinkingLevel Thinking { get; set; } = AiThinkingLevel.Off;
 
     public int TimeoutSeconds { get; set; } = 180;
 }

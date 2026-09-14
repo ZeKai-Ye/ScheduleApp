@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using Schedule.Core.Logging;
+using Schedule.Core.Models;
 
 namespace Schedule.Core.Ai;
 
@@ -13,8 +14,8 @@ public sealed class AiSessionOptions
 
     public int TimeoutSeconds { get; set; } = 180;
 
-    /// <summary>让模型别输出思维链（明显更快，也更不容易把输出预算耗在思考上）。</summary>
-    public bool DisableThinking { get; set; } = true;
+    /// <summary>思考（思维链）等级，默认最低档（完全不思考，明显更快也更省上下文）。</summary>
+    public AiThinkingLevel Thinking { get; set; } = AiThinkingLevel.Off;
 
     /// <summary>最多带多少条历史消息（不含系统提示）。</summary>
     public int MaxHistoryMessages { get; set; } = 16;
@@ -121,7 +122,7 @@ public sealed class AiSession
             + "5. 时间用 24 小时制；信息不够（比如没说日期）就先问清楚。";
 
         // Qwen3 这类「思考模型」的软开关：模板看到 /no_think 就不再输出思维链
-        if (Options.DisableThinking) prompt += "\n/no_think";
+        if (Options.Thinking == AiThinkingLevel.Off) prompt += "\n/no_think";
 
         return prompt;
     }
@@ -158,7 +159,7 @@ public sealed class AiSession
                 Messages = BuildMessages(),
                 Tools = AiToolCatalog.Definitions.ToList(),
                 Temperature = Options.Temperature,
-                DisableThinking = Options.DisableThinking,
+                Thinking = Options.Thinking,
                 MaxTokens = Options.MaxTokens,
                 TimeoutSeconds = Options.TimeoutSeconds,
             };

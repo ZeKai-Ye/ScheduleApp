@@ -76,7 +76,7 @@ public sealed class AiChatService : IDisposable
             settings.AiModel,
             settings.AiTemperature.ToString("0.##"),
             settings.AiTimeoutSeconds,
-            settings.AiDisableThinking,
+            settings.AiThinking,
             settings.AiMaxHistoryMessages,
             settings.AiSystemPrompt);
 

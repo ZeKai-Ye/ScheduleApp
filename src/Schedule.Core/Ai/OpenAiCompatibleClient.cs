@@ -214,8 +214,35 @@ public sealed class OpenAiCompatibleClient : IAiChatClient, IDisposable
         if (request.MaxTokens > 0) payload["max_tokens"] = request.MaxTokens;
         if (request.Tools.Count > 0) payload["tools"] = BuildTools(request.Tools);
 
+        // Ollama 的 OpenAI 端点认 reasoning_effort（实测 none = 6 秒 / 0 字思维链，
+        // 而只写 /no_think 要 19~30 秒且仍有几百字）。严格的 OpenAI 服务端若报 400，
+        // 把思考等级切回最低档以外、或改用原生协议即可。
+        payload["reasoning_effort"] = ReasoningEffort(request.Thinking);
+
+        // 顺手带上 think（Ollama 会同时看它；其它服务端不认识会忽略）
+        if (IsOllama) payload["think"] = request.Thinking == AiThinkingLevel.Off ? false : LevelName(request.Thinking);
+
         return payload;
     }
+
+    /// <summary>Ollama 原生 think 取值；返回 null 表示不传该字段。</summary>
+    public static JsonNode? OllamaThinkValue(AiThinkingLevel level) => level switch
+    {
+        AiThinkingLevel.Off => JsonValue.Create(false),
+        _ => JsonValue.Create(LevelName(level)),
+    };
+
+    /// <summary>OpenAI 兼容 reasoning_effort 取值。</summary>
+    public static string ReasoningEffort(AiThinkingLevel level)
+        => level == AiThinkingLevel.Off ? "none" : LevelName(level);
+
+    private static string LevelName(AiThinkingLevel level) => level switch
+    {
+        AiThinkingLevel.Low => "low",
+        AiThinkingLevel.Medium => "medium",
+        AiThinkingLevel.High => "high",
+        _ => "low",
+    };
 
     // ================= 请求体（Ollama 原生） =================
 
@@ -236,8 +263,10 @@ public sealed class OpenAiCompatibleClient : IAiChatClient, IDisposable
             ["options"] = options,
         };
 
-        // 只有"关掉思考"时才显式传，避免不支持思考的模型被这个字段搞出错误
-        if (request.DisableThinking) payload["think"] = false;
+        // Ollama 认 think：false 关闭；"low"/"medium"/"high" 为分级（实测 low 依然会思考 500+ 字）。
+        // 只在需要时显式传，避免不支持思考的模型被这个字段搞出错误。
+        var think = OllamaThinkValue(request.Thinking);
+        if (think != null) payload["think"] = think;
 
         if (request.Tools.Count > 0) payload["tools"] = BuildTools(request.Tools);
 

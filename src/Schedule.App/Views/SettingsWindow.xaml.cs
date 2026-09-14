@@ -213,7 +213,7 @@ public partial class SettingsWindow : Window
         AiTimeoutBox.Text = _draft.AiTimeoutSeconds.ToString();
         AiHistoryBox.Text = _draft.AiMaxHistoryMessages.ToString();
         AiMaxTokensBox.Text = _draft.AiMaxTokens.ToString();
-        AiDisableThinkingCheck.IsChecked = _draft.AiDisableThinking;
+        AiThinkingBox.SelectedIndex = (int)_draft.AiThinking;
         AiShowToolDetailsCheck.IsChecked = _draft.AiShowToolDetails;
         AiLogActionsCheck.IsChecked = _draft.AiLogActions;
         AiSystemPromptBox.Text = _draft.AiSystemPrompt;
@@ -567,7 +567,7 @@ public partial class SettingsWindow : Window
         settings.AiTimeoutSeconds = ReadInt(AiTimeoutBox.Text, settings.AiTimeoutSeconds, 5, 3600);
         settings.AiMaxHistoryMessages = ReadInt(AiHistoryBox.Text, settings.AiMaxHistoryMessages, 4, 200);
         settings.AiMaxTokens = ReadInt(AiMaxTokensBox.Text, settings.AiMaxTokens, 0, 32000);
-        settings.AiDisableThinking = AiDisableThinkingCheck.IsChecked == true;
+        settings.AiThinking = (AiThinkingLevel)Math.Clamp(AiThinkingBox.SelectedIndex, 0, 3);
         settings.AiShowToolDetails = AiShowToolDetailsCheck.IsChecked == true;
         settings.AiLogActions = AiLogActionsCheck.IsChecked == true;
         settings.AiSystemPrompt = AiSystemPromptBox.Text ?? string.Empty;

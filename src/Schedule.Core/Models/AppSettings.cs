@@ -19,6 +19,23 @@ public enum ScheduleViewMode
     Month = 2,
 }
 
+/// <summary>
+/// 思考（思维链）等级。本地小模型基本不需要思考，等级越低越快、越省上下文。
+/// 实测 qwen3:8b：关闭 6~10 秒 / 0 字思维链；low 40~50 秒 / 500~700 字；medium 51 秒 / 671 字。
+/// </summary>
+public enum AiThinkingLevel
+{
+    /// <summary>最低：完全不输出思考过程（默认）。</summary>
+    Off = 0,
+
+    /// <summary>低：仍会思考（实测并不比 medium 快多少）。</summary>
+    Low = 1,
+
+    Medium = 2,
+
+    High = 3,
+}
+
 /// <summary>AI 对话使用的接口协议。</summary>
 public enum AiApiMode
 {
@@ -169,8 +186,11 @@ public sealed class AppSettings
     /// <summary>单次请求超时秒数（本地大模型首次加载较慢）。</summary>
     public int AiTimeoutSeconds { get; set; } = 180;
 
-    /// <summary>让模型别输出思维链（Qwen3 这类思考模型明显更快）。</summary>
-    public bool AiDisableThinking { get; set; } = true;
+    /// <summary>
+    /// 思考（思维链）等级，默认 <see cref="AiThinkingLevel.Off"/>（最低）。
+    /// 关掉思考是本地模型最重要的一条提速手段：实测 qwen3:8b 从 40~50 秒降到 6~10 秒。
+    /// </summary>
+    public AiThinkingLevel AiThinking { get; set; } = AiThinkingLevel.Off;
 
     /// <summary>单次最大输出 token（0 = 交给服务端默认）。</summary>
     public int AiMaxTokens { get; set; }
@@ -254,7 +274,7 @@ public sealed class AppSettings
         AiApiMode = other.AiApiMode;
         AiTemperature = other.AiTemperature;
         AiTimeoutSeconds = other.AiTimeoutSeconds;
-        AiDisableThinking = other.AiDisableThinking;
+        AiThinking = other.AiThinking;
         AiMaxTokens = other.AiMaxTokens;
         AiMaxHistoryMessages = other.AiMaxHistoryMessages;
         AiSystemPrompt = other.AiSystemPrompt;

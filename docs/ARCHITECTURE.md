@@ -228,6 +228,11 @@ Main
   最多 `MaxToolRounds`（默认 4）轮；模型没吐原生 `tool_calls` 时用 `AiActionParser` 从正文里
   抢救 JSON / `<tool_call>` 形状的调用（换推理框架时很有用）。历史超出 `MaxHistoryMessages` 时从最早丢弃，
   但**不会把工具结果和它的调用请求拆开**（否则服务端会拒绝该请求）
+- **思考等级的两种映射**：`AiThinkingLevel`（默认 `Off`）在原生协议下映射为
+  `think:false / "low" / "medium" / "high"`，在 OpenAI 兼容下映射为
+  `reasoning_effort: "none" / "low" / "medium" / "high"`，并在系统提示里按需追加 `/no_think`。
+  实测（qwen3:8b）：关闭＝6~10 秒 / 0 字思维链；`"low"`＝42~52 秒 / 500~700 字——所以默认是最低档，
+  而不是"低"。另外：非 Ollama 地址不塞 `think` 字段，避免严格服务端 400
 - **工具结果不转义中文**：`AiJson.Options` 用 `UnsafeRelaxedJsonEscaping`。默认编码器会把每个汉字写成
   `\uXXXX`（6 个字符），工具结果是回传给模型的上下文，转义后 token 直接翻几倍
 - **`#1` 编号表**：模型只回传 `#2`，由 `AiItemReferences` 解析成 GUID（外加"系列中的哪一次"），

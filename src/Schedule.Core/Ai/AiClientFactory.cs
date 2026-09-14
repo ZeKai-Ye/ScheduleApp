@@ -16,7 +16,7 @@ public static class AiClientFactory
         Model = settings.AiModel,
         Temperature = settings.AiTemperature,
         TimeoutSeconds = settings.AiTimeoutSeconds,
-        DisableThinking = settings.AiDisableThinking,
+        Thinking = settings.AiThinking,
         MaxTokens = settings.AiMaxTokens,
         MaxHistoryMessages = settings.AiMaxHistoryMessages,
         SystemPrompt = settings.AiSystemPrompt,

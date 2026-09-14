@@ -402,8 +402,21 @@
                             </StackPanel>
                         </Grid>
 
-                        <CheckBox x:Name="AiDisableThinkingCheck" Margin="0,12,0,0"
-                                  Content="不让模型输出思考过程（Qwen3 等思考模型会快很多）" />
+                        <Grid Margin="0,14,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="92" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="思考等级" VerticalAlignment="Center" Foreground="{DynamicResource Brush.Subtle}" />
+                            <ComboBox x:Name="AiThinkingBox" Grid.Column="1" ToolTip="本地小模型基本不需要思考；等级越低越快、越省上下文">
+                                <ComboBoxItem Content="最低：完全不思考（默认，推荐）" />
+                                <ComboBoxItem Content="低：少量思考" />
+                                <ComboBoxItem Content="中：默认思考" />
+                                <ComboBoxItem Content="高：尽量多思考" />
+                            </ComboBox>
+                        </Grid>
+                        <TextBlock Style="{StaticResource FieldHint}" MaxWidth="620"
+                                   Text="默认最低档（关闭思考）。实测 qwen3:8b：关闭＝6~10 秒且没有思维链；选「低」仍会思考 500~700 字、要 40~50 秒。" />
                         <CheckBox x:Name="AiShowToolDetailsCheck" Margin="0,8,0,0"
                                   Content="在对话里显示工具调用详情（能看到 AI 具体做了什么）" />
                         <CheckBox x:Name="AiLogActionsCheck" Margin="0,8,0,0"
