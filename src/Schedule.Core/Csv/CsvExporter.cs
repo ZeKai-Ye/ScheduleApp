@@ -8,11 +8,11 @@ namespace Schedule.Core.Csv;
 /// <summary>把日程导出为 CSV（UTF-8 with BOM，Excel 打开中文不乱码）。</summary>
 public static class CsvExporter
 {
-    public static readonly string[] Headers =
-    {
-        "标题", "开始时间", "结束时间", "全天", "分类", "颜色", "优先级",
-        "重复", "重复间隔", "星期", "重复次数", "提前提醒", "语音内容", "提醒铃声", "备注", "状态",
-    };
+    /// <summary>
+    /// 导出表头 = 统一格式（<see cref="CsvSchema"/>）的规范列，
+    /// 因此"导出的文件一定能被原样导入"，不再各写一套。
+    /// </summary>
+    public static string[] Headers => CsvSchema.Headers;
 
     public static string ToCsv(IEnumerable<ScheduleItem> items)
     {
@@ -25,8 +25,9 @@ public static class CsvExporter
             {
                 item.Title,
                 item.AllDay ? item.Start.ToString("yyyy-MM-dd") : item.Start.ToString("yyyy-MM-dd HH:mm"),
+                // 全天日程的结束列写"最后一天"（我们的 End 是次日），这样 Excel 里写 12-31 → 12-31 就是一天
                 item.End.HasValue
-                    ? (item.AllDay ? item.End.Value.ToString("yyyy-MM-dd") : item.End.Value.ToString("yyyy-MM-dd HH:mm"))
+                    ? (item.AllDay ? AllDayEndText(item) : item.End.Value.ToString("yyyy-MM-dd HH:mm"))
                     : string.Empty,
                 item.AllDay ? "是" : "否",
                 item.Category,
@@ -36,6 +37,7 @@ public static class CsvExporter
                 RepeatIntervalText(item),
                 WeekdaysText(item),
                 item.RepeatCount.HasValue ? item.RepeatCount.Value.ToString() : string.Empty,
+                UntilText(item),
                 RemindText(item),
                 FieldParsers.FormatOffsetTexts(item.ReminderVoiceTexts, item.VoiceText),
                 FieldParsers.FormatOffsetTexts(item.ReminderSoundFiles, item.SoundFile),
@@ -96,6 +98,23 @@ public static class CsvExporter
         ItemStatus.Canceled => "已取消",
         _ => "待办",
     };
+
+    /// <summary>全天日程的结束日期：End 是"次日"，导出成用户直觉上的"最后一天"。</summary>
+    public static string AllDayEndText(ScheduleItem item)
+    {
+        if (!item.End.HasValue) return string.Empty;
+
+        var lastDay = item.End.Value.Date;
+        if (lastDay > item.Start.Date) lastDay = lastDay.AddDays(-1);
+
+        return lastDay.ToString("yyyy-MM-dd");
+    }
+
+    /// <summary>重复截止日期（只写日期）。</summary>
+    public static string UntilText(ScheduleItem item)
+        => item.Repeat != RepeatKind.None && item.RepeatUntil.HasValue
+            ? item.RepeatUntil.Value.ToString("yyyy-MM-dd")
+            : string.Empty;
 
     /// <summary>提醒档位描述：30,15,5,0 或具体时间。</summary>
     public static string RemindText(ScheduleItem item)

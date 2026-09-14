@@ -43,6 +43,9 @@ public enum CsvField
     RepeatInterval = 15,
     RepeatCount = 16,
     Weekdays = 17,
+
+    /// <summary>重复截止日期。</summary>
+    RepeatUntil = 18,
 }
 
 /// <summary>CSV 导入选项。</summary>
@@ -108,6 +111,15 @@ public sealed class CsvPreview
     public int TotalDataRows { get; set; }
 
     public List<string> Warnings { get; set; } = new();
+
+    /// <summary>表头诊断（对照统一格式）。</summary>
+    public Csv.CsvHeaderDiagnosis Diagnosis { get; set; } = new();
+
+    /// <summary>不能导入的原因（格式不匹配时为非空，界面据此禁用「开始导入」）。</summary>
+    public string? BlockReason { get; set; }
+
+    /// <summary>能否导入。</summary>
+    public bool CanImport => BlockReason == null;
 }
 
 /// <summary>单行导入失败记录。</summary>
@@ -142,6 +154,12 @@ public sealed class ImportReport
     public List<string> Warnings { get; set; } = new();
 
     public TimeSpan Elapsed { get; set; }
+
+    /// <summary>因为文件格式不匹配而整单没有导入（不是逐行失败）。</summary>
+    public bool Blocked { get; set; }
+
+    /// <summary>格式不匹配时的说明（含标准表头）。</summary>
+    public string? BlockReason { get; set; }
 
     public bool HasErrors => Errors.Count > 0;
 

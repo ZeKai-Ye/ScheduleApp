@@ -54,17 +54,61 @@ public sealed class CsvImportService
             .Select(r => PadRow(r, headers.Count))
             .ToList();
 
-        if (!preview.AutoMap.ContainsKey(CsvField.Title))
-        {
-            preview.Warnings.Add("未识别到「标题」列，缺少标题的行会被跳过。");
-        }
-
-        if (!preview.AutoMap.ContainsKey(CsvField.Start) && !preview.AutoMap.ContainsKey(CsvField.Date))
-        {
-            preview.Warnings.Add("未识别到开始时间列，若无法解析时间将按默认时间处理。");
-        }
+        Diagnose(preview, headers, hasHeader, options);
 
         return preview;
+    }
+
+    /// <summary>
+    /// 对照统一格式检查表头：缺了必填列就给出阻塞原因（界面据此禁用「开始导入」），
+    /// 多余列 / 缺可选列只作为提示。这样"格式不匹配"永远不会变成静默的 0 条导入。
+    /// </summary>
+    private static void Diagnose(CsvPreview preview, List<string> headers, bool hasHeader, CsvImportOptions options)
+    {
+        preview.Diagnosis = hasHeader ? CsvColumnMap.Diagnose(headers) : new CsvHeaderDiagnosis { Headers = headers };
+
+        var missing = new List<string>();
+        if (!preview.AutoMap.ContainsKey(CsvField.Title)) missing.Add(CsvSchema.HeaderOf(CsvField.Title));
+        if (!preview.AutoMap.ContainsKey(CsvField.Start) && !preview.AutoMap.ContainsKey(CsvField.Date))
+        {
+            missing.Add(CsvSchema.HeaderOf(CsvField.Start));
+        }
+
+        // 没有表头时再拿第一行数据试一次：连第一行都解析不出标题/开始时间，说明这文件根本不是我们的格式
+        if (missing.Count == 0 && !hasHeader && preview.SampleRows.Count > 0)
+        {
+            var probe = BuildItem(preview.SampleRows[0], preview.AutoMap, options, DateTime.Now, "preview", out var probeError);
+
+            if (probe == null)
+            {
+                preview.BlockReason = "没有识别到表头，而且第一行数据也解析不出来（" + (probeError ?? "无法解析") + "）。\n"
+                    + "标准格式的第一行应为：\n" + CsvSchema.HeaderLine + "\n"
+                    + "如果文件其实有表头，请在上面把「表头」改成「第一行是表头」；也可以手动指定列映射。";
+
+                preview.Warnings.Add("文件格式无法识别：既不像有表头的 CSV，第一行也不是可解析的数据行。");
+                return;
+            }
+        }
+
+        if (preview.TotalDataRows == 0)
+        {
+            preview.Warnings.Add("文件里只有表头，没有数据行。");
+        }
+
+        if (missing.Count > 0)
+        {
+            preview.BlockReason = hasHeader
+                ? preview.Diagnosis.Describe()
+                : "文件没有表头，且列数不足：至少要有「标题,开始时间」两列。\n标准格式的第一行应为：\n" + CsvSchema.HeaderLine;
+
+            preview.Warnings.Add(hasHeader
+                ? preview.Diagnosis.DescribeShort()
+                : "缺少必需的列：" + string.Join("、", missing) + "，无法导入。");
+
+            return;
+        }
+
+        if (hasHeader && !preview.Diagnosis.IsCanonical) preview.Warnings.Add(preview.Diagnosis.DescribeShort());
     }
 
     /// <summary>执行导入。target 会被就地修改。</summary>
@@ -100,9 +144,44 @@ public sealed class CsvImportService
                 ? CsvColumnMap.AutoMap(headers)
                 : CsvColumnMap.DefaultPositionalMap(headers.Count);
 
-        if (!map.ContainsKey(CsvField.Title))
+        // 必需的列一个都没有 → 整单不导，并把"为什么"讲清楚（不再逐行报"缺少标题"刷屏）
+        var missingColumns = new List<string>();
+        if (!map.ContainsKey(CsvField.Title)) missingColumns.Add(CsvSchema.HeaderOf(CsvField.Title));
+        if (!map.ContainsKey(CsvField.Start) && !map.ContainsKey(CsvField.Date)) missingColumns.Add(CsvSchema.HeaderOf(CsvField.Start));
+
+        // 没有表头时，先确认第一行真的能解析成日程（否则按位置硬套只会导入垃圾）
+        if (!hasHeader && missingColumns.Count == 0 && dataRows.Count > 0)
         {
-            report.Warnings.Add("未识别到「标题」列。");
+            if (BuildItem(dataRows[0], map, options, now: _clock(), "probe", out _) == null)
+            {
+                report.Blocked = true;
+                report.BlockReason = "没有识别到表头，而且第一行数据也解析不出来。\n标准格式的第一行应为：\n" + CsvSchema.HeaderLine;
+                report.Warnings.Add("文件格式无法识别：既不像有表头的 CSV，第一行也不是可解析的数据行。");
+                report.Errors.Add(new ImportError { Line = 1, Message = "无法识别文件格式，已终止导入（没有改动任何日程）", Raw = Shorten(string.Join(delimiter.ToString(), dataRows[0])) });
+                report.Elapsed = stopwatch.Elapsed;
+                return report;
+            }
+        }
+
+        if (missingColumns.Count > 0)
+        {
+            var diagnosis = hasHeader ? CsvColumnMap.Diagnose(headers) : new CsvHeaderDiagnosis { Headers = headers };
+
+            report.Blocked = true;
+            report.BlockReason = hasHeader
+                ? diagnosis.Describe()
+                : "文件没有表头，且列数不足：至少要有「标题,开始时间」两列。\n标准格式的第一行应为：\n" + CsvSchema.HeaderLine;
+
+            report.Warnings.Add(hasHeader ? diagnosis.DescribeShort() : "缺少必需的列：" + string.Join("、", missingColumns) + "，无法导入。");
+            report.Errors.Add(new ImportError
+            {
+                Line = hasHeader ? 1 : 0,
+                Message = "缺少必需的列：" + string.Join("、", missingColumns) + "，已终止导入（没有改动任何日程）",
+                Raw = Shorten(string.Join(delimiter.ToString(), headers)),
+            });
+
+            report.Elapsed = stopwatch.Elapsed;
+            return report;
         }
 
         var now = _clock();
@@ -306,6 +385,13 @@ public sealed class CsvImportService
             item.RepeatCount = repeatCount;
         }
 
+        // 重复截止：独立列优先于「重复」列里写的"到某天"
+        var untilText = Get(CsvField.RepeatUntil);
+        if (untilText.Length > 0 && FlexibleDateTime.TryParse(untilText, out var until, null, options.DayFirst))
+        {
+            item.RepeatUntil = until.Date;
+        }
+
         if (FieldParsers.TryParseWeekdays(Get(CsvField.Weekdays), out var weekdays))
         {
             item.RepeatWeekdays = weekdays;
@@ -439,23 +525,40 @@ public sealed class CsvImportService
         _ => LooksLikeHeader(firstRow),
     };
 
-    /// <summary>启发式判断首行是否是表头：含已知字段名，且几乎没有可解析的日期时间。</summary>
+    /// <summary>
+    /// 启发式判断首行是否是表头。
+    ///
+    /// 关键点：**认不出来的表头也要当成表头**。以前只要"一列都没认出来"就判定为没有表头，
+    /// 于是 姓名/电话/地址 这种完全不相干的文件会被按位置硬套成"标题/开始时间"，
+    /// 导进去一堆垃圾数据还显示成功——这正是"静默报错"的来源。
+    /// 现在："有别名命中"或"含 ≥2 个非空且不是日期/数字的文本单元格"都算表头，
+    /// 认不出来的表头随后会被诊断拦下并明确提示。
+    /// </summary>
     public static bool LooksLikeHeader(string[] row)
     {
         if (row.Length == 0) return false;
 
         var aliasHits = 0;
         var dateHits = 0;
+        var textCells = 0;
+        var textLike = 0;
 
         foreach (var cell in row)
         {
             if (string.IsNullOrWhiteSpace(cell)) continue;
+
+            textCells++;
+
             if (CsvColumnMap.Suggest(cell) != CsvField.Ignore) aliasHits++;
+
             if (FlexibleDateTime.TryParse(cell, out _)) dateHits++;
+            else if (!double.TryParse(cell.Trim(), out _)) textLike++;
         }
 
-        if (aliasHits == 0) return false;
-        return dateHits == 0 || aliasHits >= dateHits;
+        if (aliasHits > 0) return dateHits == 0 || aliasHits >= dateHits;
+
+        // 一列都没认出来：如果这行几乎全是"文字"（而不是日期 / 数字），那它就是个（我们不认识的）表头
+        return dateHits == 0 && textLike >= 2;
     }
 
     public static List<string> BuildHeaders(List<string[]> rows, bool hasHeader)

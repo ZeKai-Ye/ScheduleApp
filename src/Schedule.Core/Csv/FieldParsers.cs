@@ -30,15 +30,15 @@ public sealed class RemindOffsetsSpec
 /// <summary>重复规则解析结果（含间隔、多星期、次数、截止）。</summary>
 public sealed class RepeatSpec
 {
-    public RepeatKind Kind { get; init; } = RepeatKind.None;
+    public RepeatKind Kind { get; set; } = RepeatKind.None;
 
-    public int Interval { get; init; } = 1;
+    public int Interval { get; set; } = 1;
 
-    public List<DayOfWeek> Weekdays { get; init; } = new();
+    public List<DayOfWeek> Weekdays { get; set; } = new();
 
-    public int? Count { get; init; }
+    public int? Count { get; set; }
 
-    public DateTime? Until { get; init; }
+    public DateTime? Until { get; set; }
 }
 
 /// <summary>把 CSV 单元格文本解析成强类型枚举 / 数值。</summary>

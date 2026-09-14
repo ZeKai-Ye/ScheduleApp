@@ -25,6 +25,7 @@ public static class CsvColumnMap
         [CsvField.Color] = new[] { "颜色", "色彩", "事件颜色", "色", "color", "colour" },
         [CsvField.AllDay] = new[] { "全天", "整天", "是否全天", "allday", "fullday", "isallday", "wholeday" },
         [CsvField.Status] = new[] { "状态", "是否完成", "完成", "进度", "status", "done", "completed", "finished" },
+        [CsvField.RepeatUntil] = new[] { "重复截止", "截止日期", "重复截止日期", "重复到", "直到", "until", "repeatuntil", "enddate", "recurrenceend" },
     };
 
     /// <summary>识别顺序：越具体的字段越先匹配，避免「提醒时间」被误判成「时间」。</summary>
@@ -33,7 +34,7 @@ public static class CsvColumnMap
         CsvField.Remind, CsvField.Voice, CsvField.Sound, CsvField.End, CsvField.Start,
         CsvField.Date, CsvField.Title, CsvField.Notes, CsvField.Category,
         CsvField.Priority, CsvField.Repeat, CsvField.RepeatInterval, CsvField.RepeatCount,
-        CsvField.Weekdays, CsvField.Color, CsvField.AllDay, CsvField.Status,
+        CsvField.Weekdays, CsvField.RepeatUntil, CsvField.Color, CsvField.AllDay, CsvField.Status,
     };
 
     public static IReadOnlyList<CsvField> AllFields => MatchOrder;
@@ -57,6 +58,7 @@ public static class CsvColumnMap
         CsvField.Voice => "语音播报内容",
         CsvField.Sound => "提醒铃声",
         CsvField.Status => "状态",
+        CsvField.RepeatUntil => "重复截止",
         _ => "忽略",
     };
 
@@ -79,8 +81,54 @@ public static class CsvColumnMap
         CsvField.Voice => "自定义播报文本，留空用全局模板",
         CsvField.Sound => "自定义提示音文件路径",
         CsvField.Status => "待办 / 已完成 / 已取消",
+        CsvField.RepeatUntil => "重复到哪一天，例如 2026-12-31",
         _ => string.Empty,
     };
+
+    /// <summary>
+    /// 对照统一格式诊断表头：识别到了哪些列、哪些列不认识、规范里还差哪些。
+    /// 导入向导用它给出"格式不匹配"的明确原因，而不是默默导入 0 条。
+    /// </summary>
+    public static CsvHeaderDiagnosis Diagnose(IReadOnlyList<string> headers)
+    {
+        var diagnosis = new CsvHeaderDiagnosis
+        {
+            Headers = headers.ToList(),
+            IsCanonical = CsvSchema.IsCanonical(headers),
+        };
+
+        var map = AutoMap(headers);
+        var mappedColumns = new HashSet<int>();
+
+        foreach (var field in MatchOrder)
+        {
+            if (!map.TryGetValue(field, out var column)) continue;
+
+            mappedColumns.Add(column);
+            diagnosis.Recognized.Add(new CsvHeaderMatch
+            {
+                Column = column,
+                Header = column >= 0 && column < headers.Count ? headers[column] : string.Empty,
+                Field = field,
+                CanonicalHeader = CsvSchema.HeaderOf(field),
+            });
+        }
+
+        for (var i = 0; i < headers.Count; i++)
+        {
+            if (!mappedColumns.Contains(i)) diagnosis.Unknown.Add(headers[i]);
+        }
+
+        foreach (var column in CsvSchema.Columns)
+        {
+            if (map.ContainsKey(column.Field)) continue;
+
+            diagnosis.Missing.Add(column.Field);
+            if (column.Required) diagnosis.MissingRequired.Add(column.Field);
+        }
+
+        return diagnosis;
+    }
 
     /// <summary>根据表头自动建立列映射。</summary>
     public static Dictionary<CsvField, int> AutoMap(IReadOnlyList<string> headers)
