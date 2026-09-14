@@ -283,6 +283,9 @@ public sealed class AppSettings
 
     public string LastCsvDirectory { get; set; } = string.Empty;
 
+    /// <summary>上次导出的格式（csv / ics），用于记住下拉选择。</summary>
+    public string LastExportFormat { get; set; } = "csv";
+
     public void CopyFrom(AppSettings other)
     {
         DefaultReminderOffsets = new List<int>(other.DefaultReminderOffsets);
@@ -346,6 +349,7 @@ public sealed class AppSettings
         CsvDefaultCategory = other.CsvDefaultCategory;
         BackupKeepCount = other.BackupKeepCount;
         LastCsvDirectory = other.LastCsvDirectory;
+        LastExportFormat = other.LastExportFormat;
     }
 
     public AppSettings Clone()

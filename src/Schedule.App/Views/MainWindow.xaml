@@ -48,7 +48,7 @@
                              Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=250}" />
                     <Button Content="AI 对话" Click="AiChat_Click" Margin="0,0,8,0" ToolTip="和本地大模型对话，直接让它查 / 改日程（Ctrl+K）" />
                     <Button Content="新建日程" Style="{StaticResource PrimaryButton}" Click="NewItem_Click" Margin="0,0,8,0" ToolTip="Ctrl+N" />
-                    <Button Content="导入 CSV" Click="ImportCsv_Click" Margin="0,0,8,0" ToolTip="Ctrl+I" />
+                    <Button Content="导入日程" Click="ImportCsv_Click" Margin="0,0,8,0" ToolTip="支持 CSV（统一格式）与 iCalendar（.ics）；Ctrl+I" />
                     <Button Content="导出" Click="Export_Click" Margin="0,0,8,0" />
                     <Button Content="设置" Click="Settings_Click" />
                 </StackPanel>
@@ -240,7 +240,7 @@
                             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
                                         Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisibility}}">
                                 <TextBlock Text="这个范围内还没有日程" FontSize="15" Foreground="{DynamicResource Brush.Subtle}" HorizontalAlignment="Center" />
-                                <TextBlock Text="点击右上角「新建日程」，或「导入 CSV」批量导入"
+                                <TextBlock Text="点击右上角「新建日程」，或「导入日程」批量导入（CSV / ICS）"
                                            Margin="0,8,0,0" FontSize="12" Foreground="{DynamicResource Brush.Subtle}" HorizontalAlignment="Center" />
                             </StackPanel>
                         </Grid>

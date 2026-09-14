@@ -1,5 +1,6 @@
 using System.Text;
 using Schedule.Core.Csv;
+using Schedule.Core.Ics;
 using Schedule.Core.Models;
 using Schedule.Core.Services;
 using Schedule.Core.Storage;
@@ -52,6 +53,10 @@ public static class CliRunner
             else if (options.ShowInfo)
             {
                 exitCode = Info(output);
+            }
+            else if (!string.IsNullOrWhiteSpace(options.CsvTemplateFile))
+            {
+                exitCode = WriteCsvTemplate(options.CsvTemplateFile!, output);
             }
             else if (options.AiModels)
             {
@@ -206,6 +211,23 @@ public static class CliRunner
         return 0;
     }
 
+    /// <summary>前 2KB 里找 BEGIN:VCALENDAR，用于无扩展名的 .ics。</summary>
+    private static bool LooksLikeIcs(string file)
+    {
+        try
+        {
+            using var reader = new StreamReader(file, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+            var buffer = new char[2048];
+            var read = reader.Read(buffer, 0, buffer.Length);
+
+            return new string(buffer, 0, read).Contains("BEGIN:VCALENDAR", StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
     private static int Import(CommandLineOptions options, StringBuilder output)
     {
         var file = options.ImportFile!;
@@ -226,30 +248,53 @@ public static class CliRunner
             _ => ImportMode.Append,
         };
 
-        var importOptions = new CsvImportOptions
-        {
-            FilePath = file,
-            EncodingName = string.IsNullOrWhiteSpace(options.Encoding) ? settings.CsvEncoding : options.Encoding,
-            Mode = mode,
-            SkipPastItems = options.SkipPast,
-            SkipDuplicates = !options.NoSkipDuplicates,
-            DefaultCategory = settings.CsvDefaultCategory,
-            DefaultColor = settings.DefaultEventColor,
-            DefaultReminderEnabled = settings.DefaultReminderEnabled,
-            DefaultReminderOffsets = new List<int>(settings.DefaultReminderOffsets),
-            DefaultRemindBeforeMinutes = settings.DefaultRemindBeforeMinutes,
-        };
-
         // Snapshot 返回副本，导入服务就地修改该副本，再整体写回仓储
         var items = repository.Snapshot();
-        var service = new CsvImportService();
-        var report = service.Import(importOptions, items);
+
+        var isIcs = file.EndsWith(".ics", StringComparison.OrdinalIgnoreCase)
+            || LooksLikeIcs(file);
+
+        var report = isIcs
+            ? new IcsImportService().Import(new IcsImportOptions
+            {
+                Mode = mode,
+                SkipPastItems = options.SkipPast,
+                SkipDuplicates = !options.NoSkipDuplicates,
+                DefaultCategory = settings.CsvDefaultCategory,
+                DefaultColor = settings.DefaultEventColor,
+                DefaultReminderEnabled = settings.DefaultReminderEnabled,
+                DefaultReminderOffsets = new List<int>(settings.DefaultReminderOffsets),
+                DefaultRemindBeforeMinutes = settings.DefaultRemindBeforeMinutes,
+                SourceTag = Path.GetFileName(file),
+            }, file, items)
+            : new CsvImportService().Import(new CsvImportOptions
+            {
+                FilePath = file,
+                EncodingName = string.IsNullOrWhiteSpace(options.Encoding) ? settings.CsvEncoding : options.Encoding,
+                Mode = mode,
+                SkipPastItems = options.SkipPast,
+                SkipDuplicates = !options.NoSkipDuplicates,
+                DefaultCategory = settings.CsvDefaultCategory,
+                DefaultColor = settings.DefaultEventColor,
+                DefaultReminderEnabled = settings.DefaultReminderEnabled,
+                DefaultReminderOffsets = new List<int>(settings.DefaultReminderOffsets),
+                DefaultRemindBeforeMinutes = settings.DefaultRemindBeforeMinutes,
+            }, items);
 
         repository.ReplaceAll(items);
         repository.Save(force: true);
 
         output.AppendLine("导入文件：" + file);
+        output.AppendLine("格式：" + (isIcs ? "iCalendar（.ics）" : "CSV"));
         output.AppendLine("编码：" + report.EncodingName);
+
+        if (report.Blocked)
+        {
+            output.AppendLine("已终止导入（未改动任何日程）：");
+            output.AppendLine(report.BlockReason ?? "格式不匹配。");
+            return 5;
+        }
+
         output.AppendLine(report.ToSummary());
 
         foreach (var warning in report.Warnings)
@@ -276,8 +321,19 @@ public static class CliRunner
         repository.Load();
         var items = repository.Snapshot();
 
-        CsvExporter.WriteFile(options.ExportFile!, items);
-        output.AppendLine("已导出 " + items.Count + " 条日程到：" + options.ExportFile);
+        var file = options.ExportFile!;
+
+        if (file.EndsWith(".ics", StringComparison.OrdinalIgnoreCase))
+        {
+            IcsWriter.WriteFile(file, items);
+            output.AppendLine("已导出 " + items.Count + " 条日程到：" + file + "（iCalendar，可导入 Google 日历 / Outlook）");
+        }
+        else
+        {
+            CsvExporter.WriteFile(file, items);
+            output.AppendLine("已导出 " + items.Count + " 条日程到：" + file + "（统一格式 CSV，可原样再导入）");
+        }
+
         return 0;
     }
 
@@ -320,6 +376,26 @@ public static class CliRunner
         var service = new SettingsService();
         service.Load();
         return service.Current;
+    }
+
+    /// <summary>导出统一格式的 CSV 模板（表头 + 两行示例）。</summary>
+    private static int WriteCsvTemplate(string path, StringBuilder output)
+    {
+        try
+        {
+            CsvSchema.WriteTemplate(path);
+
+            output.AppendLine("已写入 CSV 模板：" + path);
+            output.AppendLine("表头：" + CsvSchema.HeaderLine);
+            output.AppendLine();
+            output.AppendLine(CsvSchema.DescribeColumns());
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            output.AppendLine("写入模板失败：" + ex.Message);
+            return 4;
+        }
     }
 
     // ================= AI 对话（无界面验证 / 脚本用） =================

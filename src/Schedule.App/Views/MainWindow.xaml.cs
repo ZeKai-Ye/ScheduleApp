@@ -5,6 +5,7 @@ using System.Windows.Media;
 using Microsoft.Win32;
 using Schedule.App.ViewModels;
 using Schedule.Core.Csv;
+using Schedule.Core.Ics;
 using Schedule.Core.Logging;
 using Schedule.Core.Models;
 using Schedule.Core.Scheduling;
@@ -610,8 +611,11 @@ public partial class MainWindow : Window
     {
         var dialog = new OpenFileDialog
         {
-            Title = "选择要导入的 CSV 文件",
-            Filter = "CSV 文件 (*.csv;*.txt)|*.csv;*.txt|所有文件 (*.*)|*.*",
+            Title = "选择要导入的日程文件（CSV / iCalendar）",
+            Filter = "日程文件 (*.csv;*.ics;*.txt)|*.csv;*.ics;*.txt"
+                + "|CSV 文件 (*.csv;*.txt)|*.csv;*.txt"
+                + "|iCalendar (*.ics)|*.ics"
+                + "|所有文件 (*.*)|*.*",
             CheckFileExists = true,
             Multiselect = false,
         };
@@ -641,9 +645,10 @@ public partial class MainWindow : Window
 
         var dialog = new SaveFileDialog
         {
-            Title = "导出日程为 CSV",
-            Filter = "CSV 文件 (*.csv)|*.csv",
-            FileName = "日程导出-" + DateTime.Now.ToString("yyyyMMdd-HHmm") + ".csv",
+            Title = "导出日程（CSV 用本程序的统一格式；.ics 可导入 Google 日历 / Outlook）",
+            Filter = "CSV 文件 (*.csv)|*.csv|iCalendar (*.ics)|*.ics",
+            FilterIndex = string.Equals(_host.Settings.LastExportFormat, "ics", StringComparison.OrdinalIgnoreCase) ? 2 : 1,
+            FileName = "日程导出-" + DateTime.Now.ToString("yyyyMMdd-HHmm") + (string.Equals(_host.Settings.LastExportFormat, "ics", StringComparison.OrdinalIgnoreCase) ? ".ics" : ".csv"),
         };
 
         if (Directory.Exists(AppPaths.ExportDirectory))
@@ -655,8 +660,24 @@ public partial class MainWindow : Window
 
         try
         {
-            CsvExporter.WriteFile(dialog.FileName, items);
-            MessageBox.Show(this, "已导出 " + items.Count + " 条日程到：\n" + dialog.FileName, "导出完成", MessageBoxButton.OK, MessageBoxImage.Information);
+            var asIcs = dialog.FilterIndex == 2 || dialog.FileName.EndsWith(".ics", StringComparison.OrdinalIgnoreCase);
+
+            if (asIcs)
+            {
+                IcsWriter.WriteFile(dialog.FileName, items);
+                _host.Settings.LastExportFormat = "ics";
+            }
+            else
+            {
+                CsvExporter.WriteFile(dialog.FileName, items);
+                _host.Settings.LastExportFormat = "csv";
+            }
+
+            _host.SaveAll();
+
+            MessageBox.Show(this, "已导出 " + items.Count + " 条日程到：\n" + dialog.FileName
+                + (asIcs ? "\n\n（iCalendar 格式，可直接导入 Google 日历 / Outlook）" : "\n\n（CSV 为统一格式，可原样再导入本程序）"),
+                "导出完成", MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex)
         {

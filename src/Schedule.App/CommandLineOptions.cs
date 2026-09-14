@@ -61,6 +61,9 @@ public sealed class CommandLineOptions
     /// <summary>列出模型服务上的模型后退出。</summary>
     public bool AiModels { get; set; }
 
+    /// <summary>把统一格式的 CSV 模板写到指定文件后退出。</summary>
+    public string? CsvTemplateFile { get; set; }
+
     /// <summary>创建快捷方式（desktop / startmenu）。</summary>
     public string? ShortcutTarget { get; set; }
 
@@ -83,7 +86,7 @@ public sealed class CommandLineOptions
     public bool HasCliAction =>
         ImportFile != null || ExportFile != null || SpeakText != null || ListVoices || ShowInfo || Help
         || ShortcutTarget != null || RemoveShortcutTarget != null || StartupEnabled.HasValue || UiSmoke
-        || AiChatText != null || AiModels;
+        || AiChatText != null || AiModels || CsvTemplateFile != null;
 
     public static CommandLineOptions Parse(string[] args)
     {
@@ -182,6 +185,9 @@ public sealed class CommandLineOptions
                 case "--ai-models":
                     options.AiModels = true;
                     break;
+                case "--csv-template":
+                    options.CsvTemplateFile = Value();
+                    break;
                 case "--shortcut":
                     options.ShortcutTarget = Value() ?? "desktop";
                     break;
@@ -215,10 +221,11 @@ public sealed class CommandLineOptions
         "用法：ScheduleApp.exe [选项]",
         "",
         "无界面模式：",
-        "  --import <csv>        导入 CSV 文件",
+        "  --import <文件>       导入日程：CSV（统一格式）或 iCalendar（.ics），按扩展名/内容自动识别",
         "  --export <csv>        导出全部日程为 CSV",
         "  --mode <模式>         append（默认）/ upsert / replace",
         "  --encoding <编码>     auto（默认）/ utf-8 / gbk / gb18030 / utf-16",
+        "  --csv-template <文件> 导出统一格式的 CSV 模板（表头 + 两行示例，照着填即可导入）",
         "  --skip-past           跳过已经过去的日程",
         "  --no-skip-duplicates  不跳过重复日程",
         "  --voices              列出系统已安装的语音",

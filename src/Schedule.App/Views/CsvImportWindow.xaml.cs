@@ -6,6 +6,7 @@ using Microsoft.Win32;
 using Schedule.App.Mvvm;
 using Schedule.App.Services;
 using Schedule.Core.Csv;
+using Schedule.Core.Ics;
 using Schedule.Core.Models;
 using Schedule.Core.Services;
 
@@ -46,10 +47,25 @@ public partial class CsvImportWindow : Window
 {
     private readonly AppHost _host;
     private readonly CsvImportService _service = new();
+    private readonly IcsImportService _icsService = new();
     private readonly ObservableCollection<ColumnMappingItem> _mappings = new();
     private string _filePath;
     private CsvPreview? _preview;
+    private IcsPreview? _icsPreview;
+    private bool _isIcs;
     private bool _busy;
+
+    /// <summary>当前文件是不是 iCalendar（自检用）。</summary>
+    public bool IsIcsFile => _isIcs;
+
+    /// <summary>格式不匹配等原因导致不能导入时的说明（自检用）。</summary>
+    public string? BlockReason { get; private set; }
+
+    /// <summary>报告区当前文本（自检用：导入后必须仍然可见，不能被刷新清掉）。</summary>
+    public string ReportTextValue => ReportText.Text;
+
+    /// <summary>可导入的日程条数（预览结果；自检用）。</summary>
+    public int ImportableCount => _isIcs ? _icsPreview?.MappedCount ?? 0 : _preview?.TotalDataRows ?? 0;
 
     public CsvImportWindow(AppHost host, string filePath)
     {
@@ -117,8 +133,11 @@ public partial class CsvImportWindow : Window
     {
         var dialog = new OpenFileDialog
         {
-            Title = "选择要导入的 CSV 文件",
-            Filter = "CSV 文件 (*.csv;*.txt)|*.csv;*.txt|所有文件 (*.*)|*.*",
+            Title = "选择要导入的日程文件",
+            Filter = "日程文件 (*.csv;*.ics;*.txt)|*.csv;*.ics;*.txt"
+                + "|CSV 文件 (*.csv;*.txt)|*.csv;*.txt"
+                + "|iCalendar (*.ics)|*.ics"
+                + "|所有文件 (*.*)|*.*",
             CheckFileExists = true,
         };
 
@@ -126,6 +145,7 @@ public partial class CsvImportWindow : Window
 
         _filePath = dialog.FileName;
         FilePathBox.Text = _filePath;
+        ReportText.Text = string.Empty; // 换了文件，旧报告就作废
         Reload();
     }
 
@@ -185,18 +205,11 @@ public partial class CsvImportWindow : Window
 
         try
         {
-            var options = BuildOptions(includeMap: false);
-            var preview = _service.Preview(options);
-            _preview = preview;
+            _isIcs = DetectIcs();
+            FormatHintText.Text = "统一格式表头：" + CsvSchema.HeaderLine;
 
-            EncodingText.Text = "识别编码：" + preview.EncodingName + "　分隔符：" + DescribeDelimiter(preview.Delimiter);
-            WarningText.Text = preview.Warnings.Count == 0 ? string.Empty : string.Join("　", preview.Warnings);
-            PreviewTitle.Text = "数据预览（共 " + preview.TotalDataRows + " 行数据，显示前 " + preview.SampleRows.Count + " 行" +
-                                (preview.HasHeader ? "，已识别表头" : "，未检测到表头") + "）";
-
-            BuildMappingUi(preview);
-            PreviewBox.Text = BuildPreviewText(preview);
-            ReportText.Text = string.Empty;
+            if (_isIcs) ReloadIcs();
+            else ReloadCsv();
         }
         catch (Exception ex)
         {
@@ -206,6 +219,126 @@ public partial class CsvImportWindow : Window
         {
             _busy = false;
         }
+    }
+
+    /// <summary>看扩展名，再看文件开头有没有 BEGIN:VCALENDAR。</summary>
+    private bool DetectIcs()
+    {
+        if (_filePath.EndsWith(".ics", StringComparison.OrdinalIgnoreCase)) return true;
+        if (!File.Exists(_filePath)) return false;
+
+        try
+        {
+            using var reader = new StreamReader(_filePath, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+            var buffer = new char[2048];
+            var read = reader.Read(buffer, 0, buffer.Length);
+
+            return new string(buffer, 0, read).Contains("BEGIN:VCALENDAR", StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    private void ReloadCsv()
+    {
+        FileKindText.Text = "CSV 文件（统一格式）";
+        MappingCard.Visibility = Visibility.Visible;
+        SetCsvOptionsEnabled(true);
+
+        var options = BuildOptions(includeMap: false);
+        var preview = _service.Preview(options);
+        _preview = preview;
+        _icsPreview = null;
+
+        EncodingText.Text = "识别编码：" + preview.EncodingName + "　分隔符：" + DescribeDelimiter(preview.Delimiter);
+        WarningText.Text = preview.Warnings.Count == 0 ? string.Empty : string.Join("　", preview.Warnings);
+        PreviewTitle.Text = "数据预览（共 " + preview.TotalDataRows + " 行数据，显示前 " + preview.SampleRows.Count + " 行" +
+                            (preview.HasHeader ? "，已识别表头" : "，未检测到表头") + "）";
+
+        BuildMappingUi(preview);
+        PreviewBox.Text = BuildPreviewText(preview);
+        ApplyBlockState(preview.BlockReason);
+    }
+
+    private void ReloadIcs()
+    {
+        FileKindText.Text = "iCalendar 文件（.ics）";
+        MappingCard.Visibility = Visibility.Collapsed;
+        SetCsvOptionsEnabled(false);
+
+        var options = new IcsImportOptions
+        {
+            Mode = SelectedTag(ModeBox) switch
+            {
+                "upsert" => ImportMode.Upsert,
+                "replace" => ImportMode.Replace,
+                _ => ImportMode.Append,
+            },
+            SkipDuplicates = SkipDuplicatesCheck.IsChecked == true,
+            SkipPastItems = SkipPastCheck.IsChecked == true,
+            SourceTag = Path.GetFileName(_filePath),
+        };
+
+        var preview = _icsService.Preview(options, _filePath);
+        _icsPreview = preview;
+        _preview = null;
+
+        EncodingText.Text = "识别编码：" + preview.EncodingName;
+        PreviewTitle.Text = "iCalendar 预览";
+        WarningText.Text = preview.Warnings.Count == 0
+            ? string.Empty
+            : string.Join("；", preview.Warnings.Take(3)) + (preview.Warnings.Count > 3 ? "　…（共 " + preview.Warnings.Count + " 条提示）" : string.Empty);
+
+        var sb = new StringBuilder();
+        sb.AppendLine(preview.LooksLikeCalendar ? "已识别为 iCalendar 文件。" : "没有找到 BEGIN:VCALENDAR，可能不是标准 ICS。");
+        sb.AppendLine(preview.ToSummary());
+
+        if (preview.Warnings.Count > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine("提示：");
+            foreach (var warning in preview.Warnings.Take(20)) sb.AppendLine("· " + warning);
+            if (preview.Warnings.Count > 20) sb.AppendLine("（还有 " + (preview.Warnings.Count - 20) + " 条）");
+        }
+
+        if (preview.RowErrors.Count > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine("无法导入的事件：");
+            foreach (var error in preview.RowErrors.Take(20)) sb.AppendLine("· 第 " + error.Line + " 行：" + error.Message);
+        }
+
+        PreviewBox.Text = sb.ToString();
+        ApplyBlockState(preview.BlockReason);
+    }
+
+    /// <summary>ICS 模式下编码 / 表头 / 默认值这些 CSV 专属选项没有意义。</summary>
+    private void SetCsvOptionsEnabled(bool enabled)
+    {
+        EncodingBox.IsEnabled = enabled;
+        HeaderBox.IsEnabled = enabled;
+        DefaultRemindBox.IsEnabled = enabled;
+        DefaultCategoryBox.IsEnabled = enabled;
+    }
+
+    /// <summary>格式不匹配时：红字说明 + 禁用「开始导入」，绝不让用户以为"导入成功了但没数据"。</summary>
+    private void ApplyBlockState(string? blockReason)
+    {
+        BlockReason = blockReason;
+
+        if (string.IsNullOrWhiteSpace(blockReason))
+        {
+            BlockPanel.Visibility = Visibility.Collapsed;
+            BlockText.Text = string.Empty;
+            ImportButton.IsEnabled = true;
+            return;
+        }
+
+        BlockPanel.Visibility = Visibility.Visible;
+        BlockText.Text = blockReason;
+        ImportButton.IsEnabled = false;
     }
 
     private static string DescribeDelimiter(char delimiter) => delimiter switch
@@ -309,12 +442,6 @@ public partial class CsvImportWindow : Window
 
     private void Import_Click(object sender, RoutedEventArgs e)
     {
-        if (!File.Exists(_filePath))
-        {
-            MessageBox.Show(this, "文件不存在：" + _filePath, "导入", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-
         if (SelectedTag(ModeBox) == "replace")
         {
             var confirm = MessageBox.Show(this, "「覆盖全部日程」会先清空现有全部日程，确定继续吗？", "导入",
@@ -322,43 +449,155 @@ public partial class CsvImportWindow : Window
             if (confirm != MessageBoxResult.OK) return;
         }
 
+        var text = RunImport();
+
+        // 一条都没进来时必须弹窗说清楚原因，不能只把报告写在角落里
+        if (text.Contains("导入完成：共", StringComparison.Ordinal) && text.Contains("新增 0，更新 0", StringComparison.Ordinal))
+        {
+            MessageBox.Show(this, FirstLines(text, 12), "没有任何日程被导入", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    /// <summary>
+    /// 执行导入并把报告写进界面（返回报告文本）。
+    /// 抽成公开方法既供按钮调用，也供冒烟自检直接跑一遍（保证报告不会被后续刷新清掉）。
+    /// </summary>
+    public string RunImport()
+    {
+        if (!File.Exists(_filePath))
+        {
+            ReportText.Text = "导入失败：文件不存在（" + _filePath + "）";
+            return ReportText.Text;
+        }
+
         try
         {
-            var options = BuildOptions(includeMap: true);
-            var items = _host.Repository.Snapshot();
-            var report = _service.Import(options, items);
-
-            _host.Repository.ReplaceAll(items);
-            _host.Repository.Save(force: true);
-
-            _host.Settings.CsvEncoding = options.EncodingName;
-            _host.Settings.CsvDefaultCategory = options.DefaultCategory;
-            _host.ImportHistory.Add(new ImportRecord
-            {
-                FilePath = _filePath,
-                EncodingName = report.EncodingName,
-                Total = report.TotalRows,
-                Imported = report.Imported,
-                Updated = report.Updated,
-                Skipped = report.Skipped,
-                Failed = report.Failed,
-            });
-            _host.SaveAll();
-
-            var text = new StringBuilder();
-            text.AppendLine("导入完成：" + report.ToSummary());
-            foreach (var warning in report.Warnings) text.AppendLine("[提示] " + warning);
-            foreach (var error in report.Errors.Take(30)) text.AppendLine("[第 " + error.Line + " 行] " + error.Message);
-            if (report.Errors.Count > 30) text.AppendLine("（还有 " + (report.Errors.Count - 30) + " 条错误未显示）");
-
-            ReportText.Text = text.ToString();
-            Reload();
+            return _isIcs ? RunIcsImport() : RunCsvImport();
         }
         catch (Exception ex)
         {
             ReportText.Text = "导入失败：" + ex.Message;
+            return ReportText.Text;
         }
     }
+
+    private string RunCsvImport()
+    {
+        var options = BuildOptions(includeMap: true);
+        var items = _host.Repository.Snapshot();
+        var report = _service.Import(options, items);
+
+        if (report.Blocked)
+        {
+            ReportText.Text = "已终止导入（未改动任何日程）：" + Environment.NewLine + report.BlockReason;
+            ApplyBlockState(report.BlockReason);
+            return ReportText.Text;
+        }
+
+        _host.Repository.ReplaceAll(items);
+        _host.Settings.CsvEncoding = options.EncodingName;
+        _host.Settings.CsvDefaultCategory = options.DefaultCategory;
+
+        return FinishImport(report, "CSV");
+    }
+
+    private string RunIcsImport()
+    {
+        var options = new IcsImportOptions
+        {
+            Mode = SelectedTag(ModeBox) switch
+            {
+                "upsert" => ImportMode.Upsert,
+                "replace" => ImportMode.Replace,
+                _ => ImportMode.Append,
+            },
+            SkipDuplicates = SkipDuplicatesCheck.IsChecked == true,
+            SkipPastItems = SkipPastCheck.IsChecked == true,
+            SourceTag = Path.GetFileName(_filePath),
+        };
+
+        var items = _host.Repository.Snapshot();
+        var report = _icsService.Import(options, _filePath, items);
+
+        if (report.Blocked)
+        {
+            ReportText.Text = "已终止导入（未改动任何日程）：" + Environment.NewLine + report.BlockReason;
+            ApplyBlockState(report.BlockReason);
+            return ReportText.Text;
+        }
+
+        _host.Repository.ReplaceAll(items);
+        return FinishImport(report, "iCalendar");
+    }
+
+    /// <summary>落盘 + 记历史 + 写报告；报告写完**不刷新掉**（Reload 不再清空报告区）。</summary>
+    private string FinishImport(ImportReport report, string kind)
+    {
+        _host.Repository.Save(force: true);
+
+        _host.ImportHistory.Add(new ImportRecord
+        {
+            FilePath = _filePath,
+            EncodingName = report.EncodingName,
+            Total = report.TotalRows,
+            Imported = report.Imported,
+            Updated = report.Updated,
+            Skipped = report.Skipped,
+            Failed = report.Failed,
+        });
+
+        _host.SaveAll();
+
+        var text = new StringBuilder();
+        text.AppendLine("导入完成：" + report.ToSummary());
+        text.AppendLine("来源：" + kind + "　文件：" + Path.GetFileName(_filePath));
+
+        foreach (var warning in report.Warnings) text.AppendLine("[提示] " + warning);
+        foreach (var error in report.Errors.Take(30)) text.AppendLine("[第 " + error.Line + " 行] " + error.Message);
+        if (report.Errors.Count > 30) text.AppendLine("（还有 " + (report.Errors.Count - 30) + " 条错误未显示）");
+
+        ReportText.Text = text.ToString();
+
+        // 刷新预览，但保留上面的报告（之前这里会顺手把报告清空，用户什么都看不到）
+        Reload();
+
+        return text.ToString();
+    }
+
+    private static string FirstLines(string text, int count)
+    {
+        var lines = text.Split('\n');
+        return string.Join(Environment.NewLine, lines.Take(count)).TrimEnd();
+    }
+
+    /// <summary>把统一格式的模板另存出去（照填即可导入成功）。</summary>
+    private void SaveTemplate_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new SaveFileDialog
+        {
+            Title = "保存 CSV 模板",
+            Filter = "CSV 文件 (*.csv)|*.csv",
+            FileName = "日程导入模板.csv",
+        };
+
+        if (dialog.ShowDialog(this) != true) return;
+
+        try
+        {
+            CsvSchema.WriteTemplate(dialog.FileName);
+            ReportText.Text = "模板已保存：" + dialog.FileName + Environment.NewLine
+                + "第一行是统一格式的表头，下面两行是示例，照着填就能导入。" + Environment.NewLine
+                + Environment.NewLine + CsvSchema.HeaderLine;
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, "保存模板失败：" + ex.Message, "导入", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    /// <summary>列出统一格式的每一列（含义 / 是否必填 / 示例）。</summary>
+    private void ShowFormat_Click(object sender, RoutedEventArgs e)
+        => MessageBox.Show(this, CsvSchema.DescribeColumns(), "CSV 统一格式", MessageBoxButton.OK, MessageBoxImage.Information);
 
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
 }

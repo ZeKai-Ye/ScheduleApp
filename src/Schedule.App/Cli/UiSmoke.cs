@@ -4,6 +4,8 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Schedule.App.Views;
+using Schedule.Core.Csv;
+using Schedule.Core.Ics;
 using Schedule.Core.Logging;
 using Schedule.Core.Models;
 using Schedule.Core.Scheduling;
@@ -176,6 +178,14 @@ public static class UiSmoke
             AppLog.Warn("AI 自检失败：" + problem);
         }
 
+        // ---------- 导入自检：CSV 格式不匹配必须明确报错，ICS 能被识别 ----------
+        foreach (var problem in ImportChecks(host))
+        {
+            failures++;
+            report.AppendLine("FAIL  导入  " + problem);
+            AppLog.Warn("导入自检失败：" + problem);
+        }
+
         // ---------- 重启自检：主题改完要能一键重启，且新进程必须用同一份数据 ----------
         foreach (var problem in RestartChecks(host, report))
         {
@@ -321,6 +331,136 @@ public static class UiSmoke
         }
 
         return failures == 0 ? 0 : 1;
+    }
+
+    /// <summary>
+    /// 导入自检：CSV 格式不匹配时必须给出原因并禁用导入（用户报过"静默报错"），
+    /// 导入完成后报告不能被刷新清空，.ics 要被识别成 iCalendar。
+    /// 全程用临时文件，结束后把导入进去的日程删掉。
+    /// </summary>
+    private static List<string> ImportChecks(AppHost host)
+    {
+        var problems = new List<string>();
+        var dir = Path.Combine(AppPaths.DataDirectory, "import-selftest");
+        var added = new List<Guid>();
+
+        try
+        {
+            Directory.CreateDirectory(dir);
+
+            // 1) 完全不相干的 CSV：必须明确报错 + 禁用「开始导入」
+            var wrong = Path.Combine(dir, "wrong.csv");
+            File.WriteAllText(wrong, "姓名,电话,地址\r\n张三,13800000000,北京\r\n", new UTF8Encoding(false));
+
+            var wrongWindow = new CsvImportWindow(host, wrong);
+            try
+            {
+                wrongWindow.Show();
+                wrongWindow.UpdateLayout();
+
+                if (string.IsNullOrWhiteSpace(wrongWindow.BlockReason))
+                {
+                    problems.Add("表头完全不匹配的 CSV 没有给出原因（这正是「静默报错」的场景）");
+                }
+
+                if (wrongWindow.FindName("ImportButton") is Button button && button.IsEnabled)
+                {
+                    problems.Add("格式不匹配时「开始导入」仍然可点");
+                }
+
+                if (wrongWindow.FindName("BlockPanel") is FrameworkElement panel && panel.Visibility != Visibility.Visible)
+                {
+                    problems.Add("格式不匹配时没有显示红色提示面板");
+                }
+            }
+            finally
+            {
+                wrongWindow.Hide();
+            }
+
+            // 2) 统一格式模板：能导入，且导入报告不被刷新清掉
+            var template = Path.Combine(dir, "template.csv");
+            CsvSchema.WriteTemplate(template);
+
+            var before = host.Repository.Snapshot().Select(i => i.Id).ToHashSet();
+            var goodWindow = new CsvImportWindow(host, template);
+            try
+            {
+                goodWindow.Show();
+                goodWindow.UpdateLayout();
+
+                if (!string.IsNullOrWhiteSpace(goodWindow.BlockReason))
+                {
+                    problems.Add("统一格式模板竟然被判成格式不匹配：" + goodWindow.BlockReason);
+                }
+
+                var report = goodWindow.RunImport();
+
+                if (!report.Contains("导入完成", StringComparison.Ordinal))
+                {
+                    problems.Add("导入报告内容异常：" + report.Replace(Environment.NewLine, " / "));
+                }
+
+                if (string.IsNullOrWhiteSpace(goodWindow.ReportTextValue))
+                {
+                    problems.Add("导入完成后报告被刷新清空了（用户看不到任何结果）");
+                }
+
+                var imported = host.Repository.Snapshot().Where(i => !before.Contains(i.Id)).ToList();
+                if (imported.Count == 0) problems.Add("统一格式模板一条都没导入");
+                foreach (var item in imported) added.Add(item.Id);
+            }
+            finally
+            {
+                goodWindow.Hide();
+            }
+
+            // 3) .ics：要被识别成 iCalendar 并预览出事件
+            var ics = Path.Combine(dir, "sample.ics");
+            IcsWriter.WriteFile(ics, new[]
+            {
+                new ScheduleItem
+                {
+                    Title = "自检：ICS 日程",
+                    Start = DateTime.Today.AddDays(1).AddHours(10),
+                    End = DateTime.Today.AddDays(1).AddHours(11),
+                    ReminderOffsets = new List<int> { 15 },
+                },
+            });
+
+            var icsWindow = new CsvImportWindow(host, ics);
+            try
+            {
+                icsWindow.Show();
+                icsWindow.UpdateLayout();
+
+                if (!icsWindow.IsIcsFile) problems.Add(".ics 文件没有被识别为 iCalendar");
+                if (icsWindow.ImportableCount == 0) problems.Add("ICS 预览没有识别出可导入的事件");
+                if (!string.IsNullOrWhiteSpace(icsWindow.BlockReason)) problems.Add("合法 ICS 被判成不能导入：" + icsWindow.BlockReason);
+            }
+            finally
+            {
+                icsWindow.Hide();
+            }
+        }
+        catch (Exception ex)
+        {
+            problems.Add("导入自检异常：" + ex.GetType().Name + " " + ex.Message);
+        }
+        finally
+        {
+            try
+            {
+                foreach (var id in added) host.Repository.Remove(id);
+                host.Repository.Save(force: true);
+            }
+            catch (Exception ex)
+            {
+                problems.Add("清理导入自检数据失败：" + ex.Message);
+            }
+        }
+
+        return problems;
     }
 
     /// <summary>
