@@ -20,6 +20,35 @@ public enum ScheduleViewMode
 }
 
 /// <summary>
+/// 接口鉴权方式。取值顺序与设置页下拉一致（Bearer → api-key → 不带），
+/// 免得以后有人调整界面顺序时又对不上号。
+/// </summary>
+public enum AiAuthMode
+{
+    /// <summary>Authorization: Bearer &lt;key&gt;（OpenAI / DeepSeek / 通义 / OpenRouter …，默认）。</summary>
+    Bearer = 0,
+
+    /// <summary>api-key 请求头（Azure OpenAI）。</summary>
+    ApiKeyHeader = 1,
+
+    /// <summary>不带鉴权（本地服务，显式关闭）。</summary>
+    None = 2,
+}
+
+/// <summary>是否给模型服务发送推理强度参数（reasoning_effort）。</summary>
+public enum AiReasoningEffortMode
+{
+    /// <summary>自动：本地服务一定发（实测能把思考压到 0 字）；云端只在模型看起来是推理模型时才发。</summary>
+    Auto = 0,
+
+    /// <summary>总是发送（明确知道服务端支持时用）。</summary>
+    Always = 1,
+
+    /// <summary>从不发送（某些云端服务端遇到不认识的字段会报 400）。</summary>
+    Never = 2,
+}
+
+/// <summary>
 /// 思考（思维链）等级。本地小模型基本不需要思考，等级越低越快、越省上下文。
 /// 实测 qwen3:8b：关闭 6~10 秒 / 0 字思维链；low 40~50 秒 / 500~700 字；medium 51 秒 / 671 字。
 /// </summary>
@@ -171,8 +200,29 @@ public sealed class AppSettings
     /// </summary>
     public string AiBaseUrl { get; set; } = "http://127.0.0.1:11434/v1";
 
-    /// <summary>接口密钥（本地服务一般留空）。</summary>
+    /// <summary>
+    /// 接口密钥（本地服务一般留空）。
+    /// 也可以写 <c>env:OPENAI_API_KEY</c>，程序会在每次请求时去读环境变量，密钥不落盘。
+    /// </summary>
     public string AiApiKey { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 鉴权方式：不带 / Bearer / api-key 头。
+    /// 默认 Bearer——填了密钥就能直接用云端服务；本地服务密钥为空，带不带头都一样。
+    /// </summary>
+    public AiAuthMode AiAuthMode { get; set; } = AiAuthMode.Bearer;
+
+    /// <summary>是否发送 reasoning_effort（默认自动：本地发、云端按模型判断）。</summary>
+    public AiReasoningEffortMode AiReasoningEffort { get; set; } = AiReasoningEffortMode.Auto;
+
+    /// <summary>是否使用系统代理（企业网络 / 需要科学上网时通常要开）。</summary>
+    public bool AiUseSystemProxy { get; set; } = true;
+
+    /// <summary>自定义代理地址（留空表示用系统代理），例如 http://127.0.0.1:7890。</summary>
+    public string AiProxyUrl { get; set; } = string.Empty;
+
+    /// <summary>上次选择的服务预设名（仅用于界面回显）。</summary>
+    public string AiProvider { get; set; } = string.Empty;
 
     /// <summary>当前选择的模型名，例如 qwen3:8b。</summary>
     public string AiModel { get; set; } = "qwen3:8b";
@@ -270,6 +320,11 @@ public sealed class AppSettings
         DarkTheme = other.DarkTheme;
         AiBaseUrl = other.AiBaseUrl;
         AiApiKey = other.AiApiKey;
+        AiAuthMode = other.AiAuthMode;
+        AiReasoningEffort = other.AiReasoningEffort;
+        AiUseSystemProxy = other.AiUseSystemProxy;
+        AiProxyUrl = other.AiProxyUrl;
+        AiProvider = other.AiProvider;
         AiModel = other.AiModel;
         AiApiMode = other.AiApiMode;
         AiTemperature = other.AiTemperature;

@@ -7,8 +7,7 @@ namespace Schedule.Core.Ai;
 /// <summary>按设置创建对话客户端（把 AppSettings 与 HTTP 细节隔离开）。</summary>
 public static class AiClientFactory
 {
-    public static OpenAiCompatibleClient Create(AppSettings settings)
-        => new(settings.AiBaseUrl, settings.AiApiKey, settings.AiTimeoutSeconds, settings.AiApiMode);
+    public static OpenAiCompatibleClient Create(AppSettings settings) => new(settings);
 
     /// <summary>把设置翻译成会话参数。</summary>
     public static AiSessionOptions CreateOptions(AppSettings settings) => new()

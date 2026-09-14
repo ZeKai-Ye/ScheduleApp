@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
@@ -10,14 +11,19 @@ using Schedule.Core.Models;
 namespace Schedule.Core.Ai;
 
 /// <summary>
-/// 对话客户端，同时支持两种本地协议：
+/// 对话客户端，支持三类后端：
 ///
-/// 1. **Ollama 原生**（/api/chat + /api/tags）：能真正关掉思维链（Qwen3 关掉后从 30 秒降到 4 秒），
+/// 1. **Ollama 原生**（/api/chat + /api/tags）：本地跑，能真正关掉思维链（Qwen3 关掉后从 30 秒降到 4 秒），
 ///    工具调用返回 message.tool_calls。地址 http://127.0.0.1:11434。
-/// 2. **OpenAI 兼容**（/v1/chat/completions + /v1/models）：LM Studio（:1234/v1）、
-///    llama.cpp（:8080/v1）、vLLM、各类中转都认这一套。
+/// 2. **OpenAI 兼容**（/v1/chat/completions + /v1/models）：本地有 LM Studio（:1234/v1）、
+///    llama.cpp（:8080/v1）、vLLM；**云端**有 OpenAI / DeepSeek / 通义千问 / 智谱 / Kimi / OpenRouter 等，
+///    只要填地址 + 密钥即可。
+/// 3. **完整端点地址**（含 /chat/completions 与 ?api-version=…）：Azure OpenAI 或各类中转，
+///    原样使用，不再补 /v1。
 ///
-/// 两种协议都只用 BCL 的 HttpClient + System.Text.Json，不引入任何 NuGet 依赖。
+/// 鉴权支持 `Authorization: Bearer`（默认，密钥为空则不带）与 `api-key` 头（Azure）；
+/// 密钥还可以写成 `env:OPENAI_API_KEY` 从环境变量读取，不落盘。
+/// 全程只用 BCL 的 HttpClient + System.Text.Json，不引入任何 NuGet 依赖。
 /// </summary>
 public sealed class OpenAiCompatibleClient : IAiChatClient, IDisposable
 {
@@ -27,18 +33,88 @@ public sealed class OpenAiCompatibleClient : IAiChatClient, IDisposable
 
     private readonly HttpClient _http;
     private readonly string _apiKey;
+    private readonly string? _apiKeyVariable;
     private bool _disposed;
 
-    public OpenAiCompatibleClient(string? baseUrl, string? apiKey = null, int timeoutSeconds = 180, AiApiMode mode = AiApiMode.Auto)
+    public OpenAiCompatibleClient(
+        string? baseUrl,
+        string? apiKey = null,
+        int timeoutSeconds = 180,
+        AiApiMode mode = AiApiMode.Auto,
+        AiAuthMode authMode = AiAuthMode.Bearer,
+        AiReasoningEffortMode reasoningEffort = AiReasoningEffortMode.Auto,
+        bool useSystemProxy = true,
+        string? proxyUrl = null)
     {
+        RawBaseUrl = (baseUrl ?? string.Empty).Trim();
         BaseUrl = Normalize(baseUrl);
         OllamaRootUrl = OllamaRoot(baseUrl);
-        _apiKey = (apiKey ?? string.Empty).Trim();
+        FullChatEndpoint = AiEndpoint.IsFullChatEndpoint(baseUrl) ? AiEndpoint.WithoutQuery(baseUrl) : null;
+
+        (_apiKey, _apiKeyVariable) = AiSecrets.Resolve(apiKey);
+        AuthMode = authMode;
+        ReasoningEffortMode = reasoningEffort;
         DefaultTimeoutSeconds = Math.Clamp(timeoutSeconds, 5, 3600);
         RequestedMode = mode;
         Mode = ResolveMode(mode, BaseUrl);
 
-        _http = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
+        _http = new HttpClient(BuildHandler(useSystemProxy, proxyUrl)) { Timeout = Timeout.InfiniteTimeSpan };
+        _http.DefaultRequestHeaders.UserAgent.ParseAdd("ScheduleApp/" + AppVersion);
+    }
+
+    /// <summary>按设置直接建客户端（界面与命令行都用它）。</summary>
+    public OpenAiCompatibleClient(AppSettings settings)
+        : this(
+            settings.AiBaseUrl,
+            settings.AiApiKey,
+            settings.AiTimeoutSeconds,
+            settings.AiApiMode,
+            settings.AiAuthMode,
+            settings.AiReasoningEffort,
+            settings.AiUseSystemProxy,
+            settings.AiProxyUrl)
+    {
+    }
+
+    private static string AppVersion => typeof(OpenAiCompatibleClient).Assembly.GetName().Version?.ToString(3) ?? "0.1.0";
+
+    /// <summary>配置里原样写着的地址（可能是完整端点）。</summary>
+    public string RawBaseUrl { get; }
+
+    /// <summary>完整端点地址（Azure 等）；非 null 时聊天直接打这个地址。</summary>
+    public string? FullChatEndpoint { get; }
+
+    public AiAuthMode AuthMode { get; }
+
+    public AiReasoningEffortMode ReasoningEffortMode { get; }
+
+    /// <summary>是不是本地服务（本地不发云端专属参数、数据不出本机）。</summary>
+    public bool IsLocal => AiEndpoint.IsLocal(RawBaseUrl);
+
+    /// <summary>当前用的密钥（<c>env:</c> 已解析）；仅用于日志打码，不对外暴露明文。</summary>
+    public string ApiKeyPreview => AiSecrets.Describe(_apiKeyVariable != null ? AiSecrets.EnvironmentPrefix + _apiKeyVariable : _apiKey);
+
+    /// <summary>给界面用的一句话：本地 / 云端 + 协议 + 密钥状态。</summary>
+    public string DescribeTarget()
+        => (IsLocal ? "本地" : "云端") + "　" + (IsOllama ? "Ollama 原生" : FullChatEndpoint != null ? "自定义端点" : "OpenAI 兼容")
+            + "　密钥：" + ApiKeyPreview;
+
+    private static HttpClientHandler BuildHandler(bool useSystemProxy, string? proxyUrl)
+    {
+        var handler = new HttpClientHandler();
+
+        if (!string.IsNullOrWhiteSpace(proxyUrl))
+        {
+            handler.Proxy = new WebProxy(proxyUrl.Trim());
+            handler.UseProxy = true;
+        }
+        else
+        {
+            // 默认就是 true（走系统代理）；显式关掉给"直连"用
+            handler.UseProxy = useSystemProxy;
+        }
+
+        return handler;
     }
 
     /// <summary>规范化后的 OpenAI 兼容地址（用于显示）。</summary>
@@ -56,9 +132,13 @@ public sealed class OpenAiCompatibleClient : IAiChatClient, IDisposable
 
     public int DefaultTimeoutSeconds { get; }
 
-    private string ChatUri => IsOllama ? OllamaRootUrl + "/api/chat" : BaseUrl + "/chat/completions";
+    private string ChatUri => IsOllama
+        ? OllamaRootUrl + "/api/chat"
+        : FullChatEndpoint ?? BaseUrl + "/chat/completions";
 
-    private string ModelsUri => IsOllama ? OllamaRootUrl + "/api/tags" : BaseUrl + "/models";
+    private string ModelsUri => IsOllama
+        ? OllamaRootUrl + "/api/tags"
+        : (FullChatEndpoint != null ? AiEndpoint.RootOfFullEndpoint(FullChatEndpoint) : BaseUrl) + "/models";
 
     /// <summary>看起来是本地 Ollama（默认端口）。</summary>
     public static bool LooksLikeOllama(string? baseUrl)
@@ -138,25 +218,28 @@ public sealed class OpenAiCompatibleClient : IAiChatClient, IDisposable
         try
         {
             using var content = new StringContent(payload, new UTF8Encoding(false), "application/json");
-            using var response = await _http.PostAsync(ChatUri, content, linked.Token).ConfigureAwait(false);
+            using var httpRequest = new HttpRequestMessage(HttpMethod.Post, ChatUri) { Content = content };
+            ApplyAuth(httpRequest);
+
+            using var response = await _http.SendAsync(httpRequest, linked.Token).ConfigureAwait(false);
 
             body = await ReadBodyAsync(response, linked.Token).ConfigureAwait(false);
 
             if (!response.IsSuccessStatusCode)
             {
-                throw new AiChatException("模型服务返回 " + (int)response.StatusCode + "："
-                    + Shorten(ExtractError(body) ?? body));
+                throw new AiChatException(DescribeFailure((int)response.StatusCode, body));
             }
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             throw new AiChatException("等待模型超过 " + timeout + " 秒仍未返回。"
-                + "本地大模型首次加载会比较慢，可在「设置 → AI 助手」里调大超时时间；也可以在对话窗口点「停止」。");
+                + (IsLocal
+                    ? "本地大模型首次加载会比较慢，可在「设置 → AI 助手」里调大超时时间；也可以在对话窗口点「停止」。"
+                    : "云端服务偶尔会排队或波动，可稍后重试、调大超时时间，或在对话窗口点「停止」。"));
         }
         catch (HttpRequestException ex)
         {
-            throw new AiChatException("连不上模型服务（" + ChatUri + "）：" + ex.Message
-                + "。请确认本地模型服务已启动（例如 ollama serve）。", ex);
+            throw new AiChatException(DescribeNetworkFailure(ex), ex);
         }
 
         watch.Stop();
@@ -174,12 +257,23 @@ public sealed class OpenAiCompatibleClient : IAiChatClient, IDisposable
         string body;
         try
         {
-            using var response = await _http.GetAsync(ModelsUri, linked.Token).ConfigureAwait(false);
+            using var httpRequest = new HttpRequestMessage(HttpMethod.Get, ModelsUri);
+            ApplyAuth(httpRequest);
+
+            using var response = await _http.SendAsync(httpRequest, linked.Token).ConfigureAwait(false);
             body = await ReadBodyAsync(response, linked.Token).ConfigureAwait(false);
 
             if (!response.IsSuccessStatusCode)
             {
-                throw new AiChatException("读取模型列表失败：" + (int)response.StatusCode + " " + Shorten(ExtractError(body) ?? body));
+                var status = (int)response.StatusCode;
+
+                // Azure 这类完整端点没有统一的模型列表接口，给一句人话而不是甩 404
+                if (FullChatEndpoint != null && status is 404 or 405 or 400)
+                {
+                    throw new AiChatException("这个服务地址（完整端点）不支持列出模型，请直接手填模型名。");
+                }
+
+                throw new AiChatException(DescribeFailure(status, body, "读取模型列表失败"));
             }
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
@@ -188,11 +282,57 @@ public sealed class OpenAiCompatibleClient : IAiChatClient, IDisposable
         }
         catch (HttpRequestException ex)
         {
-            throw new AiChatException("连不上模型服务（" + ModelsUri + "）：" + ex.Message
-                + "。请确认本地模型服务已启动（例如 ollama serve）。", ex);
+            throw new AiChatException(DescribeNetworkFailure(ex, ModelsUri), ex);
         }
 
         return ParseModels(body);
+    }
+
+    /// <summary>按鉴权方式给请求加头（密钥为空则不加，本地服务不受影响）。</summary>
+    private void ApplyAuth(HttpRequestMessage request)
+    {
+        if (_apiKey.Length == 0 || AuthMode == AiAuthMode.None) return;
+
+        switch (AuthMode)
+        {
+            case AiAuthMode.ApiKeyHeader:
+                request.Headers.TryAddWithoutValidation("api-key", _apiKey);
+                break;
+
+            default:
+                request.Headers.TryAddWithoutValidation("Authorization", "Bearer " + _apiKey);
+                break;
+        }
+    }
+
+    /// <summary>把 HTTP 状态码翻译成能照着做的中文提示。</summary>
+    public string DescribeFailure(int status, string body, string prefix = "模型服务返回错误")
+    {
+        var detail = Shorten(ExtractError(body) ?? body, 240);
+        var keyHint = _apiKeyVariable != null
+            ? "环境变量 " + _apiKeyVariable + " 可能是空的。"
+            : "请在「设置 → AI 助手」里填写接口密钥。";
+
+        return status switch
+        {
+            401 => "鉴权失败（HTTP 401）：密钥未填或无效。" + keyHint + (detail.Length > 0 ? "　服务端说明：" + detail : string.Empty),
+            403 => "没有权限（HTTP 403）：密钥可能未开通该模型，或所在地区受限。" + (detail.Length > 0 ? "　服务端说明：" + detail : string.Empty),
+            404 => "找不到地址或模型（HTTP 404）：请检查服务地址与模型名。" + (detail.Length > 0 ? "　服务端说明：" + detail : string.Empty),
+            429 => "请求过于频繁或被限流（HTTP 429）：稍后重试，或检查账号额度。" + (detail.Length > 0 ? "　服务端说明：" + detail : string.Empty),
+            >= 500 => "模型服务内部错误（HTTP " + status + "）：通常是临时的，稍后重试。" + (detail.Length > 0 ? "　服务端说明：" + detail : string.Empty),
+            _ => prefix + "（HTTP " + status + "）：" + detail,
+        };
+    }
+
+    /// <summary>网络层失败（DNS / TLS / 代理）的提示。</summary>
+    public string DescribeNetworkFailure(Exception ex, string? uri = null)
+    {
+        var target = uri ?? ChatUri;
+        var hint = IsLocal
+            ? "请确认本地模型服务已启动（例如 ollama serve）。"
+            : "请检查网络、接口地址是否正确；若在公司网络或需要代理，请在「设置 → AI 助手」里配置代理。";
+
+        return "连不上模型服务（" + target + "）：" + ex.Message + "。" + hint;
     }
 
     // ================= 请求体（OpenAI 兼容） =================
@@ -215,15 +355,33 @@ public sealed class OpenAiCompatibleClient : IAiChatClient, IDisposable
         if (request.Tools.Count > 0) payload["tools"] = BuildTools(request.Tools);
 
         // Ollama 的 OpenAI 端点认 reasoning_effort（实测 none = 6 秒 / 0 字思维链，
-        // 而只写 /no_think 要 19~30 秒且仍有几百字）。严格的 OpenAI 服务端若报 400，
-        // 把思考等级切回最低档以外、或改用原生协议即可。
-        payload["reasoning_effort"] = ReasoningEffort(request.Thinking);
+        // 而只写 /no_think 要 19~30 秒且仍有几百字）。
+        // 但云端服务端对不认识的字段可能直接 400，因此默认只"该发时才发"：
+        //   Auto  → 本地服务一定发；云端仅当模型看起来是推理模型（o1/gpt-5/deepseek-reasoner…）
+        //   Always→ always 发（明确知道服务端支持）
+        //   Never → 从不发
+        if (ShouldSendReasoningEffort(request.Model))
+        {
+            payload["reasoning_effort"] = ReasoningEffort(request.Thinking);
+        }
 
         // 顺手带上 think（Ollama 会同时看它；其它服务端不认识会忽略）
         if (IsOllama) payload["think"] = request.Thinking == AiThinkingLevel.Off ? false : LevelName(request.Thinking);
 
         return payload;
     }
+
+    /// <summary>
+    /// 要不要给这个模型发 reasoning_effort。
+    /// 云端服务端（尤其是中转）遇到不认识的字段常直接 400，所以默认只对"确定认这个参数"的场景发：
+    /// 本地服务、或模型名看起来是推理模型；也可以在设置里强制 总是 / 从不。
+    /// </summary>
+    public bool ShouldSendReasoningEffort(string? model) => ReasoningEffortMode switch
+    {
+        AiReasoningEffortMode.Always => true,
+        AiReasoningEffortMode.Never => false,
+        _ => IsLocal || AiEndpoint.LooksLikeReasoningModel(model),
+    };
 
     /// <summary>Ollama 原生 think 取值；返回 null 表示不传该字段。</summary>
     public static JsonNode? OllamaThinkValue(AiThinkingLevel level) => level switch
