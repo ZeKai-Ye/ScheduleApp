@@ -20,6 +20,7 @@ public static class TestRunner
         Run("CSV 解析与导入", CsvTests.Run);
         Run("重复规则", RecurrenceTests.Run);
         Run("周期事件进阶", AdvancedRecurrenceTests.Run);
+        Run("系列例外", OccurrenceExceptionTests.Run);
         Run("提醒调度", ReminderTests.Run);
         Run("日历布局", CalendarLayoutTests.Run);
         Run("事件配色", ColorTests.Run);
