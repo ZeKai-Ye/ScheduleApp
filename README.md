@@ -34,11 +34,16 @@
 - **月视图**：6 × 7 日期格，每格显示彩色事件条与「+N」折叠提示，点击日期后在下方查看当天全部日程
 - 切换方式：工具条「列表 / 周 / 月」，快捷键 Ctrl+1 / Ctrl+2 / Ctrl+3；「◀ ▶」切换上一周 / 月，「今天」回到当天
 
-### CSV 导入（重点能力）
+### 导入 CSV / iCalendar（重点能力）
+- **两种格式都接**：CSV 用下面的**统一格式**；也支持 **iCalendar（.ics）**——
+  Google 日历 / Outlook / Apple 日历导出的文件可以直接导入（含重复规则、提醒、例外日期、
+  「单独改过的那一次」），不支持的规则会逐条提示而不是偷偷丢掉
 - **编码自动识别**：UTF-8（含/不含 BOM）、UTF-16、**GBK / GB18030**（中文 Excel 导出常见），
   无需 System.Text.Encoding.CodePages 包，直接走 Win32 API 解码
-- **表头自动识别**：中文 / 英文列名自动映射（标题、开始时间、结束时间、日期、分类、**颜色**、优先级、重复、
-  **重复间隔 / 星期 / 重复次数**、**提前提醒（可多档）**、语音内容、铃声、备注、状态…）
+- **CSV 统一格式**：17 列固定表头（只有「标题」「开始时间」必填），导出、模板、导入诊断、文档共用一个定义；
+  导入窗口「下载 CSV 模板」或 `--csv-template` 一键拿到可照填的模板，**导出的文件能原样再导入**
+- **格式不匹配不会静默失败**：表头诊断会列出「识别到的字段 / 没认出来的列 / 缺的列」，
+  缺必填列时红字提示 + 禁用导入 + 整单不导（一条数据都不改）；旧列名（主题/开始/描述…）仍可导入但会提示差异
 - **日期时间宽容解析**：`2025-06-01 09:30`、`2025/6/1 9:30`、`2025年6月1日 下午3点`、`20250601`、
   Excel 序列号、`明天 9:00`、`下周三 14:00`、`3天后`、ISO 8601 等
 - **多档提醒**：提醒列支持 `30,15,5` 或 `提前30分钟、提前5分钟` 写法，一次导入多个提醒档位
@@ -169,11 +174,17 @@ dotnet publish src/Schedule.App/Schedule.App.csproj -c Release -r win-x64 --self
 
 ## 使用说明
 
-### 1. 导入 CSV
-主界面「导入 CSV」→ 选择文件 → 向导会自动识别编码、表头与列含义 → 确认后点「开始导入」。
-列名不认识也没关系，可以在向导里手工把「字段」对应到「第 N 列」。
-字段与写法详见 [docs/CSV_FORMAT.md](docs/CSV_FORMAT.md)：基础示例 [samples/日程示例-UTF8.csv](samples/日程示例-UTF8.csv)，
-颜色 / 多档提醒 / 周期事件示例 [samples/日程示例-周期与多档提醒.csv](samples/日程示例-周期与多档提醒.csv)。
+### 1. 导入日程（CSV / iCalendar）
+主界面「导入日程」→ 选择文件（`.csv` 或 `.ics`）→ 向导会自动识别格式、编码、表头与列含义 →
+确认后点「开始导入」。列名不认识也没关系，可以手工把「字段」对应到「第 N 列」；
+CSV 表头完全对不上时会明确报错并禁止导入，不会悄悄导入垃圾数据。
+
+**CSV 统一格式**：`标题,开始时间,结束时间,全天,分类,颜色,优先级,重复,重复间隔,星期,重复次数,重复截止,提前提醒,语音内容,提醒铃声,备注,状态`
+（只有「标题」「开始时间」必填）。导入窗口里点「下载 CSV 模板」即可拿到带示例的模板。
+
+样例：[模板](samples/日程导入模板.csv)、[基础](samples/日程示例-UTF8.csv)、
+[颜色 / 多档提醒 / 周期](samples/日程示例-周期与多档提醒.csv)、[iCalendar](samples/日程示例-ICS.ics)；
+字段与写法详见 [docs/CSV_FORMAT.md](docs/CSV_FORMAT.md)。
 
 ### 2. 配置语音提醒
 「设置 → 语音播报」中：
@@ -221,8 +232,9 @@ curl -s -H "X-Api-Token: $($api.token)" $api.schema
 ### 3. 命令行模式（可脚本化 / 无界面）
 
 ```text
-ScheduleApp.exe --import <csv> [--mode append|upsert|replace] [--encoding auto|utf-8|gbk]
-ScheduleApp.exe --export <csv>
+ScheduleApp.exe --import <文件> [--mode append|upsert|replace] [--encoding auto|utf-8|gbk]  # CSV 或 .ics 自动识别
+ScheduleApp.exe --csv-template <文件>      # 导出统一格式的 CSV 模板
+ScheduleApp.exe --export <文件>            # .csv 导出统一格式；.ics 导出 iCalendar
 ScheduleApp.exe --voices                  # 列出系统语音
 ScheduleApp.exe --speak "测试文本"         # 测试语音
 ScheduleApp.exe --info                    # 数据目录与统计
@@ -265,7 +277,7 @@ ScheduleApp.sln
 │   ├─ Services/                仓储、设置、导入历史、数据校验、事件配色
 │   └─ Storage/                 路径策略、原子写入、JSON 存储
 ├─ src/Schedule.App             WPF 表现层（net9.0-windows）
-│   ├─ Views/                   主窗口、日程编辑、提醒弹窗、CSV 导入向导、设置
+│   ├─ Views/                   主窗口、日程编辑、提醒弹窗、导入向导（CSV / ICS）、设置
 │   ├─ ViewModels/              MVVM 视图模型
 │   ├─ Services/                SAPI 语音、提示音、托盘、开机自启、提醒宿主
 │   ├─ Themes/Theme.xaml        主题与控件样式

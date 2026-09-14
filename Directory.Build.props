@@ -8,7 +8,7 @@
     <InvariantGlobalization>false</InvariantGlobalization>
     <SatelliteResourceLanguages>zh-Hans;en</SatelliteResourceLanguages>
     <!-- 与 CHANGELOG 保持一致：发布版本号（窗口标题、日志、接口 /api/system/info 都会读它） -->
-    <Version>0.8.0</Version>
+    <Version>0.9.0</Version>
     <Product>日程助手 ScheduleApp</Product>
     <Company>ScheduleApp</Company>
     <Copyright>Copyright (c) 2025</Copyright>
