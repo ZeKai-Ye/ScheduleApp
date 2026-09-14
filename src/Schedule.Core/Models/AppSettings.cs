@@ -19,6 +19,19 @@ public enum ScheduleViewMode
     Month = 2,
 }
 
+/// <summary>AI 对话使用的接口协议。</summary>
+public enum AiApiMode
+{
+    /// <summary>自动判断：本地 Ollama 默认端口走原生接口，其余走 OpenAI 兼容。</summary>
+    Auto = 0,
+
+    /// <summary>强制 OpenAI 兼容（/v1/chat/completions）：LM Studio / llama.cpp / vLLM 等。</summary>
+    OpenAi = 1,
+
+    /// <summary>强制 Ollama 原生（/api/chat）：能真正关闭思维链，本地 Qwen3 明显更快。</summary>
+    Ollama = 2,
+}
+
 /// <summary>
 /// 全局设置。持久化为 settings.json，所有字段都有安全默认值。
 /// </summary>
@@ -134,6 +147,46 @@ public sealed class AppSettings
     /// <summary>旧字段（仅兼容历史数据，请使用 Theme）。</summary>
     public bool DarkTheme { get; set; }
 
+    // ---------- AI 助手（对话） ----------
+    /// <summary>
+    /// 对话模型服务地址（OpenAI 兼容根地址）。
+    /// 默认本机 Ollama：http://127.0.0.1:11434/v1；LM Studio 是 http://127.0.0.1:1234/v1。
+    /// </summary>
+    public string AiBaseUrl { get; set; } = "http://127.0.0.1:11434/v1";
+
+    /// <summary>接口密钥（本地服务一般留空）。</summary>
+    public string AiApiKey { get; set; } = string.Empty;
+
+    /// <summary>当前选择的模型名，例如 qwen3:8b。</summary>
+    public string AiModel { get; set; } = "qwen3:8b";
+
+    /// <summary>接口协议（自动 / OpenAI 兼容 / Ollama 原生）。</summary>
+    public AiApiMode AiApiMode { get; set; } = AiApiMode.Auto;
+
+    /// <summary>采样温度（工具调用建议 0 ~ 0.3）。</summary>
+    public double AiTemperature { get; set; } = 0.2;
+
+    /// <summary>单次请求超时秒数（本地大模型首次加载较慢）。</summary>
+    public int AiTimeoutSeconds { get; set; } = 180;
+
+    /// <summary>让模型别输出思维链（Qwen3 这类思考模型明显更快）。</summary>
+    public bool AiDisableThinking { get; set; } = true;
+
+    /// <summary>单次最大输出 token（0 = 交给服务端默认）。</summary>
+    public int AiMaxTokens { get; set; }
+
+    /// <summary>最多携带多少条历史消息（控制上下文长度）。</summary>
+    public int AiMaxHistoryMessages { get; set; } = 16;
+
+    /// <summary>自定义系统提示，留空用内置的。</summary>
+    public string AiSystemPrompt { get; set; } = string.Empty;
+
+    /// <summary>在对话里显示工具调用详情（AI 具体做了什么）。</summary>
+    public bool AiShowToolDetails { get; set; } = true;
+
+    /// <summary>把 AI 的改动（新建 / 修改 / 删除）记入日志，便于回溯。</summary>
+    public bool AiLogActions { get; set; } = true;
+
     public int LookAheadDays { get; set; } = 30;
 
     public bool ShowCompleted { get; set; } = true;
@@ -195,6 +248,18 @@ public sealed class AppSettings
         Theme = other.Theme;
         AutoRestartOnThemeChange = other.AutoRestartOnThemeChange;
         DarkTheme = other.DarkTheme;
+        AiBaseUrl = other.AiBaseUrl;
+        AiApiKey = other.AiApiKey;
+        AiModel = other.AiModel;
+        AiApiMode = other.AiApiMode;
+        AiTemperature = other.AiTemperature;
+        AiTimeoutSeconds = other.AiTimeoutSeconds;
+        AiDisableThinking = other.AiDisableThinking;
+        AiMaxTokens = other.AiMaxTokens;
+        AiMaxHistoryMessages = other.AiMaxHistoryMessages;
+        AiSystemPrompt = other.AiSystemPrompt;
+        AiShowToolDetails = other.AiShowToolDetails;
+        AiLogActions = other.AiLogActions;
         LookAheadDays = other.LookAheadDays;
         ShowCompleted = other.ShowCompleted;
         StartWithWindows = other.StartWithWindows;
