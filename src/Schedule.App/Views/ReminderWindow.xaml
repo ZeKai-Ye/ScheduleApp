@@ -6,25 +6,27 @@
         MinHeight="260"
         ResizeMode="NoResize"
         ShowInTaskbar="False"
-        WindowStartupLocation="Manual">
-    <Border Background="{StaticResource Brush.Card}" BorderBrush="{StaticResource Brush.Accent}" BorderThickness="0,4,0,0">
+        WindowStartupLocation="Manual"
+        Style="{StaticResource AppWindow}"
+>
+    <Border Background="{DynamicResource Brush.Card}" BorderBrush="{DynamicResource Brush.Accent}" BorderThickness="0,4,0,0">
         <StackPanel Margin="22,16,22,16">
             <DockPanel>
-                <TextBlock DockPanel.Dock="Right" x:Name="OffsetText" FontSize="12" Foreground="{StaticResource Brush.Accent}" VerticalAlignment="Center" />
-                <TextBlock Text="日程提醒" FontSize="12" Foreground="{StaticResource Brush.Subtle}" />
+                <TextBlock DockPanel.Dock="Right" x:Name="OffsetText" FontSize="12" Foreground="{DynamicResource Brush.Accent}" VerticalAlignment="Center" />
+                <TextBlock Text="日程提醒" FontSize="12" Foreground="{DynamicResource Brush.Subtle}" />
             </DockPanel>
 
             <TextBlock x:Name="TitleText" FontSize="20" FontWeight="SemiBold" Margin="0,10,0,0" TextWrapping="Wrap" />
-            <TextBlock x:Name="TimeText" FontSize="14" Foreground="{StaticResource Brush.Accent}" Margin="0,8,0,0" />
-            <TextBlock x:Name="CountdownText" FontSize="12" Foreground="{StaticResource Brush.Subtle}" Margin="0,4,0,0" />
-            <TextBlock x:Name="PositionHintText" FontSize="11" Foreground="{StaticResource Brush.Subtle}" Margin="0,2,0,0" />
+            <TextBlock x:Name="TimeText" FontSize="14" Foreground="{DynamicResource Brush.Accent}" Margin="0,8,0,0" />
+            <TextBlock x:Name="CountdownText" FontSize="12" Foreground="{DynamicResource Brush.Subtle}" Margin="0,4,0,0" />
+            <TextBlock x:Name="PositionHintText" FontSize="11" Foreground="{DynamicResource Brush.Subtle}" Margin="0,2,0,0" />
 
-            <TextBlock x:Name="NotesText" Margin="0,12,0,0" TextWrapping="Wrap" Foreground="{StaticResource Brush.Text}" MaxHeight="120" />
+            <TextBlock x:Name="NotesText" Margin="0,12,0,0" TextWrapping="Wrap" Foreground="{DynamicResource Brush.Text}" MaxHeight="120" />
 
-            <Border Background="#FFF9FAFB" CornerRadius="6" Padding="10,8" Margin="0,12,0,0">
+            <Border Background="{DynamicResource Brush.Hint}" CornerRadius="6" Padding="10,8" Margin="0,12,0,0">
                 <StackPanel>
-                    <TextBlock x:Name="VoiceText" FontSize="12" Foreground="{StaticResource Brush.Subtle}" TextWrapping="Wrap" />
-                    <TextBlock x:Name="MoreOffsetsText" FontSize="11" Foreground="{StaticResource Brush.Warning}"
+                    <TextBlock x:Name="VoiceText" FontSize="12" Foreground="{DynamicResource Brush.Subtle}" TextWrapping="Wrap" />
+                    <TextBlock x:Name="MoreOffsetsText" FontSize="11" Foreground="{DynamicResource Brush.Warning}"
                                TextWrapping="Wrap" Margin="0,4,0,0" Visibility="Collapsed" />
                 </StackPanel>
             </Border>

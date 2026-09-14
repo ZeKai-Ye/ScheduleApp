@@ -4,14 +4,16 @@
         Title="设置"
         Width="720" Height="680"
         MinWidth="640" MinHeight="560"
-        WindowStartupLocation="CenterOwner">
+        WindowStartupLocation="CenterOwner"
+        Style="{StaticResource AppWindow}"
+>
     <Grid Margin="16">
         <Grid.RowDefinitions>
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <TabControl Grid.Row="0" Background="{StaticResource Brush.Card}" BorderBrush="{StaticResource Brush.Border}">
+        <TabControl Grid.Row="0" Background="{DynamicResource Brush.Card}" BorderBrush="{DynamicResource Brush.Border}">
             <!-- ================= 提醒 ================= -->
             <TabItem Header="提醒">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="18,16">
@@ -19,7 +21,7 @@
                         <TextBlock Text="新建日程的默认值" Style="{StaticResource SectionTitle}" />
                         <StackPanel Orientation="Horizontal">
                             <TextBox x:Name="DefaultRemindBox" Width="80" />
-                            <TextBlock Text="分钟前提醒" VerticalAlignment="Center" Margin="8,0,0,0" Foreground="{StaticResource Brush.Subtle}" />
+                            <TextBlock Text="分钟前提醒" VerticalAlignment="Center" Margin="8,0,0,0" Foreground="{DynamicResource Brush.Subtle}" />
                         </StackPanel>
                         <CheckBox x:Name="DefaultReminderCheck" Content="新建日程时默认启用提醒" Margin="0,10,0,0" />
 
@@ -31,14 +33,14 @@
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <StackPanel Orientation="Horizontal" Margin="0,0,20,0">
-                                <TextBlock Text="稍后提醒默认" VerticalAlignment="Center" Foreground="{StaticResource Brush.Subtle}" />
+                                <TextBlock Text="稍后提醒默认" VerticalAlignment="Center" Foreground="{DynamicResource Brush.Subtle}" />
                                 <TextBox x:Name="SnoozeBox" Width="60" Margin="8,0,0,0" />
-                                <TextBlock Text="分钟" VerticalAlignment="Center" Margin="6,0,0,0" Foreground="{StaticResource Brush.Subtle}" />
+                                <TextBlock Text="分钟" VerticalAlignment="Center" Margin="6,0,0,0" Foreground="{DynamicResource Brush.Subtle}" />
                             </StackPanel>
                             <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                <TextBlock Text="自动关闭" VerticalAlignment="Center" Foreground="{StaticResource Brush.Subtle}" />
+                                <TextBlock Text="自动关闭" VerticalAlignment="Center" Foreground="{DynamicResource Brush.Subtle}" />
                                 <TextBox x:Name="AutoCloseBox" Width="60" Margin="8,0,0,0" />
-                                <TextBlock Text="秒（0 = 不自动关闭）" VerticalAlignment="Center" Margin="6,0,0,0" Foreground="{StaticResource Brush.Subtle}" />
+                                <TextBlock Text="秒（0 = 不自动关闭）" VerticalAlignment="Center" Margin="6,0,0,0" Foreground="{DynamicResource Brush.Subtle}" />
                             </StackPanel>
                         </Grid>
                         <CheckBox x:Name="AlwaysOnTopCheck" Content="提醒弹窗始终置顶显示" Margin="0,10,0,0" />
@@ -60,11 +62,11 @@
                                 <ComboBoxItem Content="自定义坐标" />
                             </ComboBox>
                             <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="14,0,0,0">
-                                <TextBlock Text="X" VerticalAlignment="Center" Foreground="{StaticResource Brush.Subtle}" />
+                                <TextBlock Text="X" VerticalAlignment="Center" Foreground="{DynamicResource Brush.Subtle}" />
                                 <TextBox x:Name="ReminderPositionXBox" Width="72" Margin="6,0,0,0" TextChanged="ReminderPositionInput_Changed" />
                             </StackPanel>
                             <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="14,0,0,0">
-                                <TextBlock Text="Y" VerticalAlignment="Center" Foreground="{StaticResource Brush.Subtle}" />
+                                <TextBlock Text="Y" VerticalAlignment="Center" Foreground="{DynamicResource Brush.Subtle}" />
                                 <TextBox x:Name="ReminderPositionYBox" Width="72" Margin="6,0,0,0" TextChanged="ReminderPositionInput_Changed" />
                             </StackPanel>
                             <Button Grid.Column="3" Content="试一次位置" Style="{StaticResource PrimaryButton}"
@@ -92,14 +94,14 @@
 
                         <TextBlock Text="数据与导入" Style="{StaticResource SectionTitle}" Margin="2,18,0,6" />
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="主窗口默认展示" VerticalAlignment="Center" Foreground="{StaticResource Brush.Subtle}" />
+                            <TextBlock Text="主窗口默认展示" VerticalAlignment="Center" Foreground="{DynamicResource Brush.Subtle}" />
                             <TextBox x:Name="LookAheadBox" Width="70" Margin="8,0,0,0" />
-                            <TextBlock Text="天内的日程" VerticalAlignment="Center" Margin="6,0,0,0" Foreground="{StaticResource Brush.Subtle}" />
+                            <TextBlock Text="天内的日程" VerticalAlignment="Center" Margin="6,0,0,0" Foreground="{DynamicResource Brush.Subtle}" />
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                            <TextBlock Text="导入后默认分类" VerticalAlignment="Center" Foreground="{StaticResource Brush.Subtle}" />
+                            <TextBlock Text="导入后默认分类" VerticalAlignment="Center" Foreground="{DynamicResource Brush.Subtle}" />
                             <TextBox x:Name="CsvCategoryBox" Width="140" Margin="8,0,0,0" />
-                            <TextBlock Text="保留备份份数" VerticalAlignment="Center" Margin="20,0,0,0" Foreground="{StaticResource Brush.Subtle}" />
+                            <TextBlock Text="保留备份份数" VerticalAlignment="Center" Margin="20,0,0,0" Foreground="{DynamicResource Brush.Subtle}" />
                             <TextBox x:Name="BackupBox" Width="60" Margin="8,0,0,0" />
                         </StackPanel>
                     </StackPanel>
@@ -126,7 +128,7 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="语速" VerticalAlignment="Center" Width="36" Foreground="{StaticResource Brush.Subtle}" />
+                            <TextBlock Text="语速" VerticalAlignment="Center" Width="36" Foreground="{DynamicResource Brush.Subtle}" />
                             <Slider x:Name="RateSlider" Grid.Column="1" Minimum="-10" Maximum="10" TickFrequency="1" IsSnapToTickEnabled="True" />
                             <TextBlock x:Name="RateText" Grid.Column="2" Width="60" VerticalAlignment="Center" TextAlignment="Right" />
                         </Grid>
@@ -136,7 +138,7 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="音量" VerticalAlignment="Center" Width="36" Foreground="{StaticResource Brush.Subtle}" />
+                            <TextBlock Text="音量" VerticalAlignment="Center" Width="36" Foreground="{DynamicResource Brush.Subtle}" />
                             <Slider x:Name="VolumeSlider" Grid.Column="1" Minimum="0" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" />
                             <TextBlock x:Name="VolumeText" Grid.Column="2" Width="60" VerticalAlignment="Center" TextAlignment="Right" />
                         </Grid>
@@ -169,7 +171,7 @@
                                         </Grid.ColumnDefinitions>
                                         <StackPanel VerticalAlignment="Center">
                                             <TextBlock Text="{Binding Label}" FontSize="12" />
-                                            <TextBlock Text="{Binding Hint}" FontSize="10" Foreground="{StaticResource Brush.Subtle}" />
+                                            <TextBlock Text="{Binding Hint}" FontSize="10" Foreground="{DynamicResource Brush.Subtle}" />
                                         </StackPanel>
                                         <TextBox Grid.Column="1" Margin="6,0,0,0"
                                                  Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}"
@@ -181,7 +183,7 @@
                         <TextBlock Style="{StaticResource FieldHint}"
                                    Text="优先级：日程的档位文案 &gt; 日程通用文案 &gt; 这里的档位文案 &gt; 上面的全局模板。都支持 {title} {time} {countdown} {offset} 等占位符。" />
 
-                        <Border Background="#FFF9FAFB" CornerRadius="6" Padding="12,10" Margin="0,12,0,0">
+                        <Border Background="{DynamicResource Brush.Hint}" CornerRadius="6" Padding="12,10" Margin="0,12,0,0">
                             <StackPanel>
                                 <TextBlock Text="试听效果" Style="{StaticResource SectionTitle}" />
                                 <TextBlock x:Name="PreviewText" TextWrapping="Wrap" FontSize="13" />
@@ -200,7 +202,22 @@
             <TabItem Header="外观与默认值">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="18,16">
                     <StackPanel>
-                        <TextBlock Text="视图" Style="{StaticResource SectionTitle}" />
+                        <TextBlock Text="主题" Style="{StaticResource SectionTitle}" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="180" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <ComboBox x:Name="ThemeBox" SelectionChanged="Theme_Changed">
+                                <ComboBoxItem Content="浅色主题" />
+                                <ComboBoxItem Content="夜间主题" />
+                                <ComboBoxItem Content="跟随系统" />
+                            </ComboBox>
+                            <TextBlock x:Name="ThemeHintText" Grid.Column="1" VerticalAlignment="Center"
+                                       Margin="12,0,0,0" FontSize="11" Foreground="{DynamicResource Brush.Subtle}" />
+                        </Grid>
+
+                        <TextBlock Text="视图" Style="{StaticResource SectionTitle}" Margin="2,18,0,6" />
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -209,7 +226,7 @@
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <StackPanel Margin="0,0,10,0">
-                                <TextBlock Text="启动默认视图" FontSize="11" Foreground="{StaticResource Brush.Subtle}" Margin="0,0,0,3" />
+                                <TextBlock Text="启动默认视图" FontSize="11" Foreground="{DynamicResource Brush.Subtle}" Margin="0,0,0,3" />
                                 <ComboBox x:Name="DefaultViewBox">
                                     <ComboBoxItem Content="列表" />
                                     <ComboBoxItem Content="周视图" />
@@ -217,15 +234,15 @@
                                 </ComboBox>
                             </StackPanel>
                             <StackPanel Grid.Column="1" Margin="0,0,10,0">
-                                <TextBlock Text="周视图每小时高度" FontSize="11" Foreground="{StaticResource Brush.Subtle}" Margin="0,0,0,3" />
+                                <TextBlock Text="周视图每小时高度" FontSize="11" Foreground="{DynamicResource Brush.Subtle}" Margin="0,0,0,3" />
                                 <TextBox x:Name="HourHeightBox" ToolTip="像素，建议 44 - 90" />
                             </StackPanel>
                             <StackPanel Grid.Column="2" Margin="0,0,10,0">
-                                <TextBlock Text="月视图每格条数" FontSize="11" Foreground="{StaticResource Brush.Subtle}" Margin="0,0,0,3" />
+                                <TextBlock Text="月视图每格条数" FontSize="11" Foreground="{DynamicResource Brush.Subtle}" Margin="0,0,0,3" />
                                 <TextBox x:Name="MonthCapacityBox" ToolTip="1 - 8" />
                             </StackPanel>
                             <StackPanel Grid.Column="3">
-                                <TextBlock Text="默认提醒档位（分钟）" FontSize="11" Foreground="{StaticResource Brush.Subtle}" Margin="0,0,0,3" />
+                                <TextBlock Text="默认提醒档位（分钟）" FontSize="11" Foreground="{DynamicResource Brush.Subtle}" Margin="0,0,0,3" />
                                 <TextBox x:Name="DefaultOffsetsBox" ToolTip="例如 30,10,0 表示提前 30 分钟、10 分钟与准点各提醒一次" />
                             </StackPanel>
                         </Grid>
@@ -244,11 +261,11 @@
                                             <Button DockPanel.Dock="Right" Click="CategoryColorCycle_Click" Padding="3"
                                                     BorderThickness="0" Background="Transparent" Cursor="Hand" ToolTip="点击切换颜色">
                                                 <Border Width="22" Height="22" CornerRadius="11" Background="{Binding Brush}"
-                                                        BorderBrush="#22000000" BorderThickness="1" />
+                                                        BorderBrush="{DynamicResource Brush.SwatchRing}" BorderThickness="1" />
                                             </Button>
                                             <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
                                             <TextBlock Text="{Binding Display}" VerticalAlignment="Center" Margin="10,0,0,0"
-                                                       FontSize="11" Foreground="{StaticResource Brush.Subtle}" HorizontalAlignment="Right" />
+                                                       FontSize="11" Foreground="{DynamicResource Brush.Subtle}" HorizontalAlignment="Right" />
                                         </DockPanel>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
@@ -270,7 +287,7 @@
                         <TextBlock Text="桌面集成" Style="{StaticResource SectionTitle}" Margin="2,20,0,6" />
                         <CheckBox x:Name="StartWithWindowsCheck" Content="开机自动启动" />
                         <StackPanel Orientation="Horizontal" Margin="22,8,0,0">
-                            <TextBlock Text="启动参数" VerticalAlignment="Center" Foreground="{StaticResource Brush.Subtle}" />
+                            <TextBlock Text="启动参数" VerticalAlignment="Center" Foreground="{DynamicResource Brush.Subtle}" />
                             <TextBox x:Name="StartupArgumentsBox" Width="150" Margin="8,0,0,0"
                                      ToolTip="默认 --minimized；需要开机就提供接口可再写 --serve" />
                             <CheckBox x:Name="StartMinimizedCheck" Content="启动后最小化到托盘" Margin="16,0,0,0" />
@@ -295,7 +312,7 @@
                                    Text="日程保存在 schedules.json，设置保存在 settings.json，每次保存都会在 backups 目录留下备份。把 portable.txt 放到程序目录即可切换为便携模式（数据存放到程序目录下的 data 文件夹）。" />
 
                         <TextBlock Text="关于" Style="{StaticResource SectionTitle}" Margin="2,20,0,6" />
-                        <TextBlock x:Name="AboutText" TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource Brush.Subtle}" />
+                        <TextBlock x:Name="AboutText" TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource Brush.Subtle}" />
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
@@ -307,7 +324,7 @@
                 <Button Content="取消" Click="Cancel_Click" Margin="0,0,8,0" IsCancel="True" />
                 <Button Content="保存" Style="{StaticResource PrimaryButton}" Click="Save_Click" IsDefault="True" />
             </StackPanel>
-            <TextBlock x:Name="StatusText" VerticalAlignment="Center" FontSize="12" Foreground="{StaticResource Brush.Subtle}" />
+            <TextBlock x:Name="StatusText" VerticalAlignment="Center" FontSize="12" Foreground="{DynamicResource Brush.Subtle}" />
         </DockPanel>
     </Grid>
 </Window>

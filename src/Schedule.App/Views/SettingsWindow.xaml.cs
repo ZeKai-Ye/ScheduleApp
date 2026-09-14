@@ -181,6 +181,9 @@ public partial class SettingsWindow : Window
             : _draft.DefaultRemindBeforeMinutes.ToString();
         WeekStartCheck.IsChecked = _draft.WeekStartsOnMonday;
 
+        ThemeBox.SelectedIndex = (int)_draft.Theme;
+        ThemeHintText.Text = Schedule.App.Services.ThemeService.Describe(_draft.Theme);
+
         // 提醒弹窗位置
         ReminderPositionBox.SelectedIndex = (int)_draft.ReminderPosition;
         ReminderPositionXBox.Text = _draft.ReminderPositionX.ToString();
@@ -268,6 +271,17 @@ public partial class SettingsWindow : Window
             ReminderPositionMode.Center => "X / Y 为相对屏幕中央的偏移（正数向右 / 向下）。",
             _ => "X / Y 为相对该角落的偏移（正数向内移动；默认留 18 像素边距）。",
         };
+    }
+
+    /// <summary>主题即时预览：改选即生效，取消时回滚为已保存的设置。</summary>
+    private void Theme_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading) return;
+
+        var mode = (AppTheme)Math.Max(0, ThemeBox.SelectedIndex);
+        ThemeService.Apply(mode);
+        ThemeHintText.Text = ThemeService.Describe(mode)
+            + (mode == AppTheme.System ? string.Empty : "（立即预览；取消会恢复原主题）");
     }
 
     private void ReminderPosition_Changed(object sender, SelectionChangedEventArgs e) => UpdateReminderPositionHint();
@@ -437,6 +451,7 @@ public partial class SettingsWindow : Window
         settings.MonthCellCapacity = ReadInt(MonthCapacityBox.Text, settings.MonthCellCapacity, 1, 8);
         settings.WeekStartsOnMonday = WeekStartCheck.IsChecked == true;
 
+        settings.Theme = (AppTheme)Math.Max(0, ThemeBox.SelectedIndex);
         settings.ReminderPosition = (ReminderPositionMode)Math.Max(0, ReminderPositionBox.SelectedIndex);
         settings.ReminderPositionX = ReadInt(ReminderPositionXBox.Text, settings.ReminderPositionX, -20000, 20000);
         settings.ReminderPositionY = ReadInt(ReminderPositionYBox.Text, settings.ReminderPositionY, -20000, 20000);
@@ -506,5 +521,10 @@ public partial class SettingsWindow : Window
         }
     }
 
-    private void Cancel_Click(object sender, RoutedEventArgs e) => DialogResult = false;
+    private void Cancel_Click(object sender, RoutedEventArgs e)
+    {
+        // 主题是即时预览的，取消时回滚
+        ThemeService.Apply(_host.Settings.Theme);
+        DialogResult = false;
+    }
 }

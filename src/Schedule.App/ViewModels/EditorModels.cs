@@ -129,7 +129,7 @@ public sealed class CategoryColorChoice : ObservableObject
         }
     }
 
-    public Brush Brush => string.IsNullOrEmpty(Hex) ? BrushCache.Get("#E5E7EB") : BrushCache.Get(Hex);
+    public Brush Brush => string.IsNullOrEmpty(Hex) ? ThemeBrushes.Border : BrushCache.Get(Hex);
 
     public string Display => string.IsNullOrEmpty(Hex) ? "自动" : Hex;
 

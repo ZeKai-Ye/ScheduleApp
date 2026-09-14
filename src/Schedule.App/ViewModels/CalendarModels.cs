@@ -78,12 +78,12 @@ public sealed class MonthCellViewModel : ObservableObject
     // ---------- 直接可用的画刷，避免 XAML 里堆叠触发器 ----------
 
     public System.Windows.Media.Brush CellBackground => IsSelected
-        ? BrushCache.Get("#EFF6FF")
-        : IsCurrentMonth ? System.Windows.Media.Brushes.White : BrushCache.Get("#FAFAFB");
+        ? ThemeBrushes.AccentSoft
+        : IsCurrentMonth ? ThemeBrushes.Card : ThemeBrushes.CellMuted;
 
     public System.Windows.Media.Brush CellBorderBrush => IsSelected
-        ? BrushCache.Get("#2563EB")
-        : BrushCache.Get("#E5E7EB");
+        ? ThemeBrushes.Accent
+        : ThemeBrushes.Border;
 
     public System.Windows.Thickness CellBorderThickness => IsSelected
         ? new System.Windows.Thickness(2)
@@ -92,11 +92,11 @@ public sealed class MonthCellViewModel : ObservableObject
     public double CellOpacity => IsCurrentMonth ? 1.0 : 0.55;
 
     public System.Windows.Media.Brush DayNumberForeground => IsToday
-        ? System.Windows.Media.Brushes.White
-        : IsCurrentMonth ? BrushCache.Get("#111827") : BrushCache.Get("#9CA3AF");
+        ? ThemeBrushes.OnAccent
+        : IsCurrentMonth ? ThemeBrushes.Text : ThemeBrushes.SubtleSoft;
 
     public System.Windows.Media.Brush DayNumberBackground => IsToday
-        ? BrushCache.Get("#2563EB")
+        ? ThemeBrushes.Accent
         : System.Windows.Media.Brushes.Transparent;
 }
 
@@ -149,19 +149,19 @@ public sealed class WeekColumnViewModel
     public required DateOnly Date { get; init; }
 
     public System.Windows.Media.Brush HeaderForeground => IsToday
-        ? BrushCache.Get("#2563EB")
-        : IsWeekend ? BrushCache.Get("#9CA3AF") : BrushCache.Get("#111827");
+        ? ThemeBrushes.Accent
+        : IsWeekend ? ThemeBrushes.SubtleSoft : ThemeBrushes.Text;
 
     public System.Windows.Media.Brush DayNumberForeground => IsToday
-        ? System.Windows.Media.Brushes.White
+        ? ThemeBrushes.OnAccent
         : System.Windows.Media.Brushes.Transparent;
 
     public System.Windows.Media.Brush DayNumberBackground => IsToday
-        ? BrushCache.Get("#2563EB")
+        ? ThemeBrushes.Accent
         : System.Windows.Media.Brushes.Transparent;
 
     public System.Windows.Media.Brush ColumnBackground => IsWeekend
-        ? BrushCache.Get("#FCFCFD")
+        ? ThemeBrushes.WeekendColumn
         : System.Windows.Media.Brushes.Transparent;
 
     public required string HeaderText { get; init; }

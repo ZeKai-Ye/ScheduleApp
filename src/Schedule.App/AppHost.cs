@@ -75,6 +75,9 @@ public sealed class AppHost : IDisposable
         Reminders.ReminderDue += OnReminderDue;
         Reminders.Updated += OnRemindersUpdated;
 
+        // 主题要在创建窗口之前应用
+        ThemeService.Apply(Settings.Theme, ThemeService.Parse(options.ThemeOverride));
+
         Api = new ApiHost(this);
         Api.Start(options.ApiPort, enabled: !options.NoApi);
 
@@ -226,6 +229,7 @@ public sealed class AppHost : IDisposable
     {
         SettingsService.MarkDirty();
         SettingsService.Save();
+        ThemeService.Apply(Settings.Theme);
         SyncAutostartSetting();
         Tray?.UpdateAutostart(Settings.StartWithWindows);
         SettingsChanged?.Invoke(this, EventArgs.Empty);

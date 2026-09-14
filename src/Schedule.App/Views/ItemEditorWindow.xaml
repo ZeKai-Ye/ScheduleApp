@@ -4,7 +4,9 @@
         Title="新建日程"
         Width="700" Height="820"
         MinWidth="620" MinHeight="560"
-        WindowStartupLocation="CenterOwner">
+        WindowStartupLocation="CenterOwner"
+        Style="{StaticResource AppWindow}"
+>
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="*" />
@@ -14,7 +16,8 @@
         <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" Padding="20,18,20,12">
             <StackPanel>
                 <Border x:Name="ScopePanel" Visibility="Collapsed" Margin="0,0,0,14"
-                        Background="#FFEFF6FF" BorderBrush="#FFBFDBFE" BorderThickness="1" CornerRadius="8" Padding="12,10">
+                        Background="{DynamicResource Brush.ScopeBackground}" BorderBrush="{DynamicResource Brush.ScopeBorder}"
+                        BorderThickness="1" CornerRadius="8" Padding="12,10">
                     <StackPanel>
                         <TextBlock Text="这是系列事件中的一次发生，请选择修改范围" FontSize="12" FontWeight="SemiBold" />
                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
@@ -40,7 +43,7 @@
                         <ColumnDefinition Width="78" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock Text="开始" VerticalAlignment="Center" Foreground="{StaticResource Brush.Subtle}" />
+                    <TextBlock Text="开始" VerticalAlignment="Center" Foreground="{DynamicResource Brush.Subtle}" />
                     <Grid Grid.Column="1" Margin="0,0,10,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
@@ -49,17 +52,19 @@
                         <DatePicker x:Name="StartDatePicker" />
                         <TextBox x:Name="StartTimeBox" Grid.Column="1" Margin="6,0,0,0" Text="09:00" ToolTip="24 小时制，例如 09:30" />
                     </Grid>
-                    <TextBlock Grid.Column="2" Text="结束" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource Brush.Subtle}" />
+                    <TextBlock Grid.Column="2" Text="结束" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{DynamicResource Brush.Subtle}" />
                     <Grid Grid.Column="3">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="76" />
                         </Grid.ColumnDefinitions>
                         <DatePicker x:Name="EndDatePicker" />
-                        <TextBox x:Name="EndTimeBox" Grid.Column="1" Margin="6,0,0,0" ToolTip="留空表示不指定结束时间" />
+                        <TextBox x:Name="EndTimeBox" Grid.Column="1" Margin="6,0,0,0"
+                             ToolTip="24 小时制；也可直接写时长（6小时 / 90分钟）；早于开始时间会按次日处理" />
                     </Grid>
                 </Grid>
 
+                <TextBlock x:Name="EndHintText" Style="{StaticResource FieldHint}" Margin="0,6,0,0" />
                 <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
                     <CheckBox x:Name="AllDayCheck" Content="全天" Click="AllDayCheck_Click" />
                 </StackPanel>
@@ -95,7 +100,7 @@
                 <TextBlock Text="事件颜色（用于日历与列表区分）" Style="{StaticResource SectionTitle}" Margin="2,16,0,6" />
                 <DockPanel>
                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
-                        <TextBlock Text="自定义 #" VerticalAlignment="Center" Foreground="{StaticResource Brush.Subtle}" FontSize="12" />
+                        <TextBlock Text="自定义 #" VerticalAlignment="Center" Foreground="{DynamicResource Brush.Subtle}" FontSize="12" />
                         <TextBox x:Name="CustomColorBox" Width="86" Margin="4,0,0,0" ToolTip="例如 2563EB" TextChanged="CustomColorBox_TextChanged" />
                     </StackPanel>
                     <ItemsControl x:Name="ColorList">
@@ -110,10 +115,10 @@
                                     <RadioButton GroupName="EventColor" Style="{StaticResource ColorSwatch}"
                                                  HorizontalAlignment="Center" Checked="ColorSwatch_Checked">
                                         <Border Width="22" Height="22" CornerRadius="11" Background="{Binding Brush}"
-                                                BorderBrush="#22000000" BorderThickness="1" />
+                                                BorderBrush="{DynamicResource Brush.SwatchRing}" BorderThickness="1" />
                                     </RadioButton>
                                     <TextBlock Text="{Binding Name}" FontSize="9" HorizontalAlignment="Center"
-                                               Foreground="{StaticResource Brush.Subtle}" TextTrimming="CharacterEllipsis" />
+                                               Foreground="{DynamicResource Brush.Subtle}" TextTrimming="CharacterEllipsis" />
                                 </StackPanel>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
@@ -129,7 +134,7 @@
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
                     <StackPanel Margin="0,0,8,0">
-                        <TextBlock Text="重复方式" FontSize="11" Foreground="{StaticResource Brush.Subtle}" Margin="0,0,0,3" />
+                        <TextBlock Text="重复方式" FontSize="11" Foreground="{DynamicResource Brush.Subtle}" Margin="0,0,0,3" />
                         <ComboBox x:Name="RepeatBox" SelectedIndex="0">
                             <ComboBoxItem Content="不重复" />
                             <ComboBoxItem Content="每天" />
@@ -140,17 +145,17 @@
                         </ComboBox>
                     </StackPanel>
                     <StackPanel Grid.Column="1" Margin="0,0,8,0">
-                        <TextBlock Text="间隔（每 N 个周期）" FontSize="11" Foreground="{StaticResource Brush.Subtle}" Margin="0,0,0,3" />
+                        <TextBlock Text="间隔（每 N 个周期）" FontSize="11" Foreground="{DynamicResource Brush.Subtle}" Margin="0,0,0,3" />
                         <TextBox x:Name="IntervalBox" Text="1" ToolTip="例如：每周 + 间隔 2 = 每两周" TextChanged="RepeatText_Changed" />
                     </StackPanel>
                     <StackPanel Grid.Column="2">
-                        <TextBlock Text="重复次数（留空不限）" FontSize="11" Foreground="{StaticResource Brush.Subtle}" Margin="0,0,0,3" />
+                        <TextBlock Text="重复次数（留空不限）" FontSize="11" Foreground="{DynamicResource Brush.Subtle}" Margin="0,0,0,3" />
                         <TextBox x:Name="CountBox" ToolTip="例如 10 表示共重复 10 次" TextChanged="RepeatText_Changed" />
                     </StackPanel>
                 </Grid>
 
                 <StackPanel x:Name="WeekdayPanel" Margin="0,10,0,0" Visibility="Collapsed">
-                    <TextBlock Text="每周的哪几天（不选则与开始时间同一星期）" FontSize="11" Foreground="{StaticResource Brush.Subtle}" Margin="0,0,0,5" />
+                    <TextBlock Text="每周的哪几天（不选则与开始时间同一星期）" FontSize="11" Foreground="{DynamicResource Brush.Subtle}" Margin="0,0,0,5" />
                     <ItemsControl x:Name="WeekdayList">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
@@ -197,7 +202,7 @@
                     </Grid.ColumnDefinitions>
                     <TextBox x:Name="CustomOffsetsBox" ToolTip="自定义档位（分钟，逗号分隔），例如 90,240" TextChanged="ReminderText_Changed" />
                     <TextBlock Grid.Column="1" Text="自定义档位（分钟）" VerticalAlignment="Center" Margin="8,0,0,0"
-                               FontSize="11" Foreground="{StaticResource Brush.Subtle}" />
+                               FontSize="11" Foreground="{DynamicResource Brush.Subtle}" />
                 </Grid>
 
                 <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
@@ -221,7 +226,7 @@
                                 </Grid.ColumnDefinitions>
                                 <StackPanel VerticalAlignment="Center">
                                     <TextBlock Text="{Binding Label}" FontSize="12" />
-                                    <TextBlock Text="{Binding SourceHint}" FontSize="10" Foreground="{StaticResource Brush.Subtle}" />
+                                    <TextBlock Text="{Binding SourceHint}" FontSize="10" Foreground="{DynamicResource Brush.Subtle}" />
                                 </StackPanel>
                                 <TextBox Grid.Column="1" Margin="6,0,0,0"
                                          Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}"
@@ -244,7 +249,7 @@
                 <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                     <Button Content="试听这条播报" Click="PreviewVoice_Click" />
                     <TextBlock x:Name="VoicePreviewText" Margin="12,0,0,0" VerticalAlignment="Center" FontSize="12"
-                               Foreground="{StaticResource Brush.Subtle}" TextTrimming="CharacterEllipsis" />
+                               Foreground="{DynamicResource Brush.Subtle}" TextTrimming="CharacterEllipsis" />
                 </StackPanel>
 
                 <TextBlock Text="自定义提示音（留空使用全局设置）" Style="{StaticResource SectionTitle}" Margin="2,16,0,6" />
@@ -265,8 +270,8 @@
         </ScrollViewer>
 
         <Border Grid.Row="1"
-                Background="{StaticResource Brush.Card}"
-                BorderBrush="{StaticResource Brush.Border}"
+                Background="{DynamicResource Brush.Card}"
+                BorderBrush="{DynamicResource Brush.Border}"
                 BorderThickness="0,1,0,0"
                 Padding="20,12">
             <DockPanel>
@@ -278,7 +283,7 @@
                     <Button Content="保存" Style="{StaticResource PrimaryButton}" Click="Save_Click" IsDefault="True" />
                 </StackPanel>
                 <TextBlock x:Name="ErrorText"
-                           Foreground="{StaticResource Brush.Danger}"
+                           Foreground="{DynamicResource Brush.Danger}"
                            VerticalAlignment="Center"
                            TextWrapping="Wrap" />
             </DockPanel>

@@ -117,7 +117,12 @@ internal static class Program
 
             var smokeHost = new AppHost();
             App.Host = smokeHost;
-            smokeHost.Start(new CommandLineOptions { Serve = true });
+            smokeHost.Start(new CommandLineOptions
+            {
+                Serve = true,
+                ThemeOverride = options.ThemeOverride,
+                ApiPort = options.ApiPort,
+            });
 
             var smokeCode = UiSmoke.Run(smokeHost);
             smokeHost.Dispose();

@@ -44,9 +44,9 @@ public sealed class PriorityToBrushConverter : IValueConverter
         var priority = value is Priority p ? p : Priority.Normal;
         return priority switch
         {
-            Priority.High => new SolidColorBrush(Color.FromRgb(0xDC, 0x26, 0x26)),
-            Priority.Low => new SolidColorBrush(Color.FromRgb(0x94, 0xA3, 0xB8)),
-            _ => new SolidColorBrush(Color.FromRgb(0x25, 0x63, 0xEB)),
+            Priority.High => ThemeBrushes.Danger,
+            Priority.Low => ThemeBrushes.SubtleSoft,
+            _ => ThemeBrushes.Accent,
         };
     }
 

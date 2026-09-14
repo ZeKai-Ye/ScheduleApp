@@ -76,9 +76,12 @@ public partial class ItemEditorWindow : Window
         BuildColorChoices();
         BuildWeekdayChoices();
         LoadValues();
-        RebuildOffsetDetails();
 
+        // 注意：必须先把 _loading 置回 false —— 各 Update* / Rebuild* 都有
+        // 「加载中不刷新」的保护，否则打开编辑窗口时「按档位自定义播报」会是空的
         _loading = false;
+
+        RebuildOffsetDetails();
 
         RepeatBox.SelectionChanged += (_, _) =>
         {
@@ -93,6 +96,12 @@ public partial class ItemEditorWindow : Window
 
         // 自定义档位输入完成后（失焦）再重建明细行，避免打字时列表被刷新
         CustomOffsetsBox.LostFocus += (_, _) => RebuildOffsetDetails();
+
+        // 结束时间的实时提示（跨夜 / 时长写法）
+        EndTimeBox.TextChanged += (_, _) => UpdateEndHint();
+        EndDatePicker.SelectedDateChanged += (_, _) => UpdateEndHint();
+        StartTimeBox.TextChanged += (_, _) => UpdateEndHint();
+        StartDatePicker.SelectedDateChanged += (_, _) => UpdateEndHint();
 
         UpdateRepeatPanels();
         UpdateRepeatSummary();
@@ -116,6 +125,9 @@ public partial class ItemEditorWindow : Window
 
     /// <summary>这一次发生在系列中的原始开始时间（仅编辑某一次时有值）。</summary>
     public DateTime? SeriesStart => _seriesStart;
+
+    /// <summary>当前「按档位自定义播报」的明细行数（供界面冒烟自检用）。</summary>
+    public int OffsetDetailRowCount => _offsetRows.Count;
 
     private void Scope_Changed(object sender, RoutedEventArgs e) => UpdateScopeUi();
 
@@ -579,9 +591,15 @@ public partial class ItemEditorWindow : Window
         return true;
     }
 
-    private bool TryReadEnd(DateTime start, out DateTime? end)
+    /// <summary>
+    /// 读取结束时间。除了普通时间，还支持两类容易踩坑的输入：
+    /// 1) 只填时间且早于开始时间 → 视为**次日**（跨夜的长日程，例如 22:00 → 04:00）；
+    /// 2) 直接填时长（如 ~~6小时~~ / ~~90分钟~~ / ~~6h~~）→ 开始时间 + 时长。
+    /// </summary>
+    private bool TryReadEnd(DateTime start, out DateTime? end, out string? note)
     {
         end = null;
+        note = null;
 
         if (AllDayCheck.IsChecked == true)
         {
@@ -594,16 +612,63 @@ public partial class ItemEditorWindow : Window
         var hasTime = !string.IsNullOrWhiteSpace(EndTimeBox.Text);
         if (!hasDate && !hasTime) return true;
 
+        // 时长写法：6小时 / 90分钟 / 1.5小时 / 6h
+        if (hasTime && !hasDate && TryParseDuration(EndTimeBox.Text, out var duration))
+        {
+            end = start + duration;
+            note = "结束时间按「开始 + " + HumanizeDuration(duration) + "」计算：" + end.Value.ToString("MM-dd HH:mm");
+            return true;
+        }
+
         var date = EndDatePicker.SelectedDate ?? start.Date;
         if (hasTime)
         {
             if (!FlexibleDateTime.TryParse(EndTimeBox.Text, out var parsed, date)) return false;
+
+            // 只填了时间、没选结束日期，且时间早于开始 → 跨夜到次日
+            if (!hasDate && parsed <= start)
+            {
+                parsed = parsed.AddDays(1);
+                note = "结束时间早于开始时间，已按次日处理：" + parsed.ToString("MM-dd HH:mm");
+            }
+
             end = parsed;
             return true;
         }
 
         end = date.Date;
         return true;
+    }
+
+    /// <summary>解析「6小时 / 90分钟 / 2天 / 6h」这类时长写法。</summary>
+    private static bool TryParseDuration(string? text, out TimeSpan duration)
+    {
+        duration = TimeSpan.Zero;
+        if (string.IsNullOrWhiteSpace(text)) return false;
+
+        var match = System.Text.RegularExpressions.Regex.Match(
+            text.Trim(),
+            @"^(\d+(?:\.\d+)?)\s*(分钟|分|小时|时|天|min|mins|m|h|hr|hrs|d)$",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        if (!match.Success) return false;
+
+        var amount = double.Parse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
+        duration = match.Groups[2].Value.ToLowerInvariant() switch
+        {
+            "小时" or "时" or "h" or "hr" or "hrs" => TimeSpan.FromHours(amount),
+            "天" or "d" => TimeSpan.FromDays(amount),
+            _ => TimeSpan.FromMinutes(amount),
+        };
+
+        return duration > TimeSpan.Zero;
+    }
+
+    private static string HumanizeDuration(TimeSpan duration)
+    {
+        if (duration.TotalMinutes < 60) return (int)duration.TotalMinutes + " 分钟";
+        if (duration.TotalMinutes % 60 == 0) return (int)duration.TotalHours + " 小时";
+        return (int)duration.TotalHours + " 小时 " + (int)(duration.TotalMinutes % 60) + " 分钟";
     }
 
     private Priority ReadPriority() => PriorityBox.SelectedIndex switch
@@ -623,11 +688,13 @@ public partial class ItemEditorWindow : Window
             return;
         }
 
-        if (!TryReadEnd(start, out var end))
+        if (!TryReadEnd(start, out var end, out var endNote))
         {
-            ShowError("结束时间格式无法识别（示例：18:00）。");
+            ShowError("结束时间格式无法识别（示例：18:00，或直接写 6小时）。");
             return;
         }
+
+        EndHintText.Text = endNote ?? string.Empty;
 
         var customColorText = CustomColorBox.Text?.Trim() ?? string.Empty;
         if (customColorText.Length > 0 && EventColors.Normalize(customColorText).Length != 7)
@@ -788,6 +855,29 @@ public partial class ItemEditorWindow : Window
             Rate = settings.VoiceRate,
             Volume = settings.VoiceVolume,
         });
+    }
+
+    /// <summary>实时说明结束时间是怎么算出来的（跨夜 / 时长）。</summary>
+    private void UpdateEndHint()
+    {
+        if (_loading || EndHintText == null) return;
+
+        if (!TryReadStart(out var start))
+        {
+            EndHintText.Text = string.Empty;
+            return;
+        }
+
+        if (TryReadEnd(start, out var end, out var note))
+        {
+            EndHintText.Text = note ?? (end.HasValue
+                ? "结束：" + end.Value.ToString("MM-dd HH:mm") + "（时长 " + HumanizeDuration(end.Value - start) + "）"
+                : string.Empty);
+        }
+        else
+        {
+            EndHintText.Text = "结束时间格式无法识别。";
+        }
     }
 
     private void ShowError(string message) => ErrorText.Text = message;

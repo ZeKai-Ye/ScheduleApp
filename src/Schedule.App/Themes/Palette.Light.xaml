@@ -1,0 +1,31 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- 浅色主题调色板：只放调色板，切换主题时整块替换这个字典即可 -->
+    <SolidColorBrush x:Key="Brush.Background" Color="#FFF3F4F6" />
+    <SolidColorBrush x:Key="Brush.Card" Color="#FFFFFFFF" />
+    <SolidColorBrush x:Key="Brush.CellMuted" Color="#FFFAFAFB" />
+    <SolidColorBrush x:Key="Brush.WeekendColumn" Color="#FFFCFCFD" />
+    <SolidColorBrush x:Key="Brush.Hint" Color="#FFF9FAFB" />
+    <SolidColorBrush x:Key="Brush.HintBorder" Color="#FFE5E7EB" />
+    <SolidColorBrush x:Key="Brush.ScopeBackground" Color="#FFEFF6FF" />
+    <SolidColorBrush x:Key="Brush.ScopeBorder" Color="#FFBFDBFE" />
+    <SolidColorBrush x:Key="Brush.Border" Color="#FFE5E7EB" />
+    <SolidColorBrush x:Key="Brush.Text" Color="#FF111827" />
+    <SolidColorBrush x:Key="Brush.Subtle" Color="#FF6B7280" />
+    <SolidColorBrush x:Key="Brush.SubtleSoft" Color="#FF9CA3AF" />
+    <SolidColorBrush x:Key="Brush.OnAccent" Color="#FFFFFFFF" />
+    <SolidColorBrush x:Key="Brush.Accent" Color="#FF2563EB" />
+    <SolidColorBrush x:Key="Brush.AccentHover" Color="#FF1D4ED8" />
+    <SolidColorBrush x:Key="Brush.AccentSoft" Color="#FFDBEAFE" />
+    <SolidColorBrush x:Key="Brush.Danger" Color="#FFDC2626" />
+    <SolidColorBrush x:Key="Brush.DangerSoft" Color="#FFFEF2F2" />
+    <SolidColorBrush x:Key="Brush.DangerBorder" Color="#FFFECACA" />
+    <SolidColorBrush x:Key="Brush.Success" Color="#FF16A34A" />
+    <SolidColorBrush x:Key="Brush.Warning" Color="#FFD97706" />
+    <SolidColorBrush x:Key="Brush.RowHover" Color="#FFF9FAFB" />
+    <SolidColorBrush x:Key="Brush.RowSelected" Color="#FFEFF6FF" />
+    <SolidColorBrush x:Key="Brush.SwatchRing" Color="#22000000" />
+    <SolidColorBrush x:Key="Brush.Disabled" Color="#FFF3F4F6" />
+
+</ResourceDictionary>

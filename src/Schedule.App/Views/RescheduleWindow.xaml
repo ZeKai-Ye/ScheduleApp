@@ -4,8 +4,10 @@
         Title="改期"
         Width="470" SizeToContent="Height"
         ResizeMode="NoResize"
-        WindowStartupLocation="CenterOwner">
-    <Border Background="{StaticResource Brush.Card}" Padding="20,16">
+        WindowStartupLocation="CenterOwner"
+        Style="{StaticResource AppWindow}"
+>
+    <Border Background="{DynamicResource Brush.Card}" Padding="20,16">
         <StackPanel>
             <TextBlock x:Name="HeaderText" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
             <TextBlock x:Name="CurrentText" Style="{StaticResource FieldHint}" Margin="0,4,0,0" />
@@ -49,7 +51,7 @@
                 <TextBlock x:Name="ScopeHint" Style="{StaticResource FieldHint}" />
             </StackPanel>
 
-            <TextBlock x:Name="ErrorText" Foreground="{StaticResource Brush.Danger}" FontSize="12"
+            <TextBlock x:Name="ErrorText" Foreground="{DynamicResource Brush.Danger}" FontSize="12"
                        Margin="0,10,0,0" TextWrapping="Wrap" />
 
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">

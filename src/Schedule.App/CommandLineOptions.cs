@@ -45,6 +45,9 @@ public sealed class CommandLineOptions
     /// <summary>界面冒烟自检：构造全部窗口后退出（开发 / CI 用）。</summary>
     public bool UiSmoke { get; set; }
 
+    /// <summary>启动时临时指定主题（light / dark / system），不写回设置。</summary>
+    public string? ThemeOverride { get; set; }
+
     /// <summary>创建快捷方式（desktop / startmenu）。</summary>
     public string? ShortcutTarget { get; set; }
 
@@ -156,6 +159,9 @@ public sealed class CommandLineOptions
                 case "--ui-smoke":
                     options.UiSmoke = true;
                     break;
+                case "--theme":
+                    options.ThemeOverride = Value();
+                    break;
                 case "--shortcut":
                     options.ShortcutTarget = Value() ?? "desktop";
                     break;
@@ -216,7 +222,8 @@ public sealed class CommandLineOptions
         "  --startup on|off                      启用 / 停用开机启动",
         "  --startup-args <参数>                 开机启动附加参数（默认 --minimized）",
         "  --minimized                           启动后直接最小化到托盘",
-        "  --ui-smoke                            界面冒烟自检：依次构造全部窗口后退出",
+        "  --ui-smoke                            界面冒烟自检：依次构造全部窗口后退出（可截图）",
+        "  --theme light|dark|system             临时指定主题（不写回设置）",
         "",
         "通用选项：",
         "  --data <目录>         指定数据目录（默认 %APPDATA%\\ScheduleApp）",
