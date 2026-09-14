@@ -1,4 +1,5 @@
 using System.Text;
+using System.Windows;
 using Schedule.App.Views;
 using Schedule.Core.Logging;
 using Schedule.Core.Models;
@@ -21,11 +22,21 @@ public static class UiSmoke
 
         report.AppendLine("=== 界面冒烟自检 " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " ===");
 
-        void Try(string name, Func<object> factory)
+        void Try(string name, Func<object> factory, Func<object, string?>? verify = null)
         {
             try
             {
                 var window = factory();
+                var problem = verify?.Invoke(window);
+
+                if (problem != null)
+                {
+                    failures++;
+                    report.AppendLine("FAIL  " + name + "  " + problem);
+                    AppLog.Warn("界面冒烟断言失败：" + name + " - " + problem);
+                    return;
+                }
+
                 report.AppendLine("OK    " + name + "  (" + window.GetType().Name + ")");
             }
             catch (Exception ex)
@@ -56,9 +67,52 @@ public static class UiSmoke
         Try("设置窗口", () => new SettingsWindow(host));
         Try("日程编辑窗口（新建）", () => new ItemEditorWindow(host, sample, isNew: true));
         Try("日程编辑窗口（编辑）", () => new ItemEditorWindow(host, sample, isNew: false));
+        Try(
+            "日程编辑窗口（档位明细已生成）",
+            () => new ItemEditorWindow(host, sample, isNew: false),
+            window =>
+            {
+                var editor = (ItemEditorWindow)window;
+                var expected = sample.NormalizedOffsets().Count;
+                return editor.OffsetDetailRowCount == expected
+                    ? null
+                    : "按档位自定义播报的明细行数 " + editor.OffsetDetailRowCount + "，期望 " + expected;
+            });
 
         var sampleOccurrence = OccurrenceCalculator.Create(sample, sample.Start);
         Try("日程编辑窗口（仅本次范围）", () => new ItemEditorWindow(host, sample, isNew: false, sampleOccurrence));
+        // 截图：把窗口渲染成 PNG，便于人工核对主题与布局（XAML 错误之外，样式问题也能看得出来）
+        void Shot(string name, Window window)
+        {
+            try
+            {
+                window.Show();
+                window.UpdateLayout();
+
+                var width = (int)Math.Ceiling(window.ActualWidth > 0 ? window.ActualWidth : window.Width);
+                var height = (int)Math.Ceiling(window.ActualHeight > 0 ? window.ActualHeight : window.Height);
+                if (width <= 0 || height <= 0 || width > 4000 || height > 4000) return;
+
+                var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(
+                    width, height, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+                bitmap.Render(window);
+
+                var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+                encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
+
+                var file = Path.Combine(AppPaths.LogDirectory, "ui-" + name + ".png");
+                using var stream = File.Create(file);
+                encoder.Save(stream);
+
+                report.AppendLine("SHOT  " + name + " -> " + file);
+                window.Hide();
+            }
+            catch (Exception ex)
+            {
+                report.AppendLine("SHOT? " + name + " 截图失败：" + ex.Message);
+            }
+        }
+
         var sampleEnd = sample.End ?? sample.Start.AddHours(1);
         Try("改期窗口（系列）", () => new RescheduleWindow(host, sample, sample.Start, sampleEnd, true));
         Try("改期窗口（单次）", () => new RescheduleWindow(host, sample, sample.Start, sampleEnd, false));
@@ -84,6 +138,41 @@ public static class UiSmoke
             failures++;
             report.AppendLine("FAIL  准备 CSV 样例  " + ex.Message);
         }
+
+        // 主题自检：把关键画刷的解析结果与实际窗口背景都打出来（截图之外再用数据兜底）
+        void DumpTheme(string tag)
+        {
+            string Color(string key)
+                => Application.Current?.TryFindResource(key) is System.Windows.Media.SolidColorBrush brush
+                    ? brush.Color.ToString()
+                    : "(未解析)";
+
+            report.AppendLine("THEME " + tag
+                + "  IsDark=" + Services.ThemeService.IsDark
+                + "  Background=" + Color("Brush.Background")
+                + "  Card=" + Color("Brush.Card")
+                + "  Text=" + Color("Brush.Text")
+                + "  Accent=" + Color("Brush.Accent"));
+        }
+
+        DumpTheme("应用前");
+
+        var probe = new MainWindow(host);
+        probe.Show();
+        probe.UpdateLayout();
+        report.AppendLine("THEME 窗口实际背景="
+            + (probe.Background as System.Windows.Media.SolidColorBrush)?.Color.ToString()
+            + "  根面板背景="
+            + ((probe.Content as System.Windows.Controls.Panel)?.Background as System.Windows.Media.SolidColorBrush)?.Color.ToString());
+        probe.Hide();
+        DumpTheme("窗口创建后");
+
+        // 关键窗口截图（主题 / 布局人工核对用）
+        Shot("01-main", new MainWindow(host));
+        Shot("02-settings", new SettingsWindow(host));
+        Shot("03-editor", new ItemEditorWindow(host, sample, isNew: false));
+        Shot("04-reminder", new ReminderWindow(host, due));
+        Shot("05-reschedule", new RescheduleWindow(host, sample, sample.Start, sampleEnd, true));
 
         report.AppendLine(failures == 0 ? "结果：全部通过" : "结果：失败 " + failures + " 项");
 
