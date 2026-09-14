@@ -69,6 +69,9 @@ if ($LASTEXITCODE -ne 0) { throw "自测失败" }
 | 布局回归 | `--ui-smoke` 会断言：列表列宽合计 ≤ 可视宽度且横向滚动可用、编辑窗口自定义颜色框不越界、设置页最右列不越界、写进设置的自定义弹窗坐标必须真的生效 |
 | 验证重启命令 | `--ui-smoke` 会打印 `RESTART 命令=...`（含数据目录与 `--restart-of`），并断言新进程用的是同一份数据、等待的是本进程 PID；自检**不会**真的重启 |
 | 主题即时生效的边界 | 控件画刷走 `DynamicResource`；视图模型算出来的画刷要靠 `AppHost.ThemeChanged` 触发重建，否则要重启才换色 |
+| 验证 AI 对话（不需要真模型） | `dotnet run --project tests/Schedule.Core.Tests`：`AI 对话` 一节用本地 `MiniHttpServer` 假装 Ollama / OpenAI 两种服务，把请求体与响应解析、工具往返都跑通 |
+| 验证 AI 对话（真模型） | `ScheduleApp.exe --ai-models`、`ScheduleApp.exe --ai-chat "明天下午三点加个会"`；都是无界面执行，输出可用 `--out` 落盘 |
+| 换模型 / 换服务 | 设置 → AI 助手改服务地址与协议；地址里含 `:11434` 会走 Ollama 原生（能真正关掉思考过程，快 5 倍以上） |
 
 ## 代码约定
 - `Nullable` 与 `ImplicitUsings` 全开，构建保持 **0 警告**

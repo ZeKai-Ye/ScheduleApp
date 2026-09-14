@@ -216,6 +216,27 @@ Main
   因此仍能撑满，但改动这类布局后**必须看截图确认**（`--ui-smoke` 已覆盖主窗口 / 编辑窗口 / 设置页的
   横向布局断言）
 
+### 16. AI 对话（本地大模型 + 工具调用）
+- 分层：`Core/Ai` 只依赖 BCL——`AiChatModels`（消息 / 工具调用 / 请求 / 响应）、
+  `OpenAiCompatibleClient`（两种协议的收发与解析）、`AiToolCatalog`（工具定义 + 参数校验 + 分发）、
+  `AiSession`（会话循环）、`AiItemReferences`（`#1` 编号表）、`AiActionParser`（正文兜底解析）、
+  `AiJson`（序列化选项）。界面层只实现 `IAiActions`（`ScheduleAiActions`）与窗口
+- **两种协议**：Ollama 原生 `/api/chat`（`think:false` 真正生效，Qwen3 从 30 秒降到 4 秒左右）与
+  OpenAI 兼容 `/v1/chat/completions`（LM Studio / llama.cpp / vLLM）。`AiApiMode.Auto` 按地址判断
+  （含 `:11434` 走原生）。请求体与响应解析都是**纯函数**，因此协议字段可以逐项自测
+- **会话循环**：`AiSession.SendAsync` 把「用户消息 → 模型 → 工具 → 模型 → …」跑成一个循环，
+  最多 `MaxToolRounds`（默认 4）轮；模型没吐原生 `tool_calls` 时用 `AiActionParser` 从正文里
+  抢救 JSON / `<tool_call>` 形状的调用（换推理框架时很有用）。历史超出 `MaxHistoryMessages` 时从最早丢弃，
+  但**不会把工具结果和它的调用请求拆开**（否则服务端会拒绝该请求）
+- **工具结果不转义中文**：`AiJson.Options` 用 `UnsafeRelaxedJsonEscaping`。默认编码器会把每个汉字写成
+  `\uXXXX`（6 个字符），工具结果是回传给模型的上下文，转义后 token 直接翻几倍
+- **`#1` 编号表**：模型只回传 `#2`，由 `AiItemReferences` 解析成 GUID（外加"系列中的哪一次"），
+  于是"把明天的例会改到 16:00"能落成「仅这一次」的例外而不是整体平移；编号只在一次会话内有效
+- **错误是数据不是异常**：参数不合法 / 找不到引用都返回 `{"error":...}` 给模型，让它自己纠正；
+  只有传输层失败（连不上、超时、返回不是 JSON）才抛 `AiChatException` 给人看
+- 线程：对话在后台线程推进，而仓储 / WPF 要求 UI 线程，因此 `ScheduleAiActions` 的每个操作都经
+  `IAiAppContext` + Dispatcher 切回 UI 线程（与本地接口同一套做法）；命令行模式下没有 Dispatcher，直接同步执行
+
 ## 扩展点
 
 | 需求 | 做法 |
@@ -228,4 +249,8 @@ Main
   键集合必须与另外两份完全一致（`--ui-smoke` 会打印关键色，便于核对） |
 | 需要"重新加载界面"的新设置 | 参照主题：设置页写好后调 `AppHost.Restart`（自动或按钮触发），
   不要自己去 Kill 进程 —— `RestartPlan` 已处理单实例互斥体与数据目录 |
+| 给 AI 加一个新工具 | 在 `AiToolCatalog.Definitions` 里加 schema，在 `IAiActions` 加方法，
+  在 `ScheduleAiActions` 实现（记得用 `Invoke` 切 UI 线程）；补一条参数校验自测即可 |
+| 接别的推理框架（llama.cpp server 等） | 只要它提供 OpenAI 兼容接口就不用改代码；否则参照
+  `OpenAiCompatibleClient` 的两种协议分支再加一种，请求拼装与响应解析都写成纯函数便于自测 |
 | 新的可换肤控件 | 在 `Theme.xaml` 里用自绘 `ControlTemplate` + `DynamicResource` 画刷，避免系统模板在夜间露白 |

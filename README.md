@@ -58,6 +58,18 @@
   「切换主题后自动重启软件」（默认开启），也可随时点「立即重启软件」（会先保存设置）
 - 命令行 `--theme light|dark|system` 可临时覆盖（不写回设置），配合 `--ui-smoke` 还能给每个窗口截图
 
+### AI 对话（本地大模型，能直接操作日程）
+- 主界面「AI 对话」或 **Ctrl + K** 打开对话窗口，模型跑在**本机**：默认 Ollama + `qwen3:8b`，断网可用，
+  日程数据不出本机
+- 不是"只会聊天"：模型通过 9 个内置工具**真的**查 / 建 / 改 / 删日程、标记完成、查接下来的提醒、切主题，
+  改完立刻反映到主界面
+- **模型可自由选择**：设置页「获取模型列表」一键拉取（OpenAI 的 `/models` 或 Ollama 的 `/api/tags`）后下拉选择，
+  对话窗口顶部也能随时切换；兼容 Ollama 原生与任何 OpenAI 兼容服务（LM Studio / llama.cpp / vLLM）
+- 默认自动判断协议：Ollama 走 `/api/chat`（能真正关掉思考过程，实测 1.5~4 秒；走 OpenAI 兼容则要 19~30 秒）
+- 等待期间显示当前阶段与已等待秒数，可随时「停止」；思考过程与每次工具调用的参数 / 结果都能展开核对
+- 删除这类不可逆操作，内置提示要求模型先复述确认；AI 的所有写操作默认记入日志
+- 详见 [docs/AI.md](docs/AI.md)
+
 ### 本地接口（AI / 脚本可直接读写日程）
 - 内置 **HTTP JSON 接口，只监听 127.0.0.1**，零第三方依赖（自实现的极简 HTTP 服务器，非 HttpListener）
 - 启动后在数据目录生成 `api.json`（含 url 与令牌），`GET /api/schema` 是**自描述**接口文档
@@ -214,6 +226,8 @@ ScheduleApp.exe --shortcut desktop         # 创建桌面快捷方式（也可 s
 ScheduleApp.exe --remove-shortcut desktop  # 删除快捷方式
 ScheduleApp.exe --startup on               # 启用开机启动（off 停用）
 ScheduleApp.exe --theme dark               # 临时用夜间主题启动（不写回设置）
+ScheduleApp.exe --ai-models                # 列出本地模型服务上的模型
+ScheduleApp.exe --ai-chat "明天下午三点加个客户沟通"   # 让 AI 执行一句话并打印回复与工具调用
 ```
 
 ### 4. 数据存放位置
@@ -282,6 +296,8 @@ dotnet run --project tests/Schedule.Core.Tests -c Release
 - [x] 单次发生的例外处理（跳过某一次、仅修改本次）
 - [x] 周视图拖拽调整时间
 - [x] 深色（夜间）主题
+- [x] AI 对话（本地大模型 + 工具调用）
+- [ ] 对话流式输出
 - [ ] 月视图拖拽调整时间
 - [ ] 多语言界面
 
