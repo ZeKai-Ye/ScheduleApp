@@ -74,6 +74,24 @@ public static class ScheduleItemValidator
             errors.Add("指定的提醒音频文件不存在：" + item.SoundFile);
         }
 
+        if (item.OccurrenceOverrides.Count > 0 && item.Repeat == RepeatKind.None)
+        {
+            errors.Add("非重复日程不应带有「仅本次」例外。");
+        }
+
+        foreach (var instance in item.OccurrenceOverrides)
+        {
+            if (instance.NewStart.HasValue && instance.NewEnd.HasValue && instance.NewEnd.Value < instance.NewStart.Value)
+            {
+                errors.Add("第 " + instance.OriginalStart.ToString("MM-dd HH:mm") + " 次的改期结束时间早于开始时间。");
+            }
+
+            foreach (var offset in instance.ReminderOffsets ?? new List<int>())
+            {
+                if (offset < 0) errors.Add("「仅本次」的提醒档位不能为负数。");
+            }
+        }
+
         foreach (var pair in item.ReminderSoundFiles)
         {
             if (!string.IsNullOrWhiteSpace(pair.Value) && !File.Exists(pair.Value))
@@ -108,6 +126,8 @@ public static class ScheduleItemValidator
             notes.Add("清除了早于开始时间的结束时间");
         }
 
+        if (item.ExcludedOccurrences == null) item.ExcludedOccurrences = new List<DateTime>();
+        if (item.OccurrenceOverrides == null) item.OccurrenceOverrides = new List<OccurrenceOverride>();
         if (item.ReminderOffsets == null) item.ReminderOffsets = new List<int>();
         if (item.RepeatWeekdays == null) item.RepeatWeekdays = new List<DayOfWeek>();
         if (item.FiredReminders == null) item.FiredReminders = new List<ReminderFireRecord>();
@@ -196,6 +216,51 @@ public static class ScheduleItemValidator
             {
                 item.Color = normalized;
             }
+        }
+
+        // 「本次」例外：去重、排序、丢弃空覆盖
+        if (item.ExcludedOccurrences.Count > 0)
+        {
+            var cleaned = item.ExcludedOccurrences.Distinct().OrderBy(v => v).ToList();
+            if (cleaned.Count != item.ExcludedOccurrences.Count)
+            {
+                notes.Add("清理了重复的「删除本次」记录");
+                item.ExcludedOccurrences = cleaned;
+            }
+        }
+
+        if (item.OccurrenceOverrides.Count > 0)
+        {
+            var kept = new List<OccurrenceOverride>();
+            var seen = new HashSet<DateTime>();
+
+            foreach (var instance in item.OccurrenceOverrides.OrderBy(o => o.OriginalStart))
+            {
+                if (instance.IsEmpty || !seen.Add(instance.OriginalStart)) continue;
+                if (instance.ReminderOffsets != null)
+                {
+                    instance.ReminderOffsets = instance.ReminderOffsets
+                        .Where(o => o is >= 0 and <= 60 * 24 * 365)
+                        .Distinct()
+                        .OrderByDescending(o => o)
+                        .ToList();
+                }
+
+                kept.Add(instance);
+            }
+
+            if (kept.Count != item.OccurrenceOverrides.Count)
+            {
+                notes.Add("清理了无效的「仅本次」修改");
+                item.OccurrenceOverrides = kept;
+            }
+        }
+
+        if (item.Repeat == RepeatKind.None && item.HasOccurrenceEdits)
+        {
+            item.ExcludedOccurrences.Clear();
+            item.OccurrenceOverrides.Clear();
+            notes.Add("清除了非重复日程上的「仅本次」例外");
         }
 
         // 旧字段迁移：LastFiredOccurrence → 每个档位各记一条，避免升级后重复弹窗

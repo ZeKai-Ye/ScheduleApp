@@ -21,6 +21,9 @@ public static class OccurrenceCalculator
 
         foreach (var start in EnumerateStarts(item, fromInclusive, toInclusive))
         {
+            // 系列事件里被单独删掉的那几次不再出现
+            if (item.IsExcluded(start)) continue;
+
             result.Add(Create(item, start));
             if (result.Count >= MaxOccurrencesPerItem) break;
         }
@@ -28,9 +31,20 @@ public static class OccurrenceCalculator
         return result;
     }
 
-    /// <summary>按日程的开始时间与结束时间生成一次具体发生（含全部提醒档位）。</summary>
+    /// <summary>
+    /// 按日程的开始时间与结束时间生成一次具体发生（含全部提醒档位）。
+    /// 若这次发生带有「本次」例外（改期 / 仅本次编辑），会构造一个套用覆盖的有效副本，
+    /// 同时通过 <see cref="ScheduleOccurrence.SeriesRef"/> 保留系列本体用于持久化与提醒去重。
+    /// </summary>
     public static ScheduleOccurrence Create(ScheduleItem item, DateTime occurrenceStart)
     {
+        var instance = item.FindOverride(occurrenceStart);
+
+        if (instance != null)
+        {
+            return CreateOverrideOccurrence(item, occurrenceStart, instance);
+        }
+
         var duration = item.EffectiveEnd - item.Start;
         if (duration < TimeSpan.Zero) duration = TimeSpan.Zero;
 
@@ -46,6 +60,34 @@ public static class OccurrenceCalculator
         };
     }
 
+    /// <summary>
+    /// 在 <see cref="Expand"/> 的基础上，额外补上「被改期到本区间内」的那几次发生。
+    /// 原因：展开是按**原始**开始时间枚举的，一次 6/9 的发生被改到 6/16 后，
+    /// 查询 6/16 那一周的窗口时它并不在枚举范围内，必须单独补进来，
+    /// 否则改期后的提醒与日历显示都会凭空消失。
+    /// </summary>
+    public static List<ScheduleOccurrence> ExpandWithOverrides(ScheduleItem item, DateTime fromInclusive, DateTime toInclusive)
+    {
+        var result = Expand(item, fromInclusive, toInclusive);
+        if (item.OccurrenceOverrides.Count == 0) return result;
+
+        var seen = new HashSet<DateTime>();
+        foreach (var occurrence in result) seen.Add(occurrence.SeriesStart);
+
+        foreach (var instance in item.OccurrenceOverrides)
+        {
+            var start = instance.NewStart ?? instance.OriginalStart;
+            if (start < fromInclusive || start > toInclusive) continue;
+            if (item.IsExcluded(instance.OriginalStart)) continue;
+            if (!seen.Add(instance.OriginalStart)) continue;
+
+            result.Add(Create(item, instance.OriginalStart));
+        }
+
+        result.Sort(static (a, b) => a.Start.CompareTo(b.Start));
+        return result;
+    }
+
     /// <summary>取得 after 之后（含）的第一次发生。</summary>
     public static ScheduleOccurrence? Next(ScheduleItem item, DateTime after, int searchDays = 400)
     {
@@ -54,10 +96,47 @@ public static class OccurrenceCalculator
         var limit = after.AddDays(Math.Max(1, searchDays));
         foreach (var start in EnumerateStarts(item, after, limit))
         {
+            if (item.IsExcluded(start)) continue;
             return Create(item, start);
         }
 
         return null;
+    }
+
+    /// <summary>构造「套用了本次例外」的发生。</summary>
+    private static ScheduleOccurrence CreateOverrideOccurrence(
+        ScheduleItem series,
+        DateTime occurrenceStart,
+        OccurrenceOverride instance)
+    {
+        var effective = series.Clone();
+        instance.ApplyTo(effective);
+
+        // 绝对提醒时刻只属于系列首次发生，改期后的这一次不再套用
+        effective.RemindAtOverride = null;
+
+        var originalDuration = series.EffectiveEnd - series.Start;
+        if (originalDuration < TimeSpan.Zero) originalDuration = TimeSpan.Zero;
+
+        var start = instance.NewStart ?? occurrenceStart;
+        var end = instance.NewEnd ?? start + originalDuration;
+
+        effective.Start = start;
+        effective.End = end;
+
+        var reminders = effective.ComputeReminders(start);
+
+        return new ScheduleOccurrence
+        {
+            Item = effective,
+            SeriesRef = series,
+            Override = instance,
+            OriginalStart = occurrenceStart,
+            Start = start,
+            End = end,
+            Reminders = reminders,
+            ReminderAt = reminders.Count > 0 ? reminders[0].FireAt : start,
+        };
     }
 
     /// <summary>枚举区间内的所有开始时间（升序）。</summary>

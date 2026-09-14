@@ -284,7 +284,8 @@ public static class CalendarLayout
     {
         foreach (var item in items)
         {
-            foreach (var occurrence in OccurrenceCalculator.Expand(item, from, to))
+            // 用 ExpandWithOverrides：被改期到本区间的「本次」也要画出来
+            foreach (var occurrence in OccurrenceCalculator.ExpandWithOverrides(item, from, to))
             {
                 yield return occurrence;
             }

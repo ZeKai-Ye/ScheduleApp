@@ -85,6 +85,15 @@ public sealed class ScheduleItem
 
     public DateTime UpdatedAt { get; set; } = DateTime.Now;
 
+    /// <summary>
+    /// 被单独删除的那几次发生（系列事件「仅删除本次」）。
+    /// 存的是它们的**原始**开始时间。
+    /// </summary>
+    public List<DateTime> ExcludedOccurrences { get; set; } = new();
+
+    /// <summary>被单独修改过的那几次发生（改期 / 仅本次编辑）。</summary>
+    public List<OccurrenceOverride> OccurrenceOverrides { get; set; } = new();
+
     /// <summary>已经触发过的提醒记录（按「发生时间 + 档位」去重）。</summary>
     public List<ReminderFireRecord> FiredReminders { get; set; } = new();
 
@@ -106,6 +115,81 @@ public sealed class ScheduleItem
     public TimeSpan Duration => EffectiveEnd - Start;
 
     public bool IsActive => Status == ItemStatus.Pending;
+
+    // ---------- 系列事件的「本次」例外 ----------
+
+    /// <summary>这次发生是否被单独删除。</summary>
+    public bool IsExcluded(DateTime occurrenceStart) => ExcludedOccurrences.Contains(occurrenceStart);
+
+    /// <summary>取这次发生的例外覆盖。</summary>
+    public OccurrenceOverride? FindOverride(DateTime occurrenceStart)
+    {
+        foreach (var item in OccurrenceOverrides)
+        {
+            if (item.OriginalStart == occurrenceStart) return item;
+        }
+
+        return null;
+    }
+
+    /// <summary>是否有任何「本次」例外。</summary>
+    public bool HasOccurrenceEdits => ExcludedOccurrences.Count > 0 || OccurrenceOverrides.Count > 0;
+
+    /// <summary>单独删除某一次发生（会同时清掉它的覆盖）。</summary>
+    public void ExcludeOccurrence(DateTime occurrenceStart)
+    {
+        OccurrenceOverrides.RemoveAll(o => o.OriginalStart == occurrenceStart);
+
+        if (!ExcludedOccurrences.Contains(occurrenceStart)) ExcludedOccurrences.Add(occurrenceStart);
+        ExcludedOccurrences.Sort();
+    }
+
+    /// <summary>写入 / 更新某一次发生的覆盖。</summary>
+    public void UpsertOverride(OccurrenceOverride value)
+    {
+        ExcludedOccurrences.RemoveAll(e => e == value.OriginalStart);
+        OccurrenceOverrides.RemoveAll(o => o.OriginalStart == value.OriginalStart);
+
+        if (!value.IsEmpty) OccurrenceOverrides.Add(value);
+    }
+
+    /// <summary>
+    /// 整体平移整个系列（改期整个系列时用）：
+    /// 开始 / 结束 / 重复截止 / 绝对提醒都会跟着走，
+    /// 已记录的「本次」例外键也一起偏移，否则改期后例外会全部对不上而失效。
+    /// </summary>
+    public void Shift(TimeSpan delta)
+    {
+        if (delta == TimeSpan.Zero) return;
+
+        Start = Start.Add(delta);
+        if (End.HasValue) End = End.Value.Add(delta);
+        if (RepeatUntil.HasValue) RepeatUntil = RepeatUntil.Value.Add(delta);
+        if (RemindAtOverride.HasValue) RemindAtOverride = RemindAtOverride.Value.Add(delta);
+
+        for (var i = 0; i < ExcludedOccurrences.Count; i++)
+        {
+            ExcludedOccurrences[i] = ExcludedOccurrences[i].Add(delta);
+        }
+
+        foreach (var instance in OccurrenceOverrides)
+        {
+            instance.OriginalStart = instance.OriginalStart.Add(delta);
+            if (instance.NewStart.HasValue) instance.NewStart = instance.NewStart.Value.Add(delta);
+            if (instance.NewEnd.HasValue) instance.NewEnd = instance.NewEnd.Value.Add(delta);
+        }
+
+        ExcludedOccurrences.Sort();
+        OccurrenceOverrides.Sort((a, b) => a.OriginalStart.CompareTo(b.OriginalStart));
+    }
+
+    /// <summary>撤销某一次发生的全部例外。</summary>
+    public bool ClearOccurrenceEdit(DateTime occurrenceStart)
+    {
+        var removed = ExcludedOccurrences.RemoveAll(e => e == occurrenceStart);
+        removed += OccurrenceOverrides.RemoveAll(o => o.OriginalStart == occurrenceStart);
+        return removed > 0;
+    }
 
     /// <summary>归一化后的提醒档位（降序：提前多的在前），已去重并过滤非法值。</summary>
     public List<int> NormalizedOffsets()
@@ -283,6 +367,8 @@ public sealed class ScheduleItem
         copy.ReminderVoiceTexts = new Dictionary<int, string>(ReminderVoiceTexts);
         copy.ReminderSoundFiles = new Dictionary<int, string>(ReminderSoundFiles);
         copy.FiredReminders = FiredReminders.Select(r => r.Clone()).ToList();
+        copy.ExcludedOccurrences = new List<DateTime>(ExcludedOccurrences);
+        copy.OccurrenceOverrides = OccurrenceOverrides.Select(o => o.Clone()).ToList();
         return copy;
     }
 }

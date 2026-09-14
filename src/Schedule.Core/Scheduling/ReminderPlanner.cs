@@ -33,16 +33,16 @@ public static class ReminderPlanner
                 if (item.Start > windowEnd) windowEnd = item.Start;
             }
 
-            foreach (var occurrence in OccurrenceCalculator.Expand(item, windowStart, windowEnd))
+            foreach (var occurrence in OccurrenceCalculator.ExpandWithOverrides(item, windowStart, windowEnd))
             {
                 foreach (var plan in occurrence.Reminders)
                 {
                     if (plan.FireAt <= fromExclusive || plan.FireAt > toInclusive) continue;
-                    if (AlreadyFired(item, occurrence.Start, plan)) continue;
+                    if (AlreadyFired(occurrence.Series, occurrence.Start, plan)) continue;
 
                     result.Add(new DueReminder
                     {
-                        Item = item,
+                        Item = occurrence.Item,
                         Occurrence = occurrence,
                         Plan = plan,
                     });
@@ -76,17 +76,17 @@ public static class ReminderPlanner
                 if (item.Start > until) until = item.Start;
             }
 
-            foreach (var occurrence in OccurrenceCalculator.Expand(item, from, until))
+            foreach (var occurrence in OccurrenceCalculator.ExpandWithOverrides(item, from, until))
             {
                 foreach (var plan in occurrence.Reminders)
                 {
                     if (plan.FireAt <= now) continue;
-                    if (AlreadyFired(item, occurrence.Start, plan)) continue;
+                    if (AlreadyFired(occurrence.Series, occurrence.Start, plan)) continue;
                     if (best != null && plan.FireAt >= best.FireAt) continue;
 
                     best = new DueReminder
                     {
-                        Item = item,
+                        Item = occurrence.Item,
                         Occurrence = occurrence,
                         Plan = plan,
                     };
@@ -118,14 +118,14 @@ public static class ReminderPlanner
 
             if (item.RemindAtOverride.HasValue && item.Start > until) until = item.Start;
 
-            foreach (var occurrence in OccurrenceCalculator.Expand(item, from, until))
+            foreach (var occurrence in OccurrenceCalculator.ExpandWithOverrides(item, from, until))
             {
                 foreach (var plan in occurrence.Reminders)
                 {
                     if (plan.FireAt <= now) continue;
-                    if (AlreadyFired(item, occurrence.Start, plan)) continue;
+                    if (AlreadyFired(occurrence.Series, occurrence.Start, plan)) continue;
 
-                    candidates.Add(new DueReminder { Item = item, Occurrence = occurrence, Plan = plan });
+                    candidates.Add(new DueReminder { Item = occurrence.Item, Occurrence = occurrence, Plan = plan });
                 }
             }
         }
@@ -136,9 +136,9 @@ public static class ReminderPlanner
             .ToList();
     }
 
-    /// <summary>标记某个档位已经提醒过。</summary>
+    /// <summary>标记某个档位已经提醒过（写入的是系列本体，改期后的本次同样按新时间记录）。</summary>
     public static void MarkFired(ScheduleItem item, DueReminder due, DateTime? firedAt = null)
-        => MarkFired(item, due.Occurrence.Start, due.Plan, firedAt);
+        => MarkFired(due.Occurrence.Series, due.Occurrence.Start, due.Plan, firedAt);
 
     public static void MarkFired(ScheduleItem item, DateTime occurrenceStart, ReminderPlan plan, DateTime? firedAt = null)
     {
