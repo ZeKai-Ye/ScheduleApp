@@ -26,6 +26,8 @@ public static class TestRunner
         Run("日历布局", CalendarLayoutTests.Run);
         Run("事件配色", ColorTests.Run);
         Run("CSV 新特性", CsvFeatureTests.Run);
+        Run("CSV 统一格式", CsvSchemaTests.Run);
+        Run("ICS 导入", IcsTests.Run);
         Run("档位文案", VoiceStageTests.Run);
         Run("本地接口", ApiTests.Run);
         Run("弹窗定位与系统", PositionAndSystemTests.Run);
