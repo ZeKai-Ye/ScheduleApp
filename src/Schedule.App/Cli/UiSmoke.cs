@@ -167,6 +167,14 @@ public static class UiSmoke
             AppLog.Warn("行为自检失败：" + problem);
         }
 
+        // ---------- AI 自检：对话服务的会话复用与重建（不发任何网络请求） ----------
+        foreach (var problem in AiServiceChecks(host))
+        {
+            failures++;
+            report.AppendLine("FAIL  AI  " + problem);
+            AppLog.Warn("AI 自检失败：" + problem);
+        }
+
         // ---------- 重启自检：主题改完要能一键重启，且新进程必须用同一份数据 ----------
         foreach (var problem in RestartChecks(host, report))
         {
@@ -269,6 +277,51 @@ public static class UiSmoke
         }
 
         return failures == 0 ? 0 : 1;
+    }
+
+    /// <summary>
+    /// AI 自检：只验证「会话按设置复用 / 重建」这条窗口用到的链路，不连接模型服务。
+    /// </summary>
+    private static List<string> AiServiceChecks(AppHost host)
+    {
+        var problems = new List<string>();
+        var chat = host.Chat;
+
+        if (chat == null)
+        {
+            problems.Add("AI 对话服务没有初始化");
+            return problems;
+        }
+
+        if (!string.Equals(chat.Endpoint, Schedule.Core.Ai.OpenAiCompatibleClient.Normalize(host.Settings.AiBaseUrl), StringComparison.OrdinalIgnoreCase))
+        {
+            problems.Add("AI 服务地址与设置不一致：" + chat.Endpoint);
+        }
+
+        var session = chat.Session;
+        if (!ReferenceEquals(session, chat.Session)) problems.Add("相同设置下应复用同一个会话（否则历史会丢）");
+
+        var options = Schedule.Core.Ai.AiClientFactory.CreateOptions(host.Settings);
+        if (options.Model != host.Settings.AiModel) problems.Add("会话选项里的模型与设置不一致");
+        if (options.MaxHistoryMessages != host.Settings.AiMaxHistoryMessages) problems.Add("会话选项里的上下文条数与设置不一致");
+        if (options.DisableThinking != host.Settings.AiDisableThinking) problems.Add("会话选项里的思考开关与设置不一致");
+
+        var original = host.Settings.AiModel;
+
+        try
+        {
+            host.Settings.AiModel = original + "-selftest";
+
+            if (ReferenceEquals(session, chat.Session)) problems.Add("改了模型之后应重建会话（否则还在用旧模型）");
+            if (chat.Session.History.Count != session.History.Count) problems.Add("重建会话时历史应当保留");
+        }
+        finally
+        {
+            host.Settings.AiModel = original;
+            chat.Clear();
+        }
+
+        return problems;
     }
 
     /// <summary>
