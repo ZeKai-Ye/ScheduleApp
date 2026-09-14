@@ -54,6 +54,7 @@ if ($LASTEXITCODE -ne 0) { throw "自测失败" }
 | 查看运行时日志 | 数据目录下 `logs\app-yyyyMMdd.log` |
 | 缩短提醒轮询间隔 | `ReminderHost.IntervalSeconds` 设为 5 秒 |
 | 诊断 WPF 绑定错误 | 设环境变量 `SCHEDULEAPP_BINDING_TRACE=1`（或 `all`）后启动，日志目录生成 `binding-*.log` |
+| bin 被正在运行的实例占用 | 用 `dotnet build ScheduleApp.sln -c Release -m:1 -p:BaseOutputPath=<其它目录>` 把产物挪走，不用结束用户进程 |
 | 并行运行多个实例 | 用不同的 `--data` 目录（单实例互斥体按数据目录隔离） |
 | 调试本地接口 | `ScheduleApp.exe --serve --port 43121 --data D:\tmp\api`，令牌在 `<数据目录>\api.json` |
 | 查看接口自描述 | `curl -H "X-Api-Token: …" http://127.0.0.1:43121/api/schema` |
@@ -62,8 +63,10 @@ if ($LASTEXITCODE -ne 0) { throw "自测失败" }
 | 测试开机启动 | `ScheduleApp.exe --startup on`，再用 `--info` 看落地方式（注册表 / 启动文件夹） |
 | 验证弹窗位置 | 设置页「试一次位置」，或 `curl -X POST .../api/reminders/test` |
 | 用夜间主题跑一遍 | `ScheduleApp.exe --theme dark`（临时覆盖，不写回设置） |
-| 给界面截图核对 | `ScheduleApp.exe --ui-smoke --theme dark` → 数据目录 `logs\ui-*.png` |
-| 主题调色板 | `src/Schedule.App/Themes/Palette.Light.xaml` / `Palette.Dark.xaml`（键名必须一一对应） |
+| 给界面截图核对 | `ScheduleApp.exe --ui-smoke --theme dark` → 数据目录 `logs\ui-*.png`（含列表 / 周 / 月 / 设置 / 编辑 / 提醒 / 改期共 7 张） |
+| 只改配色 | `src/Schedule.App/Themes/Palette.Light.xaml` / `Palette.Dark.xaml`：**两份键集合必须完全一致**，外观改动优先在这里做 |
+| 改控件外观 | `src/Schedule.App/Themes/Theme.xaml`：一律用自绘 `ControlTemplate` + `DynamicResource`，别用系统默认模板（夜间会露白底） |
+| 布局回归 | `--ui-smoke` 会断言：列表列宽合计 ≤ 可视宽度且横向滚动可用、编辑窗口自定义颜色框不越界、设置页最右列不越界、写进设置的自定义弹窗坐标必须真的生效 |
 
 ## 代码约定
 - `Nullable` 与 `ImplicitUsings` 全开，构建保持 **0 警告**

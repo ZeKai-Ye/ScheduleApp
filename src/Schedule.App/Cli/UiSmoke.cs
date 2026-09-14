@@ -1,9 +1,12 @@
 using System.Text;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
 using Schedule.App.Views;
 using Schedule.Core.Logging;
 using Schedule.Core.Models;
 using Schedule.Core.Scheduling;
+using Schedule.Core.Services;
 using Schedule.Core.Storage;
 
 namespace Schedule.App;
@@ -139,6 +142,22 @@ public static class UiSmoke
             report.AppendLine("FAIL  准备 CSV 样例  " + ex.Message);
         }
 
+        // ---------- 布局自检：默认窗口尺寸下不能被横向裁掉，且要能左右拖动 ----------
+        foreach (var problem in LayoutChecks(host, due))
+        {
+            failures++;
+            report.AppendLine("FAIL  布局  " + problem);
+            AppLog.Warn("布局自检失败：" + problem);
+        }
+
+        // ---------- 行为自检：只在 App 层才有的回归（非重复日程被写上「仅本次」例外） ----------
+        foreach (var problem in BehaviorChecks(host))
+        {
+            failures++;
+            report.AppendLine("FAIL  行为  " + problem);
+            AppLog.Warn("行为自检失败：" + problem);
+        }
+
         // 主题自检：把关键画刷的解析结果与实际窗口背景都打出来（截图之外再用数据兜底）
         void DumpTheme(string tag)
         {
@@ -168,7 +187,22 @@ public static class UiSmoke
         DumpTheme("窗口创建后");
 
         // 关键窗口截图（主题 / 布局人工核对用）
+        // 周 / 月视图：走真正的切换路径（点顶部按钮），便于核对日历配色与网格线
+        void ShotView(string name, string buttonName)
+        {
+            var window = new MainWindow(host);
+
+            if (window.FindName(buttonName) is System.Windows.Controls.Primitives.ButtonBase button)
+            {
+                button.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            }
+
+            Shot(name, window);
+        }
+
         Shot("01-main", new MainWindow(host));
+        ShotView("06-week", "WeekModeButton");
+        ShotView("07-month", "MonthModeButton");
         Shot("02-settings", new SettingsWindow(host));
         Shot("03-editor", new ItemEditorWindow(host, sample, isNew: false));
         Shot("04-reminder", new ReminderWindow(host, due));
@@ -199,5 +233,254 @@ public static class UiSmoke
         }
 
         return failures == 0 ? 0 : 1;
+    }
+
+    /// <summary>
+    /// 行为自检：直接调用界面层的操作方法。
+    /// 「非重复长日程被写上『仅本次』例外后再也保存不了」这个 bug 只存在于 App 层
+    /// （Core 只提供模型与校验），所以必须在这里用真实路径兜住。
+    /// 会临时往仓库里加两条自检日程，结束前删除并强制落盘，不留残留。
+    /// </summary>
+    private static List<string> BehaviorChecks(AppHost host)
+    {
+        var problems = new List<string>();
+        var added = new List<Guid>();
+
+        try
+        {
+            var viewModel = new MainWindow(host).ViewModel;
+
+            // 1) 非重复的长日程：周视图拖动 / 改期对话框的「仅这一次」都不能写例外
+            var longEvent = new ScheduleItem
+            {
+                Title = "自检：8 小时长日程",
+                Start = DateTime.Today.AddHours(9),
+                End = DateTime.Today.AddHours(17),
+                ReminderOffsets = new List<int> { 30 },
+            };
+
+            var longStart = longEvent.Start;
+            var longEnd = longEvent.End!.Value;
+            host.Repository.Add(longEvent);
+            added.Add(longEvent.Id);
+
+            viewModel.Reschedule(longEvent, longStart, longStart.AddMinutes(30), longEnd.AddMinutes(30), wholeSeries: false);
+
+            var stored = host.Repository.Find(longEvent.Id);
+            if (stored == null)
+            {
+                problems.Add("找不到刚加入的自检日程");
+            }
+            else
+            {
+                if (stored.HasOccurrenceEdits) problems.Add("非重复日程被写上了「仅本次」例外");
+                if (stored.Start != longStart.AddMinutes(30))
+                {
+                    problems.Add("非重复日程整体改期未生效：" + stored.Start.ToString("MM-dd HH:mm"));
+                }
+
+                if (stored.End != longEnd.AddMinutes(30))
+                {
+                    problems.Add("非重复日程的结束时间没有跟着平移：" + (stored.End?.ToString("MM-dd HH:mm") ?? "(空)"));
+                }
+
+                var errors = ScheduleItemValidator.Validate(stored);
+                if (errors.Count > 0) problems.Add("改期后校验不通过：" + string.Join("；", errors));
+            }
+
+            // 2) 重复日程的「仅这一次」改期仍然要写例外、且不能动整个系列
+            var series = new ScheduleItem
+            {
+                Title = "自检：每周例会",
+                Start = DateTime.Today.AddHours(10),
+                End = DateTime.Today.AddHours(11),
+                Repeat = RepeatKind.Weekly,
+                RepeatWeekdays = new List<DayOfWeek> { DateTime.Today.DayOfWeek },
+                ReminderOffsets = new List<int> { 10 },
+            };
+
+            var seriesStart = series.Start;
+            host.Repository.Add(series);
+            added.Add(series.Id);
+
+            viewModel.Reschedule(series, seriesStart, seriesStart.AddHours(2), seriesStart.AddHours(3), wholeSeries: false);
+
+            var storedSeries = host.Repository.Find(series.Id);
+            if (storedSeries == null)
+            {
+                problems.Add("找不到刚加入的自检系列");
+            }
+            else
+            {
+                if (!storedSeries.HasOccurrenceEdits) problems.Add("重复日程的「仅这一次」改期没有写例外");
+                if (storedSeries.Start != seriesStart) problems.Add("重复日程被整体挪走了（应只改这一次）");
+
+                var occurrences = OccurrenceCalculator.ExpandWithOverrides(
+                    storedSeries, DateTime.Today, DateTime.Today.AddDays(1));
+                var moved = occurrences.Any(o => Math.Abs((o.Start - seriesStart.AddHours(2)).TotalMinutes) < 1);
+                if (!moved) problems.Add("「仅这一次」改期后展开结果里找不到新时间");
+            }
+        }
+        catch (Exception ex)
+        {
+            problems.Add("行为自检异常：" + ex.GetType().Name + " " + ex.Message);
+        }
+        finally
+        {
+            try
+            {
+                foreach (var id in added) host.Repository.Remove(id);
+
+                // 自检数据不能留在用户的数据目录里
+                host.Repository.Save(force: true);
+            }
+            catch (Exception ex)
+            {
+                problems.Add("清理自检数据失败：" + ex.Message);
+            }
+        }
+
+        return problems;
+    }
+
+    /// <summary>
+    /// 主窗口列表的列宽 / 滚动能力自检。
+    /// 用户反馈过「部分窗口横向显示不完全又无法左右拖动」：列宽合计一旦超过可视宽度，
+    /// 最右两列（优先级 / 操作）就会被直接裁掉，而横向滚动又是 Disabled。
+    /// </summary>
+    private static List<string> LayoutChecks(AppHost host, DueReminder due)
+    {
+        var problems = new List<string>();
+
+        var sample = new ScheduleItem
+        {
+            Title = "布局自检日程",
+            Start = DateTime.Now.AddHours(1),
+            End = DateTime.Now.AddHours(2),
+            ReminderOffsets = new List<int> { 30 },
+        };
+
+        void Probe<T>(Func<T> factory, Action<T> check) where T : Window
+        {
+            var window = factory();
+            try
+            {
+                window.Show();
+                window.UpdateLayout();
+                check(window);
+            }
+            catch (Exception ex)
+            {
+                problems.Add(window.GetType().Name + " 自检异常：" + ex.GetType().Name + " " + ex.Message);
+            }
+            finally
+            {
+                window.Hide();
+            }
+        }
+
+        static double RightEdge(Window window, FrameworkElement element)
+            => element.TransformToAncestor(window).Transform(new Point(element.ActualWidth, 0)).X;
+
+        Probe(() => new MainWindow(host), window =>
+        {
+            if (window.FindName("ScheduleList") is not ListView list)
+            {
+                problems.Add("主窗口找不到 ScheduleList");
+                return;
+            }
+
+            var total = (list.View as GridView)?.Columns.Sum(c => c.ActualWidth) ?? 0;
+            if (total > list.ActualWidth + 1)
+            {
+                problems.Add("列表列宽合计 " + total.ToString("0") + " 超过可视宽度 "
+                    + list.ActualWidth.ToString("0") + "，最右列会被裁掉");
+            }
+
+            if (ScrollViewer.GetHorizontalScrollBarVisibility(list) == ScrollBarVisibility.Disabled)
+            {
+                problems.Add("列表未开启横向滚动：窗口变窄后无法左右拖动");
+            }
+        });
+
+        Probe(() => new ItemEditorWindow(host, sample, isNew: false), window =>
+        {
+            if (window.FindName("EditorScroll") is ScrollViewer scroll
+                && ScrollViewer.GetHorizontalScrollBarVisibility(scroll) == ScrollBarVisibility.Disabled)
+            {
+                problems.Add("日程编辑窗口未开启横向滚动");
+            }
+
+            if (window.FindName("CustomColorBox") is not TextBox box)
+            {
+                problems.Add("日程编辑窗口找不到 CustomColorBox");
+                return;
+            }
+
+            if (box.ActualWidth < 60)
+            {
+                problems.Add("自定义颜色输入框被压扁（宽 " + box.ActualWidth.ToString("0") + "）");
+            }
+            else if (RightEdge(window, box) > window.ActualWidth + 1)
+            {
+                problems.Add("自定义颜色输入框右边缘 " + RightEdge(window, box).ToString("0")
+                    + " 超出窗口宽度 " + window.ActualWidth.ToString("0"));
+            }
+        });
+
+        Probe(() => new SettingsWindow(host), window =>
+        {
+            if (window.FindName("Tabs") is not TabControl tabs)
+            {
+                problems.Add("设置窗口找不到 Tabs");
+                return;
+            }
+
+            tabs.SelectedIndex = 2; // 外观与默认值：最后一列是最容易被裁掉的位置
+            window.UpdateLayout();
+
+            if (window.FindName("DefaultOffsetsBox") is not TextBox box)
+            {
+                problems.Add("设置窗口找不到 DefaultOffsetsBox");
+                return;
+            }
+
+            if (box.ActualWidth < 60)
+            {
+                problems.Add("默认提醒档位输入框被压扁（宽 " + box.ActualWidth.ToString("0") + "）");
+            }
+            else if (RightEdge(window, box) > window.ActualWidth + 1)
+            {
+                problems.Add("设置窗口最右列超出窗口宽度：" + RightEdge(window, box).ToString("0")
+                    + " > " + window.ActualWidth.ToString("0"));
+            }
+        });
+
+        // 「拖动弹窗记住坐标」端到端：写进设置的自定义坐标必须真的生效
+        var saved = (host.Settings.ReminderPosition, host.Settings.ReminderPositionX, host.Settings.ReminderPositionY);
+
+        try
+        {
+            host.Settings.ReminderPosition = ReminderPositionMode.Custom;
+            host.Settings.ReminderPositionX = 240;
+            host.Settings.ReminderPositionY = 180;
+
+            Probe(() => new ReminderWindow(host, due), window =>
+            {
+                if (Math.Abs(window.Left - 240) > 2 || Math.Abs(window.Top - 180) > 2)
+                {
+                    problems.Add("自定义弹窗位置未生效：期望 (240, 180)，实际 ("
+                        + window.Left.ToString("0") + ", " + window.Top.ToString("0") + ")");
+                }
+            });
+        }
+        finally
+        {
+            host.Settings.ReminderPosition = saved.ReminderPosition;
+            host.Settings.ReminderPositionX = saved.ReminderPositionX;
+            host.Settings.ReminderPositionY = saved.ReminderPositionY;
+        }
+
+        return problems;
     }
 }

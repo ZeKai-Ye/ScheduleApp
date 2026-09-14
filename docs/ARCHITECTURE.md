@@ -159,8 +159,14 @@ Main
   `ReminderPositioner` 统一在设备像素下计算，再按 `VisualTreeHelper.GetDpi` 的缩放比例换算回去——
   否则 125% / 150% 缩放下弹窗会明显偏移
 - 默认跟随鼠标所在显示器（`ReminderFollowCursorScreen`），可切换为固定主屏
+- **X / Y 一律以设备无关单位（DIP）保存**（与窗口 `Left/Top` 同单位），`ReminderPositionMath.DipsToPixels`
+  在定位时换算；两侧单位不一致正是"拖动后位置记不住"的根因
+- 自定义坐标以**整个虚拟桌面**（`SystemInformation.VirtualScreen`）为界，而不是单块屏幕的工作区，
+  否则把弹窗拖到第二块屏幕后会被夹回主屏
 - 拖动弹窗后由 `AppHost.RememberReminderPosition` 写回 `Custom` 坐标（`ReminderRememberPosition` 可关闭）；
-  位置预览走 `ReminderHost.ShowPositionPreview`，只弹窗不发声
+  `ReminderWindow` 在 `ContentRendered` 之后才开始监听 `LocationChanged`，并把与定位结果相差 < 1.5 单位的变化
+  视为非拖动，否则 WPF 首次显示的延迟定位会被误判成用户拖动；保存前延迟 600ms（拖动过程不再连续落盘）
+- 位置预览走 `ReminderHost.ShowPositionPreview`，只弹窗不发声
 
 ### 14. 系列事件的「仅本次」例外
 - 数据模型（RFC 5545 RECURRENCE-ID 思路）：
@@ -176,12 +182,19 @@ Main
 - 改期整个系列时用 `ScheduleItem.Shift`：开始 / 结束 / 重复截止 / 绝对提醒一起平移，
   已记录的例外键也按同一偏移量搬走，避免例外全部失配
 - 界面侧：编辑窗口的「修改范围」把同一个表单复用为「仅本次」与「整个系列」两条路径；
-  周视图拖动改期走纯像素换算（`deltaY ÷ 每小时高度 × 60` 后按 15 分钟吸附），Shift 表示整个系列
+  周视图拖动改期走纯像素换算（`deltaY ÷ 每小时高度 × 60` 后按 15 分钟吸附，阈值 8 像素避免误触），
+  Shift 表示整个系列
+- **不变量：非重复日程不得携带例外**。`Repeat == None` 时 `occurrenceOverrides` 没有任何意义，
+  却会让 `ScheduleItemValidator.Validate` 直接拒绝保存（"非重复日程不应带有「仅本次」例外"）。
+  这条不变量由三处共同保证：`MainViewModel.Reschedule` / `ApplyOccurrenceEdit` 对非重复日程一律走整体分支、
+  `ScheduleItemValidator.DropOccurrenceEditsWhenNotRepeating` 在编辑窗口保存前与仓库 `Load`（经 `Normalize`）
+  时自愈、界面层（周视图拖动、改期对话框）在 `!IsSeries` 时不传「仅这一次」
 
 ### 15. 主题机制（浅色 / 夜间）
-- 调色板独立成字典：`Themes/Palette.Light.xaml` 与 `Themes/Palette.Dark.xaml`，键名完全一致；
-  `Themes/Theme.xaml` 通过 `MergedDictionaries` 引入其中一个，所有样式都用 **DynamicResource** 引用画刷
-  （共 128 处），切换时只替换那一个字典，界面即时更新、无需重建窗口
+- 调色板独立成字典：`Themes/Palette.Light.xaml` 与 `Themes/Palette.Dark.xaml`，**37 个键一一对应**
+  （背景 / 卡片 / 输入框 / 边框 / 滚动条 / 菜单 / 提示气泡 / 滑块 / 分隔线 / 语义色）；
+  `Themes/Theme.xaml` 通过 `MergedDictionaries` 引入其中一个，所有样式都用 **DynamicResource** 引用画刷，
+  切换时只替换那一个字典，界面即时更新、无需重建窗口
 - `Services/ThemeService.Apply` 定位 `Theme.xaml.MergedDictionaries[0]` 并整块替换；
   `AppTheme.System` 读注册表 `AppsUseLightTheme`。设置页改选即预览，取消时回滚
 - 代码侧（视图模型算出来的画刷）用 `Mvvm/ThemeBrushes` 从应用资源取当前色，
@@ -189,7 +202,15 @@ Main
 - **踩过的坑**：WPF 隐式样式按**精确类型**匹配，`Style TargetType="Window"` 不会作用于 `MainWindow`
   这类派生窗口。此前窗口背景 / 字体 / TextFormattingMode 因此一直没生效（浅色下看不出来，夜间就暴露了）。
   现在样式带 `x:Key="AppWindow"`，6 个窗口显式引用
-- 少数系统弹层（日历弹出、滚动条、右键菜单、消息框）沿用系统主题，未做自绘
+- 自绘范围：输入框 / 下拉框（含弹出层）/ 复选框 / 单选按钮 / 日期选择 / 选项卡 / 滚动条 / 右键菜单 /
+  菜单分隔线 / 提示气泡 / 滑块 / 卡片 / 列表头 / 树状分组。**输入框刻意比卡片更暗**，
+  形成"凹陷"层次，否则夜间模式下满屏白框
+- 仍然跟随系统主题的只有：`DatePicker` / `ComboBox` 的日历与弹出层里的系统部件、系统消息框
+  （`MessageBox` 由 Win32 绘制，WPF 无法覆盖）
+- **踩过的坑**：给 `ScrollViewer` 打开 `HorizontalScrollBarVisibility="Auto"` 后内容会按无限宽度测量，
+  栅格里的 `*` 列在测量期退化成内容宽度。WPF 在 Arrange 阶段会按最终宽度重新分配星号列，
+  因此仍能撑满，但改动这类布局后**必须看截图确认**（`--ui-smoke` 已覆盖主窗口 / 编辑窗口 / 设置页的
+  横向布局断言）
 
 ## 扩展点
 
@@ -199,4 +220,6 @@ Main
 | 换存储（SQLite / 云同步） | `ScheduleRepository` 内部替换 `JsonStore`，对外接口不变 |
 | 新增导入格式（Excel / iCal） | 复用 `CsvImportService` 的「行 → ScheduleItem」流程，实现对应的 Reader |
 | 新增重复规则（如「每月第几个周一」） | 扩展 `RepeatKind` 与 `OccurrenceCalculator.OccurrenceAt` |
-| 深色主题 | `Theme.xaml` 的 Brush 资源是单一入口，加一套配色 + 运行时切换字典 |
+| 再加一套配色（如高对比度） | 复制 `Palette.Light.xaml` 改色 → 在 `ThemeService` 里登记 → `AppTheme` 加枚举值；
+  键集合必须与另外两份完全一致（`--ui-smoke` 会打印关键色，便于核对） |
+| 新的可换肤控件 | 在 `Theme.xaml` 里用自绘 `ControlTemplate` + `DynamicResource` 画刷，避免系统模板在夜间露白 |

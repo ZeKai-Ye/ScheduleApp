@@ -245,6 +245,8 @@ curl -s -X PATCH -H "$H" -H "Content-Type: application/json" "$BASE/api/settings
 宿主无法完成时返回 **501** 并附原因（例如被安全软件拦截）。
 `reminderPosition` 可取 `BottomRight` `BottomLeft` `TopRight` `TopLeft` `Center` `Custom`；
 前五种下 X / Y 是相对该基准的偏移，`Custom` 下是弹窗左上角的屏幕坐标（越界自动贴回可见区域）。
+**X / Y 的单位是设备无关单位（DIP，与窗口 Left / Top 一致）**，程序内部再按屏幕缩放换算成设备像素，
+因此 125% / 150% 缩放下填入的数值就是实际落点；`Custom` 坐标以整个虚拟桌面为界，多显示器下可跨屏。
 
 ## 8. 约定与错误
 
