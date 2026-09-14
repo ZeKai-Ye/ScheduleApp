@@ -1,11 +1,13 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using Microsoft.Win32;
 using Schedule.App.ViewModels;
 using Schedule.Core.Csv;
 using Schedule.Core.Logging;
 using Schedule.Core.Models;
+using Schedule.Core.Scheduling;
 using Schedule.Core.Storage;
 
 namespace Schedule.App.Views;
@@ -249,7 +251,196 @@ public partial class MainWindow : Window
 
     private void NewItem_Click(object sender, RoutedEventArgs e) => BeginCreateItem();
 
-    private void EditRow_Click(object sender, RoutedEventArgs e) => WithRow(sender, row => EditItem(row.Item));
+    private void EditRow_Click(object sender, RoutedEventArgs e)
+        => WithRow(sender, row => EditItem(row.Item, ToOccurrence(row)));
+
+    private void RescheduleRow_Click(object sender, RoutedEventArgs e)
+        => WithRow(sender, row => RescheduleItem(row.Item, row.SeriesStart, row.OccurrenceStart, row.OccurrenceEnd));
+
+    private void DeleteOccurrenceRow_Click(object sender, RoutedEventArgs e)
+        => WithRow(sender, row => RunScheduleAction("delete-once", row.Item, row.SeriesStart, row.OccurrenceStart, row.OccurrenceEnd));
+
+    private void RestoreOccurrenceRow_Click(object sender, RoutedEventArgs e)
+        => WithRow(sender, row => RunScheduleAction("restore", row.Item, row.SeriesStart, row.OccurrenceStart, row.OccurrenceEnd));
+
+    // ================= 系列事件的「仅本次」操作 =================
+
+    /// <summary>把列表行还原成一次发生（用于打开带范围的编辑窗口）。</summary>
+    private static ScheduleOccurrence? ToOccurrence(ScheduleRow row)
+        => row.IsSeries ? OccurrenceCalculator.Create(row.Item, row.SeriesStart) : null;
+
+    /// <summary>把日历元素（周块 / 月色条 / 列表行）的上下文还原成可操作目标。</summary>
+    private static (ScheduleItem Item, DateTime SeriesStart, DateTime Start, DateTime End)? ResolveTarget(object? context) => context switch
+    {
+        ScheduleRow row => (row.Item, row.SeriesStart, row.OccurrenceStart, row.OccurrenceEnd),
+        WeekBlockViewModel block => (block.Item, block.SeriesStart, block.Start, block.End),
+        MonthChipViewModel chip => (chip.Item, chip.SeriesStart, chip.Start, chip.Start.AddMinutes(30)),
+        _ => null,
+    };
+
+    /// <summary>右键菜单统一入口（Tag 决定动作）。</summary>
+    private void ScheduleContext_Action(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem { Tag: string action }) return;
+
+        var target = ResolveTarget((sender as FrameworkElement)?.DataContext);
+        if (target == null) return;
+
+        RunScheduleAction(action, target.Value.Item, target.Value.SeriesStart, target.Value.Start, target.Value.End);
+    }
+
+    private void RunScheduleAction(string action, ScheduleItem item, DateTime seriesStart, DateTime start, DateTime end)
+    {
+        var isSeries = item.Repeat != RepeatKind.None;
+
+        switch (action)
+        {
+            case "edit":
+                EditItem(item, isSeries ? OccurrenceCalculator.Create(item, seriesStart) : null);
+                break;
+
+            case "reschedule":
+                RescheduleItem(item, seriesStart, start, end);
+                break;
+
+            case "delete-once":
+                if (!isSeries)
+                {
+                    ConfirmDeleteSeries(item);
+                    break;
+                }
+
+                if (MessageBox.Show(this,
+                        "只删除 " + start.ToString("M月d日 HH:mm") + " 这一次？\n其它发生不受影响，之后仍可撤销。",
+                        "删除本次", MessageBoxButton.OKCancel, MessageBoxImage.Warning) == MessageBoxResult.OK)
+                {
+                    ViewModel.DeleteOccurrence(item, seriesStart);
+                }
+
+                break;
+
+            case "delete-series":
+                ConfirmDeleteSeries(item);
+                break;
+
+            case "restore":
+                if (!isSeries || !item.HasOccurrenceEdits)
+                {
+                    MessageBox.Show(this, "这一次没有单独的修改，无需恢复。", "恢复本次默认", MessageBoxButton.OK, MessageBoxImage.Information);
+                    break;
+                }
+
+                ViewModel.RestoreOccurrence(item, seriesStart);
+                break;
+
+            case "toggle":
+                ViewModel.ToggleDone(item);
+                break;
+        }
+    }
+
+    private void ConfirmDeleteSeries(ScheduleItem item)
+    {
+        var message = item.Repeat == RepeatKind.None
+            ? "确定删除「" + item.Title + "」吗？"
+            : "「" + item.Title + "」是重复日程，将删除整个系列。确定继续吗？";
+
+        if (MessageBox.Show(this, message, "删除日程", MessageBoxButton.OKCancel, MessageBoxImage.Warning) != MessageBoxResult.OK) return;
+
+        ViewModel.Delete(item);
+    }
+
+    /// <summary>改期对话框（仅这一次 / 整个系列）。</summary>
+    private void RescheduleItem(ScheduleItem item, DateTime seriesStart, DateTime start, DateTime end)
+    {
+        var isSeries = item.Repeat != RepeatKind.None;
+        var window = new RescheduleWindow(_host, item, start, end, isSeries) { Owner = this };
+        if (window.ShowDialog() != true) return;
+
+        ViewModel.Reschedule(item, seriesStart, window.NewStart, window.NewEnd, window.WholeSeries);
+    }
+
+    // ================= 周视图拖动改期 =================
+
+    private Point _dragOrigin;
+    private Border? _dragBlock;
+    private bool _dragging;
+
+    private void WeekBlock_DragStart(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not Border block) return;
+
+        _dragBlock = block;
+        _dragOrigin = e.GetPosition(this);
+        _dragging = false;
+
+        block.CaptureMouse();
+        e.Handled = true;
+    }
+
+    private void WeekBlock_DragMove(object sender, MouseEventArgs e)
+    {
+        if (_dragBlock == null || e.LeftButton != MouseButtonState.Pressed) return;
+
+        var delta = e.GetPosition(this).Y - _dragOrigin.Y;
+        if (!_dragging && Math.Abs(delta) < 5) return;
+
+        _dragging = true;
+
+        if (_dragBlock.RenderTransform is not TranslateTransform transform)
+        {
+            transform = new TranslateTransform();
+            _dragBlock.RenderTransform = transform;
+        }
+
+        transform.Y = delta;
+        e.Handled = true;
+    }
+
+    private void WeekBlock_DragEnd(object sender, MouseButtonEventArgs e)
+    {
+        if (_dragBlock == null) return;
+
+        var block = _dragBlock;
+        var delta = block.RenderTransform is TranslateTransform transform ? transform.Y : 0;
+
+        _dragBlock = null;
+        block.ReleaseMouseCapture();
+
+        if (block.RenderTransform is TranslateTransform reset) reset.Y = 0;
+
+        if (_dragging)
+        {
+            _dragging = false;
+            ApplyDragReschedule(block, delta);
+            e.Handled = true;
+            return;
+        }
+
+        // 没拖动就是普通点击：打开编辑窗口
+        if (block.DataContext is WeekBlockViewModel clicked)
+        {
+            EditItem(clicked.Item, clicked.IsSeries ? OccurrenceCalculator.Create(clicked.Item, clicked.SeriesStart) : null);
+        }
+
+        e.Handled = true;
+    }
+
+    /// <summary>把拖动距离换算成时间并改期（默认仅这一次；按住 Shift 表示整个系列）。</summary>
+    private void ApplyDragReschedule(Border block, double deltaY)
+    {
+        if (block.DataContext is not WeekBlockViewModel target) return;
+
+        var hourHeight = Math.Max(1, ViewModel.HourHeight);
+        var minutes = (int)Math.Round(deltaY / hourHeight * 60 / 15) * 15;
+        if (minutes == 0) return;
+
+        var duration = target.End - target.Start;
+        var newStart = target.Start.AddMinutes(minutes);
+        var wholeSeries = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) && target.IsSeries;
+
+        ViewModel.Reschedule(target.Item, target.SeriesStart, newStart, newStart + duration, wholeSeries);
+    }
 
     private void DeleteRow_Click(object sender, RoutedEventArgs e) => WithRow(sender, DeleteItem);
 
@@ -291,23 +482,61 @@ public partial class MainWindow : Window
         ViewModel.Refresh();
     }
 
-    private void EditItem(ScheduleItem source)
+    /// <summary>
+    /// 打开编辑窗口。occurrence 不为 null 时表示「从日历上点开的是系列中的某一次」，
+    /// 此时窗口内可选择「仅这一次 / 整个系列」。
+    /// </summary>
+    private void EditItem(ScheduleItem source, ScheduleOccurrence? occurrence = null)
     {
         var current = _host.Repository.Find(source.Id);
         if (current == null) return;
 
-        var editor = new ItemEditorWindow(_host, current, isNew: false) { Owner = this };
-        if (editor.ShowDialog() != true || editor.Result == null) return;
+        var editor = new ItemEditorWindow(_host, current, isNew: false, occurrence) { Owner = this };
+        if (editor.ShowDialog() != true) return;
 
+        var single = editor.Scope == ItemEditScope.SingleOccurrence && occurrence != null;
+
+        // 恢复本次默认（撤销这一次的例外）
+        if (editor.RestoreRequested)
+        {
+            if (occurrence == null)
+            {
+                MessageBox.Show(this, "这一次没有单独的修改，无需恢复。", "恢复本次默认", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            ViewModel.RestoreOccurrence(current, occurrence.SeriesStart);
+            return;
+        }
+
+        // 删除：按范围只删本次，或删除整个系列
         if (editor.DeleteRequested)
         {
-            _host.Repository.Remove(current.Id);
-        }
-        else
-        {
-            _host.Repository.Update(editor.Result);
+            if (single)
+            {
+                ViewModel.DeleteOccurrence(current, occurrence!.SeriesStart);
+            }
+            else if (MessageBox.Show(this,
+                         "确定删除「" + current.Title + "」" + (current.Repeat == RepeatKind.None ? "吗？" : " 整个系列吗？"),
+                         "删除日程", MessageBoxButton.OKCancel, MessageBoxImage.Warning) == MessageBoxResult.OK)
+            {
+                _host.Repository.Remove(current.Id);
+                _host.Repository.Save();
+                ViewModel.Refresh();
+            }
+
+            return;
         }
 
+        if (editor.Result == null) return;
+
+        if (single)
+        {
+            ViewModel.ApplyOccurrenceEdit(current, occurrence!.SeriesStart, editor.Result);
+            return;
+        }
+
+        _host.Repository.Update(editor.Result);
         _host.Repository.Save();
         ViewModel.Refresh();
     }

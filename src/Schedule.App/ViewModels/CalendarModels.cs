@@ -11,6 +11,18 @@ public sealed class MonthChipViewModel
 
     public required DateTime Start { get; init; }
 
+    /// <summary>该次发生在系列中的**原始**开始时间（改期后定位例外仍用它）。</summary>
+    public DateTime SeriesStart { get; init; }
+
+    /// <summary>是否属于重复系列（决定是否提供「仅本次」操作）。</summary>
+    public bool IsSeries { get; init; }
+
+    /// <summary>这一次是否已经有「仅本次」例外。</summary>
+    public bool HasOccurrenceEdit { get; init; }
+
+    /// <summary>这一次是否被改期过。</summary>
+    public bool IsRescheduled { get; init; }
+
     public required string TimeText { get; init; }
 
     public required string TitleText { get; init; }
@@ -94,6 +106,15 @@ public sealed class WeekBlockViewModel
     public required ScheduleItem Item { get; init; }
 
     public required DateTime Start { get; init; }
+
+    /// <summary>该次发生在系列中的**原始**开始时间（改期后定位例外仍用它）。</summary>
+    public DateTime SeriesStart { get; init; }
+
+    public bool IsSeries { get; init; }
+
+    public bool HasOccurrenceEdit { get; init; }
+
+    public bool IsRescheduled { get; init; }
 
     public required DateTime End { get; init; }
 

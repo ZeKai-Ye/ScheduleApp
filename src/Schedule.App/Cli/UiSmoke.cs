@@ -57,6 +57,12 @@ public static class UiSmoke
         Try("日程编辑窗口（新建）", () => new ItemEditorWindow(host, sample, isNew: true));
         Try("日程编辑窗口（编辑）", () => new ItemEditorWindow(host, sample, isNew: false));
 
+        var sampleOccurrence = OccurrenceCalculator.Create(sample, sample.Start);
+        Try("日程编辑窗口（仅本次范围）", () => new ItemEditorWindow(host, sample, isNew: false, sampleOccurrence));
+        var sampleEnd = sample.End ?? sample.Start.AddHours(1);
+        Try("改期窗口（系列）", () => new RescheduleWindow(host, sample, sample.Start, sampleEnd, true));
+        Try("改期窗口（单次）", () => new RescheduleWindow(host, sample, sample.Start, sampleEnd, false));
+
         var occurrence = OccurrenceCalculator.Create(sample, sample.Start);
         var due = new DueReminder
         {

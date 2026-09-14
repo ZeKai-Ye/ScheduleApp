@@ -13,6 +13,21 @@
 
         <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" Padding="20,18,20,12">
             <StackPanel>
+                <Border x:Name="ScopePanel" Visibility="Collapsed" Margin="0,0,0,14"
+                        Background="#FFEFF6FF" BorderBrush="#FFBFDBFE" BorderThickness="1" CornerRadius="8" Padding="12,10">
+                    <StackPanel>
+                        <TextBlock Text="这是系列事件中的一次发生，请选择修改范围" FontSize="12" FontWeight="SemiBold" />
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <RadioButton x:Name="ScopeSingleRadio" GroupName="EditScope" Content="仅这一次（不影响其它）"
+                                         IsChecked="True" Click="Scope_Changed" />
+                            <RadioButton x:Name="ScopeSeriesRadio" GroupName="EditScope" Content="整个系列"
+                                         Margin="18,0,0,0" Click="Scope_Changed" />
+                        </StackPanel>
+                        <TextBlock x:Name="ScopeHintText" Style="{StaticResource FieldHint}" Margin="0,6,0,0" />
+                        <TextBlock x:Name="OccurrenceStateText" Style="{StaticResource FieldHint}" Margin="0,4,0,0" />
+                    </StackPanel>
+                </Border>
+
                 <TextBlock Text="标题" Style="{StaticResource SectionTitle}" />
                 <TextBox x:Name="TitleBox" FontSize="14" Padding="8,8" />
 
@@ -256,6 +271,8 @@
                 Padding="20,12">
             <DockPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button x:Name="RestoreButton" Content="恢复本次默认" Style="{StaticResource GhostButton}"
+                            Click="Restore_Click" Margin="0,0,8,0" Visibility="Collapsed" />
                     <Button x:Name="DeleteButton" Content="删除" Style="{StaticResource DangerButton}" Click="Delete_Click" Margin="0,0,8,0" />
                     <Button Content="取消" Click="Cancel_Click" Margin="0,0,8,0" IsCancel="True" />
                     <Button Content="保存" Style="{StaticResource PrimaryButton}" Click="Save_Click" IsDefault="True" />

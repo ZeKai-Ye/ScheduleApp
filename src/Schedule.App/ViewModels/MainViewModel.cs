@@ -56,6 +56,18 @@ public sealed class ScheduleRow
 
     public required string ColorHex { get; init; }
 
+    /// <summary>该次发生在系列中的**原始**开始时间（改期后定位例外仍用它）。</summary>
+    public DateTime SeriesStart { get; init; }
+
+    /// <summary>是否属于重复系列。</summary>
+    public bool IsSeries => Item.Repeat != RepeatKind.None;
+
+    /// <summary>这一次是否已有「仅本次」例外。</summary>
+    public bool HasOccurrenceEdit { get; init; }
+
+    /// <summary>这一次是否被改期过。</summary>
+    public bool IsRescheduled { get; init; }
+
     public System.Windows.Media.Brush ColorBrush => BrushCache.Get(ColorHex);
 
     public string TitleText => Item.Title;
@@ -298,7 +310,7 @@ public sealed class MainViewModel : ObservableObject
             if (SelectedFilter.Value == TimeFilter.Completed)
             {
                 if (item.Status == ItemStatus.Pending) continue;
-                rows.Add(CreateRow(item, item.Start, item.EffectiveEnd, now));
+                rows.Add(CreateRow(OccurrenceCalculator.Create(item, item.Start), now));
                 continue;
             }
 
@@ -307,22 +319,25 @@ public sealed class MainViewModel : ObservableObject
             if (item.Status != ItemStatus.Pending)
             {
                 if (item.Start < from || item.Start > to) continue;
-                rows.Add(CreateRow(item, item.Start, item.EffectiveEnd, now));
+                rows.Add(CreateRow(OccurrenceCalculator.Create(item, item.Start), now));
                 continue;
             }
 
             if (item.Repeat == RepeatKind.None)
             {
                 if (item.Start < from || item.Start > to) continue;
-                rows.Add(CreateRow(item, item.Start, item.EffectiveEnd, now));
+                rows.Add(CreateRow(OccurrenceCalculator.Create(item, item.Start), now));
                 if (item.Start >= today && item.Start < today.AddDays(1)) todayCount++;
                 continue;
             }
 
             var windowFrom = from < today ? today : from;
-            foreach (var occurrence in OccurrenceCalculator.Expand(item, windowFrom, to))
+            foreach (var occurrence in OccurrenceCalculator.ExpandWithOverrides(item, windowFrom, to))
             {
-                rows.Add(CreateRow(item, occurrence.Start, occurrence.End, now));
+                // 改期到窗口外的那一次不该出现在这个筛选里
+                if (occurrence.Start < windowFrom || occurrence.Start > to) continue;
+
+                rows.Add(CreateRow(occurrence, now));
                 if (occurrence.Start >= today && occurrence.Start < today.AddDays(1)) todayCount++;
                 if (rows.Count >= RowLimit) break;
             }
@@ -417,6 +432,10 @@ public sealed class MainViewModel : ObservableObject
                 {
                     Item = block.Occurrence.Item,
                     Start = block.Occurrence.Start,
+                    SeriesStart = block.Occurrence.SeriesStart,
+                    IsSeries = block.Occurrence.Item.Repeat != RepeatKind.None,
+                    HasOccurrenceEdit = block.Occurrence.IsOverride,
+                    IsRescheduled = block.Occurrence.Override?.NewStart.HasValue ?? false,
                     End = block.Occurrence.End,
                     TitleText = block.Occurrence.Item.Title,
                     TimeText = BuildTimeText(block.Occurrence.Item, block.Occurrence.Start, block.Occurrence.End),
@@ -426,7 +445,9 @@ public sealed class MainViewModel : ObservableObject
                     Height = Math.Max(18, block.DurationMinutes / 60.0 * hourHeight),
                     Left = (block.Column * slice) + 2,
                     Width = Math.Max(16, slice - 5),
-                    ToolTipText = BuildToolTip(block.Occurrence),
+                    ToolTipText = BuildToolTip(block.Occurrence)
+                        + Environment.NewLine + Environment.NewLine
+                        + "提示：直接拖动可改期（默认只改这一次；按住 Shift 拖动 = 整个系列）",
                 });
 
                 total++;
@@ -558,13 +579,14 @@ public sealed class MainViewModel : ObservableObject
 
             if (item.Repeat == RepeatKind.None)
             {
-                if (item.Start >= from && item.Start < to) rows.Add(CreateRow(item, item.Start, item.EffectiveEnd, now));
+                if (item.Start >= from && item.Start < to) rows.Add(CreateRow(OccurrenceCalculator.Create(item, item.Start), now));
                 continue;
             }
 
-            foreach (var occurrence in OccurrenceCalculator.Expand(item, from, to))
+            foreach (var occurrence in OccurrenceCalculator.ExpandWithOverrides(item, from, to))
             {
-                rows.Add(CreateRow(item, occurrence.Start, occurrence.End, now));
+                if (occurrence.Start < from || occurrence.Start >= to) continue;
+                rows.Add(CreateRow(occurrence, now));
             }
         }
 
@@ -633,6 +655,10 @@ public sealed class MainViewModel : ObservableObject
         {
             Item = item,
             Start = start,
+            SeriesStart = occurrence.SeriesStart,
+            IsSeries = item.Repeat != RepeatKind.None,
+            HasOccurrenceEdit = occurrence.IsOverride,
+            IsRescheduled = occurrence.Override?.NewStart.HasValue ?? false,
             TimeText = item.AllDay ? "全天" : start.ToString("HH:mm"),
             TitleText = item.Title,
             ColorHex = color,
@@ -641,10 +667,18 @@ public sealed class MainViewModel : ObservableObject
         };
     }
 
-    private ScheduleRow CreateRow(ScheduleItem item, DateTime start, DateTime end, DateTime now)
+    /// <summary>按一次具体发生构造列表行（改期后的时间与内容都取自 occurrence.Item）。</summary>
+    private ScheduleRow CreateRow(ScheduleOccurrence occurrence, DateTime now)
     {
+        var item = occurrence.Item;
+        var start = occurrence.Start;
+        var end = occurrence.End;
+
         return new ScheduleRow
         {
+            SeriesStart = occurrence.SeriesStart,
+            HasOccurrenceEdit = occurrence.IsOverride,
+            IsRescheduled = occurrence.Override?.NewStart.HasValue ?? false,
             Item = item,
             OccurrenceStart = start,
             OccurrenceEnd = end,
@@ -681,9 +715,104 @@ public sealed class MainViewModel : ObservableObject
 
     // ================= 通用工具 =================
 
-    public void ToggleDone(ScheduleRow row)
+    /// <summary>只删除系列中的某一次发生。</summary>
+    public bool DeleteOccurrence(ScheduleItem series, DateTime occurrenceStart)
     {
-        var item = _host.Repository.Find(row.Item.Id);
+        var item = _host.Repository.Find(series.Id);
+        if (item == null) return false;
+
+        item.ExcludeOccurrence(occurrenceStart);
+        item.UpdatedAt = DateTime.Now;
+        _host.Repository.Update(item);
+        _host.Repository.Save();
+        Refresh();
+        return true;
+    }
+
+    /// <summary>只修改系列中的某一次发生（含改期）。</summary>
+    public bool ApplyOccurrenceEdit(ScheduleItem series, DateTime occurrenceStart, ScheduleItem edited)
+    {
+        var item = _host.Repository.Find(series.Id);
+        if (item == null) return false;
+
+        item.UpsertOverride(OccurrenceOverride.FromItem(occurrenceStart, edited, item));
+        item.UpdatedAt = DateTime.Now;
+        _host.Repository.Update(item);
+        _host.Repository.Save();
+        Refresh();
+        return true;
+    }
+
+    /// <summary>撤销某一次发生的「仅本次」例外。</summary>
+    public bool RestoreOccurrence(ScheduleItem series, DateTime occurrenceStart)
+    {
+        var item = _host.Repository.Find(series.Id);
+        if (item == null) return false;
+
+        if (!item.ClearOccurrenceEdit(occurrenceStart)) return false;
+
+        item.UpdatedAt = DateTime.Now;
+        _host.Repository.Update(item);
+        _host.Repository.Save();
+        Refresh();
+        return true;
+    }
+
+    /// <summary>改期：可以只改某一次，也可以整体平移整个系列。</summary>
+    public bool Reschedule(ScheduleItem series, DateTime occurrenceStart, DateTime newStart, DateTime? newEnd, bool wholeSeries)
+    {
+        var item = _host.Repository.Find(series.Id);
+        if (item == null) return false;
+
+        if (wholeSeries)
+        {
+            // 整体平移：按原开始时间算偏移量，例外键一起跟着走
+            item.Shift(newStart - item.Start);
+
+            if (newEnd.HasValue)
+            {
+                item.End = item.Start.Date == newEnd.Value.Date
+                    ? newEnd
+                    : item.Start + (newEnd.Value - newStart);
+            }
+        }
+        else
+        {
+            // 基于「当前有效值」构造覆盖，避免丢掉已有的其它覆盖字段
+            var effective = OccurrenceCalculator.Create(item, occurrenceStart).Item.Clone();
+            effective.Start = newStart;
+            effective.End = newEnd;
+
+            item.UpsertOverride(OccurrenceOverride.FromItem(occurrenceStart, effective, item));
+        }
+
+        item.UpdatedAt = DateTime.Now;
+        _host.Repository.Update(item);
+        _host.Repository.Save();
+        Refresh();
+        return true;
+    }
+
+    /// <summary>整体平移整个系列（保持天数差）。</summary>
+    public bool ShiftSeries(ScheduleItem series, TimeSpan delta)
+    {
+        var item = _host.Repository.Find(series.Id);
+        if (item == null) return false;
+
+        item.Shift(delta);
+        item.UpdatedAt = DateTime.Now;
+        _host.Repository.Update(item);
+        _host.Repository.Save();
+        Refresh();
+        return true;
+    }
+
+    public void ToggleDone(ScheduleRow row) => ToggleDone(row.Item);
+
+    /// <summary>切换整个系列的完成状态（日历上直接标记时用）。</summary>
+    public void ToggleDone(ScheduleItem series)
+    {
+        var item = _host.Repository.Find(series.Id);
         if (item == null) return;
 
         item.Status = item.Status == ItemStatus.Pending ? ItemStatus.Done : ItemStatus.Pending;
@@ -693,9 +822,12 @@ public sealed class MainViewModel : ObservableObject
         Refresh();
     }
 
-    public bool Delete(ScheduleRow row)
+    public bool Delete(ScheduleRow row) => Delete(row.Item);
+
+    /// <summary>删除整条日程（含整个系列）。</summary>
+    public bool Delete(ScheduleItem series)
     {
-        var removed = _host.Repository.Remove(row.Item.Id);
+        var removed = _host.Repository.Remove(series.Id);
         if (removed)
         {
             _host.Repository.Save();

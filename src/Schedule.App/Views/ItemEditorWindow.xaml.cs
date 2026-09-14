@@ -14,12 +14,21 @@ namespace Schedule.App.Views;
 /// 新建 / 编辑日程窗口。窗口本身不写仓储，结果通过 <see cref="Result"/> 返回调用方。
 /// 支持多档提醒、事件颜色与周期规则（间隔 / 多星期 / 次数）。
 /// </summary>
+/// <summary>修改范围：系列事件中的某一次，还是整个系列。</summary>
+public enum ItemEditScope
+{
+    SingleOccurrence = 0,
+    WholeSeries = 1,
+}
+
 public partial class ItemEditorWindow : Window
 {
     private static readonly int[] PresetOffsets = { 0, 5, 10, 15, 30, 60, 120, 1440, 2880 };
 
     private readonly AppHost _host;
     private readonly ScheduleItem _working;
+    private readonly OccurrenceOverride? _existingOverride;
+    private readonly DateTime? _seriesStart;
     private readonly List<OffsetChoice> _offsetChoices = new();
     private readonly List<OffsetVoiceRow> _offsetRows = new();
     private readonly List<ColorChoice> _colorChoices = new();
@@ -27,15 +36,37 @@ public partial class ItemEditorWindow : Window
     private bool _loading = true;
     private string _selectedColorHex = string.Empty;
 
-    public ItemEditorWindow(AppHost host, ScheduleItem item, bool isNew)
+    /// <param name="host">应用组合根。</param>
+    /// <param name="item">系列本体（新建时为空白日程）。</param>
+    /// <param name="isNew">是否新建。</param>
+    /// <param name="occurrence">从日历上点开的那一次发生；为 null 表示编辑整个系列。</param>
+    public ItemEditorWindow(AppHost host, ScheduleItem item, bool isNew, ScheduleOccurrence? occurrence = null)
     {
         _host = host;
-        _working = item.Clone();
+
+        var editingOccurrence = !isNew && occurrence != null && item.Repeat != RepeatKind.None;
+
+        // 编辑某一次时，界面上要显示这一天的「当前有效值」（改期后的时间、专属文案等）
+        _working = editingOccurrence ? occurrence!.Item.Clone() : item.Clone();
+        _seriesStart = editingOccurrence ? occurrence!.SeriesStart : null;
+        _existingOverride = editingOccurrence ? item.FindOverride(occurrence!.SeriesStart) : null;
 
         InitializeComponent();
 
-        Title = isNew ? "新建日程" : "编辑日程";
+        Title = isNew
+            ? "新建日程"
+            : editingOccurrence ? "编辑这一次（" + occurrence!.Start.ToString("M月d日 HH:mm") + "）" : "编辑日程";
         DeleteButton.Visibility = isNew ? Visibility.Collapsed : Visibility.Visible;
+        ScopePanel.Visibility = editingOccurrence ? Visibility.Visible : Visibility.Collapsed;
+
+        if (editingOccurrence)
+        {
+            UpdateScopeUi();
+            RestoreButton.Visibility = _existingOverride != null ? Visibility.Visible : Visibility.Collapsed;
+            OccurrenceStateText.Text = _existingOverride == null
+                ? "这一次目前没有任何单独修改。"
+                : "这一次已被单独修改：" + _existingOverride.Describe();
+        }
 
         var icon = AppIcons.LoadWindowIcon();
         if (icon != null) Icon = icon;
@@ -76,6 +107,53 @@ public partial class ItemEditorWindow : Window
 
     /// <summary>用户选择了删除。</summary>
     public bool DeleteRequested { get; private set; }
+
+    /// <summary>修改范围（仅对系列事件的某一次发生有意义）。</summary>
+    public ItemEditScope Scope { get; private set; } = ItemEditScope.WholeSeries;
+
+    /// <summary>用户选择了「恢复本次默认」（撤销这一次的例外）。</summary>
+    public bool RestoreRequested { get; private set; }
+
+    /// <summary>这一次发生在系列中的原始开始时间（仅编辑某一次时有值）。</summary>
+    public DateTime? SeriesStart => _seriesStart;
+
+    private void Scope_Changed(object sender, RoutedEventArgs e) => UpdateScopeUi();
+
+    /// <summary>范围变化时联动按钮文案与提示，并禁用「仅这一次」下无意义的重复规则。</summary>
+    private void UpdateScopeUi()
+    {
+        if (ScopePanel == null) return;
+
+        var single = ScopeSingleRadio.IsChecked == true;
+        Scope = single ? ItemEditScope.SingleOccurrence : ItemEditScope.WholeSeries;
+
+        if (DeleteButton != null)
+        {
+            DeleteButton.Content = single ? "删除本次" : "删除整个系列";
+        }
+
+        if (ScopeHintText != null)
+        {
+            ScopeHintText.Text = single
+                ? "只影响这一次：改时间即「改期」，改文案 / 档位 / 状态也只对这一条生效。"
+                : "影响整个系列（含以后的所有发生），已记录的「仅本次」修改会保留。";
+        }
+
+        // 重复规则属于系列级属性，「仅这一次」下不允许改
+        var enabled = !single;
+        if (RepeatBox != null) RepeatBox.IsEnabled = enabled;
+        if (IntervalBox != null) IntervalBox.IsEnabled = enabled;
+        if (CountBox != null) CountBox.IsEnabled = enabled;
+        if (RepeatUntilCheck != null) RepeatUntilCheck.IsEnabled = enabled;
+        if (RepeatUntilPicker != null) RepeatUntilPicker.IsEnabled = enabled && RepeatUntilCheck?.IsChecked == true;
+        if (WeekdayPanel != null) WeekdayPanel.IsEnabled = enabled;
+    }
+
+    private void Restore_Click(object sender, RoutedEventArgs e)
+    {
+        RestoreRequested = true;
+        DialogResult = true;
+    }
 
     // ================= 初始化 =================
 
@@ -648,7 +726,13 @@ public partial class ItemEditorWindow : Window
 
     private void Delete_Click(object sender, RoutedEventArgs e)
     {
-        var result = MessageBox.Show(this, "确定删除这条日程吗？", "删除", MessageBoxButton.OKCancel, MessageBoxImage.Warning);
+        var single = Scope == ItemEditScope.SingleOccurrence && _seriesStart.HasValue;
+
+        var message = single
+            ? "只删除这一次（" + _seriesStart!.Value.ToString("M月d日 HH:mm") + "）？其它发生不受影响。"
+            : "删除这条日程" + (_working.Repeat == RepeatKind.None ? "吗？" : " 的整个系列吗？");
+
+        var result = MessageBox.Show(this, message, "删除", MessageBoxButton.OKCancel, MessageBoxImage.Warning);
         if (result != MessageBoxResult.OK) return;
 
         DeleteRequested = true;

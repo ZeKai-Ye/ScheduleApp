@@ -5,6 +5,18 @@
         Height="820" Width="1280" MinHeight="600" MinWidth="1040"
         WindowStartupLocation="CenterScreen">
     <Window.Resources>
+        <ContextMenu x:Key="ScheduleItemMenu" x:Shared="False"
+                     DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+            <MenuItem Header="编辑…" Tag="edit" Click="ScheduleContext_Action" />
+            <MenuItem Header="改期…" Tag="reschedule" Click="ScheduleContext_Action" />
+            <Separator />
+            <MenuItem Header="删除本次（仅系列）" Tag="delete-once" Click="ScheduleContext_Action" />
+            <MenuItem Header="删除整个系列" Tag="delete-series" Click="ScheduleContext_Action" />
+            <MenuItem Header="恢复本次默认" Tag="restore" Click="ScheduleContext_Action" />
+            <Separator />
+            <MenuItem Header="标记完成 / 未完成" Tag="toggle" Click="ScheduleContext_Action" />
+        </ContextMenu>
+
         <CollectionViewSource x:Key="GroupedRows" Source="{Binding Rows}">
             <CollectionViewSource.GroupDescriptions>
                 <PropertyGroupDescription PropertyName="DayLabel" />
@@ -131,9 +143,13 @@
                                       PreviewMouseRightButtonDown="ScheduleList_PreviewMouseRightButtonDown">
                                 <ListView.ContextMenu>
                                     <ContextMenu DataContext="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource Self}}">
-                                        <MenuItem Header="编辑" Click="EditRow_Click" />
+                                        <MenuItem Header="编辑…" Click="EditRow_Click" />
+                                        <MenuItem Header="改期…" Click="RescheduleRow_Click" />
                                         <MenuItem Header="标记完成 / 未完成" Click="ToggleDone_Click" />
-                                        <MenuItem Header="删除" Click="DeleteRow_Click" />
+                                        <Separator />
+                                        <MenuItem Header="删除本次（仅系列）" Click="DeleteOccurrenceRow_Click" />
+                                        <MenuItem Header="删除整个系列" Click="DeleteRow_Click" />
+                                        <MenuItem Header="恢复本次默认" Click="RestoreOccurrenceRow_Click" />
                                     </ContextMenu>
                                 </ListView.ContextMenu>
                                 <ListView.GroupStyle>
@@ -296,6 +312,7 @@
                                                             <Border Background="{Binding SoftBrush}" BorderBrush="{Binding ColorBrush}"
                                                                     BorderThickness="3,0,0,0" CornerRadius="3" Padding="4,1" Margin="0,0,2,0"
                                                                     ToolTip="{Binding ToolTipText}"
+                                                                    ContextMenu="{StaticResource ScheduleItemMenu}"
                                                                     MouseLeftButtonDown="MonthChip_Click">
                                                                 <TextBlock Text="{Binding TitleText}" FontSize="10" TextTrimming="CharacterEllipsis" />
                                                             </Border>
@@ -364,6 +381,10 @@
                                                                 <ItemsControl.ItemTemplate>
                                                                     <DataTemplate>
                                                                         <Border Style="{StaticResource WeekBlock}" Height="{Binding Height}"
+                                                                                ContextMenu="{StaticResource ScheduleItemMenu}"
+                                                                                PreviewMouseLeftButtonDown="WeekBlock_DragStart"
+                                                                                PreviewMouseMove="WeekBlock_DragMove"
+                                                                                PreviewMouseLeftButtonUp="WeekBlock_DragEnd"
                                                                                 MouseLeftButtonDown="WeekBlock_Click">
                                                                             <StackPanel>
                                                                                 <TextBlock Text="{Binding TitleText}" FontSize="11" FontWeight="SemiBold"
@@ -453,6 +474,7 @@
                                                                 <Border Background="{Binding SoftBrush}" BorderBrush="{Binding ColorBrush}"
                                                                         BorderThickness="3,0,0,0" CornerRadius="3" Padding="3,1" Margin="0,1,1,0"
                                                                         ToolTip="{Binding ToolTipText}"
+                                                                        ContextMenu="{StaticResource ScheduleItemMenu}"
                                                                         MouseLeftButtonDown="MonthChip_Click">
                                                                     <TextBlock Text="{Binding TitleText}" FontSize="10"
                                                                                TextTrimming="CharacterEllipsis"
@@ -477,7 +499,8 @@
                                     <ItemsControl ItemsSource="{Binding SelectedDayRows}">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
-                                                <Border BorderBrush="{StaticResource Brush.Border}" BorderThickness="0,0,0,1" Padding="2,6">
+                                                <Border BorderBrush="{StaticResource Brush.Border}" BorderThickness="0,0,0,1" Padding="2,6"
+                                                        ContextMenu="{StaticResource ScheduleItemMenu}">
                                                     <DockPanel>
                                                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                                                             <Button Content="编辑" Style="{StaticResource IconButton}" Click="EditRow_Click" />
