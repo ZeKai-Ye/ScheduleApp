@@ -158,6 +158,14 @@ public static class UiSmoke
             AppLog.Warn("行为自检失败：" + problem);
         }
 
+        // ---------- 重启自检：主题改完要能一键重启，且新进程必须用同一份数据 ----------
+        foreach (var problem in RestartChecks(host, report))
+        {
+            failures++;
+            report.AppendLine("FAIL  重启  " + problem);
+            AppLog.Warn("重启自检失败：" + problem);
+        }
+
         // 主题自检：把关键画刷的解析结果与实际窗口背景都打出来（截图之外再用数据兜底）
         void DumpTheme(string tag)
         {
@@ -200,10 +208,19 @@ public static class UiSmoke
             Shot(name, window);
         }
 
+        // 外观页：新增的「切换主题后自动重启」与「立即重启软件」在这里
+        void ShotThemeSettings()
+        {
+            var window = new SettingsWindow(host);
+            if (window.FindName("Tabs") is TabControl tabs) tabs.SelectedIndex = 2;
+            Shot("08-settings-theme", window);
+        }
+
         Shot("01-main", new MainWindow(host));
         ShotView("06-week", "WeekModeButton");
         ShotView("07-month", "MonthModeButton");
         Shot("02-settings", new SettingsWindow(host));
+        ShotThemeSettings();
         Shot("03-editor", new ItemEditorWindow(host, sample, isNew: false));
         Shot("04-reminder", new ReminderWindow(host, due));
         Shot("05-reschedule", new RescheduleWindow(host, sample, sample.Start, sampleEnd, true));
@@ -233,6 +250,53 @@ public static class UiSmoke
         }
 
         return failures == 0 ? 0 : 1;
+    }
+
+    /// <summary>
+    /// 重启自检：只检查「重启命令怎么拼」，绝不真的启动新进程（那会把自检自己顶掉）。
+    /// </summary>
+    private static List<string> RestartChecks(AppHost host, StringBuilder report)
+    {
+        var problems = new List<string>();
+        var command = host.BuildRestartCommand();
+
+        if (command == null)
+        {
+            problems.Add("拿不到重启命令（Environment.ProcessPath 为空？）");
+            return problems;
+        }
+
+        var (fileName, arguments) = command.Value;
+        report.AppendLine("RESTART 命令=" + fileName + " " + RestartPlan.ToCommandLine(arguments));
+
+        if (!File.Exists(fileName)) problems.Add("重启用的可执行文件不存在：" + fileName);
+
+        var dataIndex = arguments.IndexOf("--data");
+        if (dataIndex < 0 || dataIndex + 1 >= arguments.Count)
+        {
+            problems.Add("重启命令没有带上 --data，新进程会另起一套数据");
+        }
+        else if (!string.Equals(arguments[dataIndex + 1], AppPaths.DataDirectory, StringComparison.OrdinalIgnoreCase))
+        {
+            problems.Add("重启命令的数据目录与当前不一致：" + arguments[dataIndex + 1]
+                + " ≠ " + AppPaths.DataDirectory);
+        }
+
+        if (!RestartPlan.TryReadWaitPid(arguments, out var waitPid))
+        {
+            problems.Add("重启命令没有带上 --restart-of，新进程会和本进程抢单实例互斥体");
+        }
+        else if (waitPid != Environment.ProcessId)
+        {
+            problems.Add("重启命令等待的 PID 不是本进程：" + waitPid + " ≠ " + Environment.ProcessId);
+        }
+
+        if (arguments.Any(a => a.StartsWith("--ui-smoke", StringComparison.OrdinalIgnoreCase)))
+        {
+            problems.Add("重启命令把 --ui-smoke 也透传了（自检会被带进正式实例）");
+        }
+
+        return problems;
     }
 
     /// <summary>
@@ -438,6 +502,15 @@ public static class UiSmoke
 
             tabs.SelectedIndex = 2; // 外观与默认值：最后一列是最容易被裁掉的位置
             window.UpdateLayout();
+
+            if (window.FindName("AutoRestartThemeCheck") is not CheckBox autoRestart)
+            {
+                problems.Add("设置窗口找不到「切换主题后自动重启」复选框");
+            }
+            else if (autoRestart.IsChecked != host.Settings.AutoRestartOnThemeChange)
+            {
+                problems.Add("「切换主题后自动重启」复选框没有反映当前设置");
+            }
 
             if (window.FindName("DefaultOffsetsBox") is not TextBox box)
             {

@@ -34,6 +34,10 @@ public partial class MainWindow : Window
         _host.Reminders.Updated += OnRemindersUpdated;
         _host.SettingsChanged += OnSettingsChanged;
 
+        // 设置页「改选即预览」时调色板已经换了，但视图模型里算好的画刷（日历色块等）还是旧色，
+        // 这里重建一次，避免看起来「要重启才生效」。
+        _host.ThemeChanged += OnSettingsChanged;
+
         WeekBody.SizeChanged += (_, e) => ViewModel.UpdateWeekWidth(e.NewSize.Width);
 
         Loaded += OnLoaded;

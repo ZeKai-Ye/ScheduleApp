@@ -1,6 +1,7 @@
 using System.Threading;
 using System.Windows;
 using Schedule.Core.Logging;
+using Schedule.Core.Services;
 using Schedule.Core.Storage;
 
 namespace Schedule.App;
@@ -94,6 +95,33 @@ internal static class Program
         }
     }
 
+    /// <summary>
+    /// 等待上一个实例退出（自我重启时用）。进程已经不在了会直接抛异常，视为「已退出」。
+    /// </summary>
+    private static void WaitForPreviousInstance(int processId)
+    {
+        try
+        {
+            using var previous = System.Diagnostics.Process.GetProcessById(processId);
+
+            AppLog.Info("自我重启：等待上一个实例（PID " + processId + "）退出…");
+
+            if (!previous.WaitForExit(15000))
+            {
+                AppLog.Warn("上一个实例 15 秒内仍未退出，直接继续启动（可能出现两个窗口）");
+            }
+            else
+            {
+                AppLog.Info("上一个实例已退出，继续启动");
+            }
+        }
+        catch (Exception ex)
+        {
+            // 正常情况：进程已经退出（ArgumentException / InvalidOperationException）
+            AppLog.Info("自我重启：上一个实例已不在（" + ex.GetType().Name + "），直接继续");
+        }
+    }
+
     private static int Run(string[] args)
     {
         var options = CommandLineOptions.Parse(args);
@@ -135,7 +163,14 @@ internal static class Program
             return CliRunner.Run(options);
         }
 
-        // 2) 单实例
+        // 2) 自我重启：单实例互斥体还握在旧进程手里，等它退出再继续
+        if (RestartPlan.TryReadWaitPid(args, out var previousPid)
+            && RestartPlan.ShouldWaitFor(previousPid, Environment.ProcessId))
+        {
+            WaitForPreviousInstance(previousPid);
+        }
+
+        // 3) 单实例
         using var mutex = new Mutex(initiallyOwned: true, AppPaths.SingleInstanceMutexName, out var isFirstInstance);
         if (!isFirstInstance)
         {

@@ -216,6 +216,15 @@
                             <TextBlock x:Name="ThemeHintText" Grid.Column="1" VerticalAlignment="Center"
                                        Margin="12,0,0,0" FontSize="11" Foreground="{DynamicResource Brush.Subtle}" />
                         </Grid>
+                        <CheckBox x:Name="AutoRestartThemeCheck" Margin="0,10,0,0"
+                                  Content="切换主题后自动重启软件（保证所有界面立即生效）"
+                                  ToolTip="关闭后主题依然是即时生效的，只是少数已经算好的颜色要等下次启动才完全一致" />
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <Button Content="立即重启软件" Click="Restart_Click"
+                                    ToolTip="先保存设置再重启；数据与提醒计划不受影响" />
+                            <TextBlock Text="设置会先保存，重启约 2 秒。" VerticalAlignment="Center"
+                                       Margin="10,0,0,0" FontSize="11" Foreground="{DynamicResource Brush.Subtle}" />
+                        </StackPanel>
 
                         <TextBlock Text="视图" Style="{StaticResource SectionTitle}" Margin="2,18,0,6" />
                         <Grid>

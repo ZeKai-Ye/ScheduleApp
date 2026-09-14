@@ -124,6 +124,13 @@ public sealed class AppSettings
     /// <summary>界面主题：浅色 / 夜间 / 跟随系统。</summary>
     public AppTheme Theme { get; set; } = AppTheme.Light;
 
+    /// <summary>
+    /// 主题发生变化并保存后是否自动重启软件。
+    /// 界面绝大部分是 DynamicResource，切主题即时生效；但已经算好的画刷（日历色块颜色等）
+    /// 以及少数系统弹层需要整个界面重新加载才完全一致，重启一次最省心。
+    /// </summary>
+    public bool AutoRestartOnThemeChange { get; set; } = true;
+
     /// <summary>旧字段（仅兼容历史数据，请使用 Theme）。</summary>
     public bool DarkTheme { get; set; }
 
@@ -186,6 +193,7 @@ public sealed class AppSettings
         WeekStartsOnMonday = other.WeekStartsOnMonday;
         DefaultView = other.DefaultView;
         Theme = other.Theme;
+        AutoRestartOnThemeChange = other.AutoRestartOnThemeChange;
         DarkTheme = other.DarkTheme;
         LookAheadDays = other.LookAheadDays;
         ShowCompleted = other.ShowCompleted;

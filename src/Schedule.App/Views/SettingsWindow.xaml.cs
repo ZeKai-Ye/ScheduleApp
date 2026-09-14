@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Threading;
 using Microsoft.Win32;
 using Schedule.App.Services;
 using Schedule.App.ViewModels;
@@ -183,6 +184,7 @@ public partial class SettingsWindow : Window
 
         ThemeBox.SelectedIndex = (int)_draft.Theme;
         ThemeHintText.Text = Schedule.App.Services.ThemeService.Describe(_draft.Theme);
+        AutoRestartThemeCheck.IsChecked = _draft.AutoRestartOnThemeChange;
 
         // 提醒弹窗位置
         ReminderPositionBox.SelectedIndex = (int)_draft.ReminderPosition;
@@ -279,7 +281,13 @@ public partial class SettingsWindow : Window
         if (_loading) return;
 
         var mode = (AppTheme)Math.Max(0, ThemeBox.SelectedIndex);
-        ThemeService.Apply(mode);
+
+        if (ThemeService.Apply(mode))
+        {
+            // 调色板换了，通知主界面重建已经算好的画刷（日历色块等），否则要等下次刷新才变色
+            _host.NotifyThemeChanged();
+        }
+
         ThemeHintText.Text = ThemeService.Describe(mode)
             + (mode == AppTheme.System ? string.Empty : "（立即预览；取消会恢复原主题）");
     }
@@ -452,6 +460,7 @@ public partial class SettingsWindow : Window
         settings.WeekStartsOnMonday = WeekStartCheck.IsChecked == true;
 
         settings.Theme = (AppTheme)Math.Max(0, ThemeBox.SelectedIndex);
+        settings.AutoRestartOnThemeChange = AutoRestartThemeCheck.IsChecked == true;
         settings.ReminderPosition = (ReminderPositionMode)Math.Max(0, ReminderPositionBox.SelectedIndex);
         settings.ReminderPositionX = ReadInt(ReminderPositionXBox.Text, settings.ReminderPositionX, -20000, 20000);
         settings.ReminderPositionY = ReadInt(ReminderPositionYBox.Text, settings.ReminderPositionY, -20000, 20000);
@@ -510,10 +519,20 @@ public partial class SettingsWindow : Window
     {
         try
         {
+            var previousTheme = _host.Settings.Theme;
             var settings = ReadValues();
+
             _host.SettingsService.Replace(settings);
             _host.NotifySettingsChanged();
+
             DialogResult = true;
+
+            // 主题换了：界面大部分已经即时生效，但已经算好的画刷（日历色块）与少数系统弹层
+            // 需要整个界面重新加载才完全一致，按设置自动重启一次最省心。
+            if (settings.Theme != previousTheme && settings.AutoRestartOnThemeChange)
+            {
+                RestartAfterClose();
+            }
         }
         catch (Exception ex)
         {
@@ -521,10 +540,48 @@ public partial class SettingsWindow : Window
         }
     }
 
+    /// <summary>「立即重启软件」：先保存当前界面上的设置，再重启。</summary>
+    private void Restart_Click(object sender, RoutedEventArgs e)
+    {
+        var confirm = MessageBox.Show(this,
+            "立即重启日程助手？" + Environment.NewLine + Environment.NewLine + "当前改动会先保存，数据与提醒计划不受影响。",
+            "重启", MessageBoxButton.OKCancel, MessageBoxImage.Question);
+
+        if (confirm != MessageBoxResult.OK) return;
+
+        try
+        {
+            var settings = ReadValues();
+            _host.SettingsService.Replace(settings);
+            _host.NotifySettingsChanged();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, "保存设置失败：" + ex.Message, "设置", MessageBoxButton.OK, MessageBoxImage.Error);
+            return;
+        }
+
+        DialogResult = true;
+        RestartAfterClose();
+    }
+
+    /// <summary>等设置窗口完全关闭后再重启，避免退出流程里还挂着模态窗口。</summary>
+    private void RestartAfterClose()
+    {
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            if (_host.Restart(out var error) || string.IsNullOrWhiteSpace(error)) return;
+
+            MessageBox.Show("自动重启失败：" + error + Environment.NewLine + Environment.NewLine
+                    + "请手动关闭并重新打开日程助手。",
+                "重启", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }), DispatcherPriority.Background);
+    }
+
     private void Cancel_Click(object sender, RoutedEventArgs e)
     {
         // 主题是即时预览的，取消时回滚
-        ThemeService.Apply(_host.Settings.Theme);
+        if (ThemeService.Apply(_host.Settings.Theme)) _host.NotifyThemeChanged();
         DialogResult = false;
     }
 }

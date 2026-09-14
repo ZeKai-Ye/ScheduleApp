@@ -21,6 +21,12 @@ public sealed class AppHost : IDisposable
     private MainWindow? _mainWindow;
     private bool _disposed;
 
+    /// <summary>本次启动的接口端口（重启时原样带上，避免重启后接口换了端口）。</summary>
+    private int? _launchApiPort;
+
+    /// <summary>本次启动是否禁用了接口。</summary>
+    private bool _launchNoApi;
+
     public SettingsService SettingsService { get; private set; } = null!;
 
     public ScheduleRepository Repository { get; private set; } = null!;
@@ -57,6 +63,15 @@ public sealed class AppHost : IDisposable
     /// <summary>设置发生变化的通知（界面据此刷新）。</summary>
     public event EventHandler? SettingsChanged;
 
+    /// <summary>
+    /// 主题预览发生变化（设置页改选主题、尚未保存时）。
+    /// 主题本身走 DynamicResource 会自动更新，但视图模型里已经算好的画刷要重新取色。
+    /// </summary>
+    public event EventHandler? ThemeChanged;
+
+    /// <summary>通知界面「调色板已换，请重建算好的画刷」。</summary>
+    public void NotifyThemeChanged() => ThemeChanged?.Invoke(this, EventArgs.Empty);
+
     public void Start(CommandLineOptions options)
     {
         SettingsService = new SettingsService();
@@ -83,6 +98,8 @@ public sealed class AppHost : IDisposable
 
         IsHeadless = options.Serve;
         StartMinimized = options.Minimized || options.Serve;
+        _launchApiPort = options.ApiPort;
+        _launchNoApi = options.NoApi;
 
         if (options.Serve)
         {
@@ -332,6 +349,86 @@ public sealed class AppHost : IDisposable
         SettingsService.MarkDirty();
         SettingsService.Save();
         SettingsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// 拼出「重启后要执行的命令与参数」（不真的启动进程，自检与日志都用它）。
+    /// 返回 null 表示拿不到可执行文件路径。
+    /// </summary>
+    public (string FileName, List<string> Arguments)? BuildRestartCommand()
+    {
+        var fileName = Environment.ProcessPath;
+        if (string.IsNullOrWhiteSpace(fileName)) return null;
+
+        var arguments = new List<string>();
+
+        // 以框架依赖方式运行（dotnet ScheduleApp.dll）时 ProcessPath 是 dotnet.exe，
+        // 需要把程序集自身作为第一个参数带上。
+        if (string.Equals(Path.GetFileNameWithoutExtension(fileName), "dotnet", StringComparison.OrdinalIgnoreCase))
+        {
+            var entry = System.Reflection.Assembly.GetEntryAssembly()?.Location;
+            if (string.IsNullOrWhiteSpace(entry)) return null;
+
+            arguments.Add(entry);
+        }
+
+        // 本次启动的「模式」参数原样带上，其它（--data / --theme / --restart-of）由重启逻辑决定
+        var extra = new List<string>();
+        if (IsHeadless) extra.Add("--serve");
+        if (_launchNoApi) extra.Add("--no-api");
+        if (_launchApiPort.HasValue)
+        {
+            extra.Add("--port");
+            extra.Add(_launchApiPort.Value.ToString());
+        }
+
+        arguments.AddRange(RestartPlan.BuildArguments(AppPaths.DataDirectory, Environment.ProcessId, extra));
+
+        return (fileName, arguments);
+    }
+
+    /// <summary>
+    /// 重启自身：先拉起新进程（它会等本进程退出后再抢单实例互斥体），再正常退出。
+    /// 用于「主题切换后需要整个界面重新加载」这类场景。
+    /// </summary>
+    public bool Restart(out string? error)
+    {
+        error = null;
+
+        try
+        {
+            var command = BuildRestartCommand();
+            if (command == null)
+            {
+                error = "无法确定程序路径。";
+                return false;
+            }
+
+            var startInfo = new System.Diagnostics.ProcessStartInfo(command.Value.FileName)
+            {
+                UseShellExecute = false,
+                WorkingDirectory = AppContext.BaseDirectory,
+            };
+
+            foreach (var argument in command.Value.Arguments) startInfo.ArgumentList.Add(argument);
+
+            AppLog.Info("准备重启：" + RestartPlan.ToCommandLine(startInfo.ArgumentList));
+
+            // 新进程会用同一份数据：先把内存里的改动落盘，避免重启丢数据
+            SaveAll();
+
+            System.Diagnostics.Process.Start(startInfo);
+            AppLog.Info("已拉起新实例，本进程即将退出");
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            AppLog.Error("重启失败", ex);
+            return false;
+        }
+
+        ExitApp();
+        return true;
     }
 
     /// <summary>退出应用：保存数据 → 释放资源 → 关闭进程。</summary>

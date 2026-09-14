@@ -29,6 +29,7 @@ public static class TestRunner
         Run("档位文案", VoiceStageTests.Run);
         Run("本地接口", ApiTests.Run);
         Run("弹窗定位与系统", PositionAndSystemTests.Run);
+        Run("重启规划", RestartPlanTests.Run);
         Run("语音模板", TemplateTests.Run);
         Run("存储与持久化", StorageTests.Run);
 
