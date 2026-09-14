@@ -1,0 +1,87 @@
+日程助手 ScheduleApp {{VERSION}}
+====================================
+
+打包时间：{{DATE}}
+包大小：{{SIZE}}（文件夹形式：主程序 ScheduleApp.exe + 若干 .dll/.json，必须整个文件夹一起拷贝）
+主程序文件（{{MAIN}}）SHA256：{{SHA256}}
+（ScheduleApp.exe 只是启动器，真正干活的是同目录的 ScheduleApp.dll；
+  每个文件的校验值见 SHA256SUMS.txt）
+
+一、这是什么
+------------
+一个面向 Windows 11 的轻量日程管理软件：多档语音提醒、周 / 月日历、周期事件、
+事件配色、CSV 导入导出、夜间主题、本地 HTTP 接口（供 AI / 脚本读写），
+以及内置的 AI 对话（可直接用说话的方式让我帮你查 / 建 / 改日程，模型可跑在本机或云端）。
+
+零第三方依赖：整个程序只用 .NET 自带的类库，语音走 Windows SAPI5，不联网也能用。
+
+二、怎么运行
+------------
+1. 双击 ScheduleApp.exe 即可。首次运行建议到 设置 → 常规 里创建桌面快捷方式。
+2. **请保留整个文件夹**：这是"框架依赖"版本，exe 需要同目录的 dll 与 json 才能启动；
+   只把 exe 拷走会无法运行。要放到别处就把整个文件夹一起拷（或做快捷方式指向 exe）。
+3. 环境要求：Windows 10 / 11 + **.NET 9 桌面运行时（Desktop Runtime，x64）**。
+   若启动时提示缺少运行时 / “必须安装或更新 .NET”，请到
+       https://dotnet.microsoft.com/download/dotnet/9.0
+   下载安装 ".NET Desktop Runtime 9.x (x64)"（约 55 MB，装一次即可）。
+4. 不装运行时的做法：在**联网**的机器上执行
+       .\pack-release.ps1 -SelfContained
+   会产出约 150 MB 的**单文件**版本（自包含，目标机无需任何运行时）。
+   本包默认是框架依赖版：构建环境离线，下载不到自包含所需的运行时包。
+
+三、第一次使用
+------------
+- 数据默认放在 %APPDATA%\ScheduleApp\（日程 schedules.json、设置 settings.json、
+  自动备份 backups\、日志 logs\）。
+  想把数据放在程序目录（U 盘 / 便携使用）：在 exe 同目录放一个空的 portable.txt。
+  也可以用命令行参数指定：ScheduleApp.exe --data D:\日程数据
+- 提醒：默认提前 10 分钟，可设多个档位（例如 提前 30 / 15 / 5 分钟 + 准点），
+  每个档位可以单独设置播报文案与铃声。
+- 语音：使用系统已安装的 SAPI5 语音；若没有中文语音，去
+  「Windows 设置 → 时间和语言 → 语音」添加。
+
+四、AI 对话（可选）
+------------------
+主界面「AI 对话」或快捷键 Ctrl + K。模型可以跑在本机，也可以接云端：
+
+- 本机（默认，数据不出本机）：安装 Ollama 后执行  ollama pull qwen3:8b
+  设置 → AI 助手 → 服务地址 http://127.0.0.1:11434/v1 ，模型 qwen3:8b
+- 云端（联网）：设置 → AI 助手 → 服务预设，选 DeepSeek / OpenAI / 通义千问 /
+  智谱 GLM / Kimi / OpenRouter / Azure OpenAI，填入接口密钥后点「测试连接」。
+  密钥也可以写成 env:OPENAI_API_KEY，从环境变量读取，不落盘。
+
+详细说明见 docs\AI.md。
+
+五、命令行（可脚本化）
+------------------
+ScheduleApp.exe --import 日程.csv      导入 CSV（--mode append|upsert|replace）
+ScheduleApp.exe --export 日程.csv      导出全部日程
+ScheduleApp.exe --info                 查看数据目录与统计
+ScheduleApp.exe --voices               列出系统语音
+ScheduleApp.exe --ai-models            列出模型服务上可用的模型
+ScheduleApp.exe --ai-chat "明天下午三点加个客户沟通"
+ScheduleApp.exe --serve                只启动本地接口与提醒（不开窗口，适合常驻）
+ScheduleApp.exe --theme dark           临时用夜间主题启动
+ScheduleApp.exe --ui-smoke             界面冒烟自检（开发自检用）
+
+本地接口的地址与令牌写在数据目录的 api.json 里，自描述文档在 GET /api/schema。
+接口说明见 docs\API.md。
+
+六、目录内容
+------------
+ScheduleApp.exe        主程序（双击运行）
+ScheduleApp.dll 等     程序集与依赖描述文件（必须与 exe 放在同一目录）
+运行说明.txt           本文件
+README.md              功能总览与快速开始
+CHANGELOG.md           版本变更记录
+docs\AI.md             AI 对话与联网模型配置
+docs\API.md            本地 HTTP 接口（AI / 脚本调用）
+docs\CSV_FORMAT.md     CSV 导入格式
+docs\ARCHITECTURE.md   架构说明（开发者）
+docs\DEVELOPMENT.md    开发与自测说明（开发者）
+样例\                  可直接导入的 CSV 样例（UTF-8 BOM，Excel 可直接打开）
+
+七、卸载 / 清理
+------------
+程序本身不写注册表（除非你启用了"开机自动启动"，那会写 HKCU\...\Run 或启动文件夹快捷方式；
+在设置里关掉即可移除）。删除本目录 + 数据目录 %APPDATA%\ScheduleApp\ 即彻底清除。

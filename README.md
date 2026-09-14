@@ -146,7 +146,9 @@ dotnet build ScheduleApp.sln -c Release -m:1
 ```powershell
 .\build.ps1              # 构建 + 运行自测
 .\build.ps1 -Run         # 构建 + 自测 + 启动程序
-.\build.ps1 -Publish     # 发布单文件 exe 到 publish 目录
+.\build.ps1 -Publish         # 打包发布版本到 release 目录（等价于下面的 pack-release.ps1）
+.\pack-release.ps1          # 发布 + 拷贝文档/样例 + 生成运行说明.txt + 验证打包产物
+.\pack-release.ps1 -SelfContained   # 自包含单文件版（约 150 MB，需联网下载运行时包）
 ```
 
 ### 发布为轻量单文件
@@ -160,7 +162,8 @@ dotnet publish src/Schedule.App/Schedule.App.csproj -c Release -r win-x64 --self
 ```
 
 > 首次发布需要联网还原 RID 专用的 apphost 包（Microsoft.NETCore.App.Host.win-x64）。
-> 纯离线环境请直接用 build.ps1 构建后运行 bin 目录下的 exe，或先在有网机器上发布一次。
+> 纯离线环境请直接用 build.ps1 构建后运行 bin 目录下的 exe，或用 pack-release.ps1 打框架依赖包
+> （自包含单文件包需要联网下载运行时包，离线打不出来）。
 
 ---
 

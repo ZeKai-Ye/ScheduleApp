@@ -150,6 +150,9 @@ internal static class Program
                 Serve = true,
                 ThemeOverride = options.ThemeOverride,
                 ApiPort = options.ApiPort,
+
+                // 自检用的是临时数据目录：绝不能借机改写用户真实的开机启动设置
+                NoSystemChanges = true,
             });
 
             var smokeCode = UiSmoke.Run(smokeHost);

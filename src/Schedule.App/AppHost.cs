@@ -137,7 +137,14 @@ public sealed class AppHost : IDisposable, IAiAppContext
         _autoSaveTimer.Tick += (_, _) => SaveAll();
         _autoSaveTimer.Start();
 
-        SyncAutostartSetting();
+        if (options.NoSystemChanges)
+        {
+            AppLog.Info("本次运行不改动系统状态（跳过开机启动同步）");
+        }
+        else
+        {
+            SyncAutostartSetting();
+        }
 
         AppLog.Info((IsHeadless ? "无界面模式已启动，数据目录 " : "界面已启动，数据目录 ") + AppPaths.DataDirectory);
     }

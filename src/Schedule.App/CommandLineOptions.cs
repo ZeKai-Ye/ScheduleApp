@@ -45,6 +45,13 @@ public sealed class CommandLineOptions
     /// <summary>界面冒烟自检：构造全部窗口后退出（开发 / CI 用）。</summary>
     public bool UiSmoke { get; set; }
 
+    /// <summary>
+    /// 本次运行不改动任何系统状态（不碰开机启动注册表 / 启动文件夹）。
+    /// 自检、打包验证这类"只是跑一下看看"的场景必须打开它，
+    /// 否则用的是临时数据目录，会把用户真实的开机启动设置当成"用户关掉了"而删掉。
+    /// </summary>
+    public bool NoSystemChanges { get; set; }
+
     /// <summary>启动时临时指定主题（light / dark / system），不写回设置。</summary>
     public string? ThemeOverride { get; set; }
 

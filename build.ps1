@@ -44,16 +44,12 @@ try {
     $exe = Join-Path $root ('src/Schedule.App/bin/' + $Configuration + '/net9.0-windows/ScheduleApp.exe')
 
     if ($Publish) {
-        Step '发布单文件'
-        $publishDir = Join-Path $root 'publish'
-        $selfContained = if ($SelfContained) { 'true' } else { 'false' }
+        # 打包逻辑集中在 pack-release.ps1：发布 + 拷贝文档/样例 + 生成运行说明 + 验证打包后的 exe
+        Step '打包发布版本到 release 目录'
+        $packArgs = @()
+        if ($SelfContained) { $packArgs += '-SelfContained' }
 
-        dotnet publish src/Schedule.App/Schedule.App.csproj -c $Configuration -r win-x64 --self-contained $selfContained -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -o $publishDir
-        if ($LASTEXITCODE -ne 0) { throw '发布失败' }
-
-        Get-ChildItem $publishDir -File | Where-Object { $_.Extension -eq '.exe' } | ForEach-Object {
-            Write-Host ('  产物：' + $_.FullName + '  ' + [math]::Round($_.Length / 1MB, 2) + ' MB') -ForegroundColor Green
-        }
+        & (Join-Path $root 'pack-release.ps1') @packArgs
     }
 
     if ($Run) {

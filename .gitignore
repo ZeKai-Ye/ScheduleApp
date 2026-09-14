@@ -35,6 +35,8 @@ artifacts/
 publish/
 dist/
 dist-*/
+release/
+release-*/
 *.log
 debug.log
 
