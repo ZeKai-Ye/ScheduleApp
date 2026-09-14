@@ -67,6 +67,8 @@ if ($LASTEXITCODE -ne 0) { throw "自测失败" }
 | 只改配色 | `src/Schedule.App/Themes/Palette.Light.xaml` / `Palette.Dark.xaml`：**两份键集合必须完全一致**，外观改动优先在这里做 |
 | 改控件外观 | `src/Schedule.App/Themes/Theme.xaml`：一律用自绘 `ControlTemplate` + `DynamicResource`，别用系统默认模板（夜间会露白底） |
 | 布局回归 | `--ui-smoke` 会断言：列表列宽合计 ≤ 可视宽度且横向滚动可用、编辑窗口自定义颜色框不越界、设置页最右列不越界、写进设置的自定义弹窗坐标必须真的生效 |
+| 验证重启命令 | `--ui-smoke` 会打印 `RESTART 命令=...`（含数据目录与 `--restart-of`），并断言新进程用的是同一份数据、等待的是本进程 PID；自检**不会**真的重启 |
+| 主题即时生效的边界 | 控件画刷走 `DynamicResource`；视图模型算出来的画刷要靠 `AppHost.ThemeChanged` 触发重建，否则要重启才换色 |
 
 ## 代码约定
 - `Nullable` 与 `ImplicitUsings` 全开，构建保持 **0 警告**

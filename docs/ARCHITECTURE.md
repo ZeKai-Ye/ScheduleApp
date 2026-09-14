@@ -205,6 +205,10 @@ Main
 - 自绘范围：输入框 / 下拉框（含弹出层）/ 复选框 / 单选按钮 / 日期选择 / 选项卡 / 滚动条 / 右键菜单 /
   菜单分隔线 / 提示气泡 / 滑块 / 卡片 / 列表头 / 树状分组。**输入框刻意比卡片更暗**，
   形成"凹陷"层次，否则夜间模式下满屏白框
+- **即时生效的边界**：`DynamicResource` 只能刷新控件自身的画刷；视图模型里`ThemeBrushes` 已经取过色的
+  `Brush` 对象（日历色块、优先级颜色）必须重建视图模型才换色。所以设置页改选主题时会
+  `AppHost.NotifyThemeChanged()` → `MainWindow` 重建列表 / 日历集合；再彻底一点就重启进程
+  （见 `RestartPlan`）
 - 仍然跟随系统主题的只有：`DatePicker` / `ComboBox` 的日历与弹出层里的系统部件、系统消息框
   （`MessageBox` 由 Win32 绘制，WPF 无法覆盖）
 - **踩过的坑**：给 `ScrollViewer` 打开 `HorizontalScrollBarVisibility="Auto"` 后内容会按无限宽度测量，
@@ -222,4 +226,6 @@ Main
 | 新增重复规则（如「每月第几个周一」） | 扩展 `RepeatKind` 与 `OccurrenceCalculator.OccurrenceAt` |
 | 再加一套配色（如高对比度） | 复制 `Palette.Light.xaml` 改色 → 在 `ThemeService` 里登记 → `AppTheme` 加枚举值；
   键集合必须与另外两份完全一致（`--ui-smoke` 会打印关键色，便于核对） |
+| 需要"重新加载界面"的新设置 | 参照主题：设置页写好后调 `AppHost.Restart`（自动或按钮触发），
+  不要自己去 Kill 进程 —— `RestartPlan` 已处理单实例互斥体与数据目录 |
 | 新的可换肤控件 | 在 `Theme.xaml` 里用自绘 `ControlTemplate` + `DynamicResource` 画刷，避免系统模板在夜间露白 |
