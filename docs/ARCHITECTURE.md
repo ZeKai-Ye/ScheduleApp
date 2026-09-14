@@ -162,6 +162,22 @@ Main
 - 拖动弹窗后由 `AppHost.RememberReminderPosition` 写回 `Custom` 坐标（`ReminderRememberPosition` 可关闭）；
   位置预览走 `ReminderHost.ShowPositionPreview`，只弹窗不发声
 
+### 14. 系列事件的「仅本次」例外
+- 数据模型（RFC 5545 RECURRENCE-ID 思路）：
+  `ScheduleItem.ExcludedOccurrences`（被单独删除的那几次）+ `OccurrenceOverrides`（被单独修改的那几次，
+  含 `NewStart/NewEnd` 与标题 / 备注 / 分类 / 颜色 / 播报文案 / 提醒档位 / 状态等可选字段）。
+  定位键始终是那一次的**原始**开始时间，因此改期后依然对得上
+- 展开时（`OccurrenceCalculator.Create`）把覆盖套用到系列的**副本**上，并把系列本体放进
+  `ScheduleOccurrence.SeriesRef`。这样界面与播报拿到的是「有效日程」，而提醒去重（`FiredReminders`）
+  与持久化仍落在系列本体上——否则改期后的提醒会因为副本上的记录无法保存而反复触发
+- **`ExpandWithOverrides` 是必需的**：展开按原始开始时间枚举，一次 6/9 的发生被改到 6/16 后，
+  查询 6/16 那一周的窗口枚举不到它，提醒与日历都会凭空少一条。该方法把「被改期到本区间内」的本次补进来；
+  提醒调度、`CalendarLayout`、列表与接口统一使用它
+- 改期整个系列时用 `ScheduleItem.Shift`：开始 / 结束 / 重复截止 / 绝对提醒一起平移，
+  已记录的例外键也按同一偏移量搬走，避免例外全部失配
+- 界面侧：编辑窗口的「修改范围」把同一个表单复用为「仅本次」与「整个系列」两条路径；
+  周视图拖动改期走纯像素换算（`deltaY ÷ 每小时高度 × 60` 后按 15 分钟吸附），Shift 表示整个系列
+
 ## 扩展点
 
 | 需求 | 做法 |

@@ -52,6 +52,9 @@ FENCE
 | POST | `/api/items/{id}/status` | `{"status":"Done"|"Pending"|"Canceled"}` |
 | POST | `/api/items/{id}/complete` | 标记完成的简写 |
 | POST | `/api/items/{id}/reminder-now` | 立即按某档位触发一次提醒 |
+| POST | `/api/items/{id}/occurrence` | **只改系列中的某一次**（改期 / 仅本次内容） |
+| POST | `/api/items/{id}/occurrence/delete` | **只删除某一次** |
+| POST | `/api/items/{id}/occurrence/restore` | 撤销某一次的例外 |
 | GET | `/api/occurrences` | **把重复日程展开**，并给出每档位将播报的文本 |
 | GET | `/api/reminders/next` | 接下来 N 次提醒（含解析后的播报文本） |
 | POST | `/api/reminders/test` | 立即触发提醒：`{"itemId":"…","offsetMinutes":30}` |
@@ -155,7 +158,36 @@ FENCE
 
 之后**没有自定义文案的日程**都会自动套用这些档位文案；日程自身写了文案的仍以日程为准（可在上面的返回里看 `voiceSource` 确认）。
 
-## 5. 典型 AI 用法
+## 5. 系列事件：只改 / 只删某一次
+
+重复日程的某一次常常要单独处理。接口用「原始开始时间」定位那一次（改期后这个键不变）：
+
+```bash
+# 把 6/9 10:00 那次改期到 6/11 15:00
+curl -s -X POST -H "$H" -H "Content-Type: application/json" \
+  "$BASE/api/items/$ID/occurrence" \
+  -d '{"originalStart":"2025-06-09 10:00","newStart":"2025-06-11 15:00","newEnd":"2025-06-11 16:00"}'
+
+# 只改这一次的文案与提醒档位（不改时间）
+curl -s -X POST -H "$H" -H "Content-Type: application/json" \
+  "$BASE/api/items/$ID/occurrence" \
+  -d '{"originalStart":"2025-06-16 10:00","title":"站会（改线上）","reminderOffsets":[5]}'
+
+# 只删除 6/23 那一次
+curl -s -X POST -H "$H" -H "Content-Type: application/json" \
+  "$BASE/api/items/$ID/occurrence/delete" -d '{"occurrenceStart":"2025-06-23 10:00"}'
+
+# 撤销这一次的例外（恢复成系列默认）
+curl -s -X POST -H "$H" -H "Content-Type: application/json" \
+  "$BASE/api/items/$ID/occurrence/restore" -d '{"occurrenceStart":"2025-06-16 10:00"}'
+```
+
+- `GET /api/occurrences` 返回项里的 `start` 就是改期后的实际时间
+- 日程对象的 `excludedOccurrences`（被删的那几次）与 `occurrenceOverrides`（被改的那几次）可直接读，
+  也可用 `PATCH /api/items/{id}` 整体替换
+- 非重复日程调用这些端点返回 **422**；时间点不是该系列的发生返回 **404**
+
+## 6. 典型 AI 用法
 
 FENCEbash
 BASE=$url; H="X-Api-Token: $token"
@@ -185,7 +217,7 @@ curl -s -X POST -H "$H" -H "Content-Type: application/json" "$BASE/api/import" -
 }'
 FENCE
 
-## 6. 桌面集成与弹窗位置
+## 7. 桌面集成与弹窗位置
 
 ```bash
 # 看系统状态：快捷方式在不在、开机启动怎么落地的
@@ -214,7 +246,7 @@ curl -s -X PATCH -H "$H" -H "Content-Type: application/json" "$BASE/api/settings
 `reminderPosition` 可取 `BottomRight` `BottomLeft` `TopRight` `TopLeft` `Center` `Custom`；
 前五种下 X / Y 是相对该基准的偏移，`Custom` 下是弹窗左上角的屏幕坐标（越界自动贴回可见区域）。
 
-## 7. 约定与错误
+## 8. 约定与错误
 
 - 状态码：`200` 成功、`201` 已创建、`204` 已删除、`400` 参数/JSON 错误、**`401` 令牌错误**、
   `404` 不存在、`405` 方法不允许、`411` 用了 chunked 传输（请带 `Content-Length`）、
@@ -224,7 +256,7 @@ curl -s -X PATCH -H "$H" -H "Content-Type: application/json" "$BASE/api/settings
 - 每个请求都会切到 UI 线程执行，因此与界面操作天然串行、不会打架
 - 用了 `--serve` 时没有主窗口，但提醒弹窗照常出现；托盘图标可打开界面或退出
 
-## 8. CSV 中的等价写法
+## 9. CSV 中的等价写法
 
 CSV 的 `语音内容` / `提醒铃声` 列支持 `档位:文案` 形式（用 `|` 分隔），与接口字段一一对应：
 
