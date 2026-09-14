@@ -184,6 +184,13 @@ Main
 - 界面侧：编辑窗口的「修改范围」把同一个表单复用为「仅本次」与「整个系列」两条路径；
   周视图拖动改期走纯像素换算（`deltaY ÷ 每小时高度 × 60` 后按 15 分钟吸附，阈值 8 像素避免误触），
   Shift 表示整个系列
+- **联网（云端）支持**：同一个 OpenAI 兼容客户端既连本地也连云端——
+  鉴权按 `AiAuthMode`（Bearer / api-key 头 / 不带）、密钥支持 `env:VAR` 间接引用（`AiSecrets`）、
+  完整端点地址（含 `/chat/completions` 与查询串）原样使用、代理可跟随系统或自填。
+  服务清单是纯数据 `AiProviderPresets`（本地/云端、是否需密钥、鉴权方式、提示语），可整体自测；
+  `AiEndpoint` 负责"本地还是云端""像不像推理模型"的判断，从而决定要不要发 `reasoning_effort`
+  （云端服务端遇到不认识的字段容易 400）
+
 - **不变量：非重复日程不得携带例外**。`Repeat == None` 时 `occurrenceOverrides` 没有任何意义，
   却会让 `ScheduleItemValidator.Validate` 直接拒绝保存（"非重复日程不应带有「仅本次」例外"）。
   这条不变量由三处共同保证：`MainViewModel.Reschedule` / `ApplyOccurrenceEdit` 对非重复日程一律走整体分支、

@@ -10,6 +10,20 @@
   （去掉这个修复后实测会报 `实测 #FFFFFF，期望 #1E2B44`）
 
 ### 新增
+- **支持联网（云端）模型**：同一套对话与工具调用，既能用本机 Ollama，也能直接接云端服务
+  - 「设置 → AI 助手 → 服务预设」内置 **Ollama / LM Studio（本地）** 与
+    **DeepSeek / OpenAI / 通义千问 / 智谱 GLM / Kimi / OpenRouter / Azure OpenAI**（云端），
+    选中即自动填好地址、模型与鉴权方式，并提示去哪申请密钥
+  - **真的带上密钥**：Bearer（`Authorization`）或 `api-key` 头（Azure）两种鉴权；
+    密钥还支持写成 `env:OPENAI_API_KEY` 从环境变量读取，**不落盘**；界面与日志只显示打码结果
+  - **完整端点地址**（Azure 那种 `…/chat/completions?api-version=…`）原样使用，不再被补成 `/v1`；
+    这类端点列不出模型时给一句人话而不是甩 404
+  - **代理**：默认跟随系统代理，也可手填（`http://127.0.0.1:7890`），公司网络可用
+  - **云端不会因为"不认识的参数"报 400**：`reasoning_effort` 默认只在本地服务、或模型看起来是推理模型
+    （o1/o3/gpt-5/deepseek-reasoner…）时才发，设置页可强制"总是/从不"
+  - 错误提示能照着做：401 提示检查密钥（`env:` 会提示环境变量为空）、403 权限、404 地址/模型名、
+    429 限流、400 unknown field 指向"推理强度参数"、网络/TLS 失败提示代理
+  - 对话窗口顶部有**「本地」/「云端」徽标**，云端时明确提示数据会发送给服务商
 - **AI 对话窗口**（主界面「AI 对话」按钮 / **Ctrl + K**）：和本地大模型聊天，它**真的能读写日程**
   - 9 个内置工具：`list_items` / `create_item` / `update_item` / `reschedule_item` / `delete_item` /
     `set_status` / `next_reminders` / `app_info` / `set_theme`
@@ -37,7 +51,9 @@
 - AI 的写操作默认记入日志（可关）；**不打开对话窗口时，软件不会访问任何模型服务**
 
 ### 测试
-- 断言数从 795 增至 **1020**：协议地址判定与请求拼装（OpenAI / Ollama 两种形状）、响应解析
+- 断言数从 795 增至 **1192**：联网支持（密钥 env: 解析与打码、Bearer / api-key 两种请求头的真实 HTTP 校验、
+  代理与完整端点地址、云端 reasoning_effort 策略、401/403/404/429/5xx 与网络失败提示、服务预设清单与匹配）、
+  协议地址判定与请求拼装（OpenAI / Ollama 两种形状）、响应解析
   （reasoning / reasoning_content / thinking / 内联 think 块 / 字符串与对象两种 arguments / token 统计）、
   模型列表解析与去重、9 个工具的 schema 合法性、参数校验与宽容读取、会话循环（工具往返、正文兜底、
   轮数上限、上下文裁剪不拆散工具结果、取消与异常传播、进度回调）、引用编号表，
