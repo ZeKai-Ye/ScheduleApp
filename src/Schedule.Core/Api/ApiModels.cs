@@ -255,6 +255,12 @@ public sealed class ScheduleItemInput
 
     public ItemStatus? Status { get; set; }
 
+    /// <summary>被单独删除的那几次发生（原始开始时间）。</summary>
+    public List<DateTime>? ExcludedOccurrences { get; set; }
+
+    /// <summary>被单独修改的那几次发生（改期 / 仅本次编辑）。</summary>
+    public List<OccurrenceOverride>? OccurrenceOverrides { get; set; }
+
     /// <summary>把入参写入日程。</summary>
     /// <param name="item">目标日程。</param>
     /// <param name="partial">true = 只覆盖提供了的字段（PATCH）；false = 其余字段复位为默认值（PUT）。</param>
@@ -316,6 +322,8 @@ public sealed class ScheduleItemInput
         if (SoundFile != null) item.SoundFile = SoundFile;
 
         if (Status.HasValue) item.Status = Status.Value;
+        if (ExcludedOccurrences != null) item.ExcludedOccurrences = ExcludedOccurrences.Distinct().OrderBy(v => v).ToList();
+        if (OccurrenceOverrides != null) item.OccurrenceOverrides = OccurrenceOverrides.Select(o => o.Clone()).ToList();
 
         if (item.ReminderOffsets.Count > 0)
         {

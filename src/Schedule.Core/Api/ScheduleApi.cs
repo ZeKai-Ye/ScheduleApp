@@ -21,6 +21,13 @@ public sealed class ScheduleApi
         "repeat", "repeatInterval", "repeatWeekdays", "repeatCount", "repeatUntil",
         "reminderEnabled", "reminderOffsets", "remindBeforeMinutes", "reminderVoiceTexts",
         "reminderSoundFiles", "remindAtOverride", "voiceText", "soundFile", "status",
+        "excludedOccurrences", "occurrenceOverrides",
+    };
+
+    private static readonly string[] KnownOccurrenceFields =
+    {
+        "originalStart", "newStart", "newEnd", "title", "notes", "category", "color", "allDay",
+        "voiceText", "soundFile", "reminderEnabled", "reminderOffsets", "reminderVoiceTexts", "status",
     };
 
     private readonly ScheduleRepository _repository;
@@ -170,6 +177,9 @@ public sealed class ScheduleApi
                 new { method = "DELETE", path = "/api/items/{id}", desc = "删除" },
                 new { method = "POST", path = "/api/items/{id}/status", desc = "改状态：{\"status\":\"Done\"}" },
                 new { method = "POST", path = "/api/items/{id}/reminder-now", desc = "立即按某档位触发一次提醒：{\"offsetMinutes\":30}" },
+                new { method = "POST", path = "/api/items/{id}/occurrence", desc = "只改系列中的某一次（改期 / 仅本次内容）：{\"originalStart\":\"2025-06-09 10:00\",\"newStart\":\"2025-06-11 15:00\"}" },
+                new { method = "POST", path = "/api/items/{id}/occurrence/delete", desc = "只删除某一次：{\"occurrenceStart\":\"2025-06-16 10:00\"}" },
+                new { method = "POST", path = "/api/items/{id}/occurrence/restore", desc = "撤销某一次的例外（恢复成系列默认）" },
                 new { method = "GET", path = "/api/occurrences", desc = "把重复日程展开成具体发生，并给出每档位将播报的文本" },
                 new { method = "GET", path = "/api/reminders/next", desc = "接下来 N 次提醒（含解析后的播报文本）" },
                 new { method = "POST", path = "/api/reminders/test", desc = "立即触发提醒：{\"itemId\":\"...\",\"offsetMinutes\":30}" },
@@ -208,6 +218,8 @@ public sealed class ScheduleApi
                 voiceText = "本日程通用播报文案（留空则用全局）",
                 soundFile = "本日程通用提示音",
                 status = "Pending|Done|Canceled",
+                excludedOccurrences = "被单独删除的那几次发生的原始开始时间",
+                occurrenceOverrides = "被单独修改的那几次发生；每项含 originalStart/newStart/newEnd/title/notes/category/color/reminderOffsets/voiceText/status 等",
             },
             voiceResolution = new
             {
@@ -322,8 +334,142 @@ public sealed class ScheduleApi
             "status" => ItemSetStatus(request, id),
             "complete" => ItemSetStatus(new ApiRequest { Method = "POST", Body = "{\"status\":\"Done\"}" }, id),
             "reminder-now" => ItemReminderNow(request, id),
+            "occurrence" => ItemOccurrence(request, id, segments),
             _ => ApiResponse.Error(404, "未知动作：" + action),
         };
+    }
+
+    /// <summary>
+    /// 系列事件的「本次」操作：
+    /// POST /api/items/{id}/occurrence            → 新增 / 更新某一次的覆盖（含改期）
+    /// POST /api/items/{id}/occurrence/delete     → 只删除某一次
+    /// POST /api/items/{id}/occurrence/restore    → 撤销某一次的例外
+    /// </summary>
+    private ApiResponse ItemOccurrence(ApiRequest request, Guid id, List<string> segments)
+    {
+        var item = _repository.Find(id);
+        if (item == null) return ApiResponse.Error(404, "未找到日程：" + id);
+
+        if (request.Method is not ("POST" or "PATCH"))
+        {
+            return ApiResponse.Error(405, "该路径只支持 POST / PATCH");
+        }
+
+        if (item.Repeat == RepeatKind.None)
+        {
+            return ApiResponse.Error(422, "这不是重复日程，直接改这条日程即可。",
+                "occurrence 接口只对 Repeat != None 的系列事件有意义。");
+        }
+
+        var action = segments.Count > 4 ? segments[4].ToLowerInvariant() : "upsert";
+
+        using var document = JsonDocument.Parse(string.IsNullOrWhiteSpace(request.Body) ? "{}" : request.Body);
+        var root = document.RootElement;
+
+        if (action is "delete" or "restore")
+        {
+            if (!TryReadOccurrenceStart(root, request, out var originalStart))
+            {
+                return ApiResponse.Error(400, "需要提供 occurrenceStart（或 originalStart）：那一次发生的原始开始时间。");
+            }
+
+            if (!OccurrenceExists(item, originalStart))
+            {
+                return ApiResponse.Error(404, "系列中没有这个时间的发生：" + originalStart.ToString("yyyy-MM-dd HH:mm"));
+            }
+
+            if (action == "delete")
+            {
+                item.ExcludeOccurrence(originalStart);
+            }
+            else if (!item.ClearOccurrenceEdit(originalStart))
+            {
+                return ApiResponse.Error(404, "这次发生没有任何「仅本次」修改。");
+            }
+
+            item.UpdatedAt = _clock();
+            _repository.Update(item);
+            _repository.Save();
+
+            return ApiResponse.Json(new
+            {
+                action,
+                occurrenceStart = originalStart,
+                item = ToItemDto(item),
+            });
+        }
+
+        var value = ApiJson.Deserialize<OccurrenceOverride>(request.Body);
+        if (value == null) return ApiResponse.Error(400, "请求体必须是 JSON 对象。");
+
+        if (value.OriginalStart == default)
+        {
+            if (!TryReadOccurrenceStart(root, request, out var fallback))
+            {
+                return ApiResponse.Error(400, "需要提供 originalStart：要修改的那一次发生的原始开始时间。");
+            }
+
+            value.OriginalStart = fallback;
+        }
+
+        if (!OccurrenceExists(item, value.OriginalStart))
+        {
+            return ApiResponse.Error(404, "系列中没有这个时间的发生：" + value.OriginalStart.ToString("yyyy-MM-dd HH:mm"));
+        }
+
+        if (value.IsEmpty)
+        {
+            return ApiResponse.Error(422, "没有任何要修改的内容。", "至少提供 newStart / title / notes / category / color / reminderOffsets / status 之一。");
+        }
+
+        value.UpdatedAt = _clock();
+        item.UpsertOverride(value);
+        item.UpdatedAt = _clock();
+
+        var errors = ScheduleItemValidator.Validate(item);
+        if (errors.Count > 0) return ApiResponse.Error(422, "校验失败", string.Join("；", errors));
+
+        _repository.Update(item);
+        _repository.Save();
+
+        return WithIgnoredFields(
+            ApiResponse.Json(new
+            {
+                occurrence = value.Describe(),
+                item = ToItemDto(item),
+            }),
+            request,
+            KnownOccurrenceFields);
+    }
+
+    private static bool TryReadOccurrenceStart(JsonElement root, ApiRequest request, out DateTime start)
+    {
+        start = default;
+
+        if (root.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var name in new[] { "occurrenceStart", "originalStart" })
+            {
+                if (root.TryGetProperty(name, out var element) && FlexibleDateTime.TryParse(element.ToString(), out var parsed))
+                {
+                    start = parsed;
+                    return true;
+                }
+            }
+        }
+
+        return request.GetDate("occurrenceStart") is { } fromQuery && (start = fromQuery) != default;
+    }
+
+    /// <summary>这个时间点是否真的是该系列的一次发生（按原始时间枚举，不受例外影响）。</summary>
+    private static bool OccurrenceExists(ScheduleItem item, DateTime occurrenceStart)
+    {
+        foreach (var start in OccurrenceCalculator.EnumerateStarts(item, occurrenceStart.AddSeconds(-1), occurrenceStart.AddSeconds(1)))
+        {
+            if (start == occurrenceStart) return true;
+        }
+
+        return false;
     }
 
     private ApiResponse ItemsList(ApiRequest request)
@@ -1054,6 +1200,9 @@ public sealed class ScheduleApi
             voiceText = item.VoiceText,
             soundFile = item.SoundFile,
             reminderDescription = item.DescribeReminders(),
+            excludedOccurrences = item.ExcludedOccurrences,
+            occurrenceOverrides = item.OccurrenceOverrides,
+            occurrenceEditCount = item.ExcludedOccurrences.Count + item.OccurrenceOverrides.Count,
             status = item.Status,
             origin = item.Origin,
             source = item.Source,
