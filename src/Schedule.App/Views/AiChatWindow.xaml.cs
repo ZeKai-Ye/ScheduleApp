@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Threading;
+using Schedule.App.Mvvm;
 using Schedule.App.Services;
 using Schedule.App.ViewModels;
 using Schedule.Core.Ai;
@@ -287,13 +288,25 @@ public partial class AiChatWindow : Window
         SetStage("设置已更新：" + AiClientFactory.Describe(_host.Settings));
     }
 
-    /// <summary>顶部一行只显示「地址 · 模型」，完整信息放 ToolTip（免得挤掉右边按钮）。</summary>
+    /// <summary>顶部一行只显示「地址 · 模型」与本地/云端徽标，完整信息放 ToolTip（免得挤掉右边按钮）。</summary>
     private void UpdateEndpointText()
     {
         var settings = _host.Settings;
+        var cloud = _chat.IsCloud;
+
         EndpointText.Text = OpenAiCompatibleClient.Normalize(settings.AiBaseUrl) + " · " + settings.AiModel;
-        EndpointText.ToolTip = AiClientFactory.Describe(settings)
-            + Environment.NewLine + "模型来自本机服务，可在「AI 设置…」里切换或换成其它 OpenAI 兼容服务。";
+        EndpointText.ToolTip = _chat.DescribeTarget()
+            + Environment.NewLine
+            + (cloud
+                ? "云端模型：对话内容会发送给该服务商；密钥只存在本机。可在「AI 设置…」里换成本地模型。"
+                : "本地模型：数据不出本机，断网也能用。");
+
+        // 本地/云端一眼可见：云端是花钱 + 数据外发，本地是免费 + 不出本机
+        CloudBadgeText.Text = cloud ? "云端" : "本地";
+        CloudBadgeText.Foreground = cloud ? ThemeBrushes.Warning : ThemeBrushes.Success;
+        CloudBadge.Background = ThemeBrushes.Hint;
+        CloudBadge.BorderBrush = ThemeBrushes.HintBorder;
+        CloudBadge.ToolTip = EndpointText.ToolTip;
     }
 
     private void ScrollToEnd()

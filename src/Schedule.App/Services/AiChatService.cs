@@ -62,8 +62,20 @@ public sealed class AiChatService : IDisposable
     /// <summary>列出模型服务上的模型。</summary>
     public async Task<List<AiModelInfo>> ListModelsAsync(CancellationToken cancellationToken)
     {
-        using var client = new OpenAiCompatibleClient(_host.Settings.AiBaseUrl, _host.Settings.AiApiKey, _host.Settings.AiTimeoutSeconds);
+        using var client = new OpenAiCompatibleClient(_host.Settings);
         return await client.ListModelsAsync(cancellationToken).ConfigureAwait(true);
+    }
+
+    /// <summary>是不是云端服务（决定界面上要不要提示"数据会发出去"）。</summary>
+    public bool IsCloud => !AiEndpoint.IsLocal(_host.Settings.AiBaseUrl);
+
+    /// <summary>界面徽标文案：本地 / 云端 + 协议 + 密钥状态。</summary>
+    public string DescribeTarget()
+    {
+        var settings = _host.Settings;
+
+        return (IsCloud ? "云端" : "本地") + " · " + AiClientFactory.DescribeProtocol(settings)
+            + " · 密钥：" + AiSecrets.Describe(settings.AiApiKey);
     }
 
     /// <summary>把「当前设置」与「上次建会话时的设置」比对，不一致就重建客户端与会话。</summary>
@@ -73,6 +85,10 @@ public sealed class AiChatService : IDisposable
         var signature = string.Join("|",
             OpenAiCompatibleClient.Normalize(settings.AiBaseUrl),
             settings.AiApiKey,
+            settings.AiAuthMode,
+            settings.AiReasoningEffort,
+            settings.AiUseSystemProxy,
+            settings.AiProxyUrl,
             settings.AiModel,
             settings.AiTemperature.ToString("0.##"),
             settings.AiTimeoutSeconds,

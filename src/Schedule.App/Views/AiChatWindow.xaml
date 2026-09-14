@@ -29,7 +29,11 @@
                     <TextBlock Text="模型" VerticalAlignment="Center" Foreground="{DynamicResource Brush.Subtle}" Margin="0,0,6,0" />
                     <ComboBox x:Name="ModelBox" IsEditable="True" Width="230" SelectionChanged="Model_Changed"
                               ToolTip="可以直接输入模型名，例如 qwen3:8b" />
-                    <TextBlock x:Name="EndpointText" VerticalAlignment="Center" Margin="12,0,0,0" FontSize="11"
+                    <Border x:Name="CloudBadge" Margin="10,0,0,0" Padding="8,2" CornerRadius="9" VerticalAlignment="Center"
+                            BorderThickness="1">
+                        <TextBlock x:Name="CloudBadgeText" FontSize="11" />
+                    </Border>
+                    <TextBlock x:Name="EndpointText" VerticalAlignment="Center" Margin="10,0,0,0" FontSize="11"
                                Foreground="{DynamicResource Brush.Subtle}" TextTrimming="CharacterEllipsis" />
                 </StackPanel>
             </DockPanel>

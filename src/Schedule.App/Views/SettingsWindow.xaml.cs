@@ -37,6 +37,9 @@ public partial class SettingsWindow : Window
     /// <summary>「AI 助手」标签页下标（对话窗口的「AI 设置…」直接跳这里）。</summary>
     public const int AiTabIndex = 4;
 
+    /// <summary>鉴权方式下拉的取值顺序（与 XAML 里的项目一一对应）。</summary>
+    private static readonly AiAuthMode[] AuthModes = { AiAuthMode.Bearer, AiAuthMode.ApiKeyHeader, AiAuthMode.None };
+
     public SettingsWindow(AppHost host) : this(host, 0)
     {
     }
@@ -205,10 +208,20 @@ public partial class SettingsWindow : Window
         UpdateReminderPositionHint();
 
         // AI 助手
+        AiProviderBox.ItemsSource = AiProviderPresets.All;
+        AiProviderBox.SelectedItem = AiProviderPresets.All.FirstOrDefault(p => p.Name == _draft.AiProvider)
+            ?? AiProviderPresets.Match(_draft.AiBaseUrl)
+            ?? AiProviderPresets.All[^1];
+
         AiBaseUrlBox.Text = _draft.AiBaseUrl;
         AiApiModeBox.SelectedIndex = (int)_draft.AiApiMode;
         AiModelBox.Text = _draft.AiModel;
         AiApiKeyBox.Text = _draft.AiApiKey;
+        AiAuthModeBox.SelectedIndex = Math.Max(0, Array.IndexOf(AuthModes, _draft.AiAuthMode));
+        AiReasoningBox.SelectedIndex = (int)_draft.AiReasoningEffort;
+        AiProxyBox.Text = _draft.AiProxyUrl;
+        AiSystemProxyCheck.IsChecked = _draft.AiUseSystemProxy;
+        UpdateAiProviderHint();
         AiTemperatureBox.Text = _draft.AiTemperature.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
         AiTimeoutBox.Text = _draft.AiTimeoutSeconds.ToString();
         AiHistoryBox.Text = _draft.AiMaxHistoryMessages.ToString();
@@ -328,6 +341,10 @@ public partial class SettingsWindow : Window
         settings.AiApiMode = (AiApiMode)Math.Max(0, AiApiModeBox.SelectedIndex);
         settings.AiModel = (AiModelBox.Text ?? string.Empty).Trim();
         settings.AiApiKey = (AiApiKeyBox.Text ?? string.Empty).Trim();
+        settings.AiAuthMode = AuthModes[Math.Clamp(AiAuthModeBox.SelectedIndex, 0, AuthModes.Length - 1)];
+        settings.AiReasoningEffort = (AiReasoningEffortMode)Math.Max(0, AiReasoningBox.SelectedIndex);
+        settings.AiUseSystemProxy = AiSystemProxyCheck.IsChecked == true;
+        settings.AiProxyUrl = (AiProxyBox.Text ?? string.Empty).Trim();
         settings.AiTimeoutSeconds = ReadInt(AiTimeoutBox.Text, settings.AiTimeoutSeconds, 5, 3600);
 
         return settings;
@@ -342,8 +359,54 @@ public partial class SettingsWindow : Window
         AiStatusText.Text = "当前：" + (string.IsNullOrWhiteSpace(draft.AiModel) ? "(未选择模型)" : draft.AiModel)
             + "　" + OpenAiCompatibleClient.Normalize(draft.AiBaseUrl)
             + "　" + AiClientFactory.DescribeProtocol(draft)
-            + "　（模型要事先在本地服务里存在，例如 ollama list 能看到 qwen3:8b）";
+            + "　密钥：" + AiSecrets.Describe(draft.AiApiKey)
+            + "　（模型要事先在服务端存在，可点「获取模型列表」查看）";
+
+        AiKeyHint.Text = "密钥：" + AiSecrets.Describe(draft.AiApiKey)
+            + "　可以写 env:OPENAI_API_KEY 从环境变量读取，这样密钥不会写进 settings.json。"
+            + "密钥只保存在本机，不会上传到任何地方。";
+
+        UpdateAiCloudNotice();
     }
+
+    /// <summary>云端要明确提示"数据会发出去"，本地则强调不出本机。</summary>
+    private void UpdateAiCloudNotice()
+    {
+        if (AiCloudNotice == null) return;
+
+        var draft = BuildAiDraft();
+        var preset = AiProviderPresets.Match(draft.AiBaseUrl);
+
+        if (AiEndpoint.IsLocal(draft.AiBaseUrl))
+        {
+            AiCloudNotice.Text = "本地模型：对话与日程数据都留在本机，断网也能用。";
+            return;
+        }
+
+        AiCloudNotice.Text = "云端模型：对话内容（必要时包含相关日程标题 / 时间）会发送给你配置的服务商"
+            + (preset != null && preset.NeedsKey ? "（" + preset.Name + "）" : string.Empty)
+            + "。密钥只存在本机配置文件里，但请自行确认该服务商的隐私政策。";
+    }
+
+    /// <summary>选中预设：自动填地址 / 模型 / 鉴权方式，并显示该服务商的提示。</summary>
+    private void AiProvider_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading) return;
+
+        if (AiProviderBox.SelectedItem is not AiProviderPreset preset) return;
+
+        AiBaseUrlBox.Text = preset.BaseUrl;
+        AiApiModeBox.SelectedIndex = (int)AiApiMode.Auto;
+        AiAuthModeBox.SelectedIndex = Math.Max(0, Array.IndexOf(AuthModes, preset.AuthMode));
+
+        if (preset.Model.Length > 0) AiModelBox.Text = preset.Model;
+
+        UpdateAiProviderHint();
+        UpdateAiStatusText();
+    }
+
+    private void UpdateAiProviderHint()
+        => AiProviderHint.Text = (AiProviderBox.SelectedItem as AiProviderPreset)?.Hint ?? string.Empty;
 
     private async void TestAi_Click(object sender, RoutedEventArgs e) => await CheckAiAsync(fillModels: false);
 
@@ -559,10 +622,15 @@ public partial class SettingsWindow : Window
         settings.ReminderFollowCursorScreen = ReminderFollowCursorCheck.IsChecked == true;
 
         // AI 助手
+        settings.AiProvider = (AiProviderBox.SelectedItem as AiProviderPreset)?.Name ?? string.Empty;
         settings.AiBaseUrl = (AiBaseUrlBox.Text ?? string.Empty).Trim();
         settings.AiApiMode = (AiApiMode)(AiApiModeBox.SelectedIndex < 0 ? 0 : AiApiModeBox.SelectedIndex);
         settings.AiModel = (AiModelBox.Text ?? string.Empty).Trim();
         settings.AiApiKey = (AiApiKeyBox.Text ?? string.Empty).Trim();
+        settings.AiAuthMode = AuthModes[Math.Clamp(AiAuthModeBox.SelectedIndex, 0, AuthModes.Length - 1)];
+        settings.AiReasoningEffort = (AiReasoningEffortMode)Math.Max(0, AiReasoningBox.SelectedIndex);
+        settings.AiUseSystemProxy = AiSystemProxyCheck.IsChecked == true;
+        settings.AiProxyUrl = (AiProxyBox.Text ?? string.Empty).Trim();
         settings.AiTemperature = ReadDouble(AiTemperatureBox.Text, settings.AiTemperature, 0, 2);
         settings.AiTimeoutSeconds = ReadInt(AiTimeoutBox.Text, settings.AiTimeoutSeconds, 5, 3600);
         settings.AiMaxHistoryMessages = ReadInt(AiHistoryBox.Text, settings.AiMaxHistoryMessages, 4, 200);

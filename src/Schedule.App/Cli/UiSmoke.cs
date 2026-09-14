@@ -464,6 +464,64 @@ public static class UiSmoke
         var session = chat.Session;
         if (!ReferenceEquals(session, chat.Session)) problems.Add("相同设置下应复用同一个会话（否则历史会丢）");
 
+        // 联网（云端）支持：预设能填进设置，且界面会判定为"云端"
+        var savedSettings = new List<string>
+        {
+            host.Settings.AiProvider, host.Settings.AiBaseUrl, host.Settings.AiModel,
+            host.Settings.AiAuthMode.ToString(), host.Settings.AiThinking.ToString(),
+        };
+
+        try
+        {
+            if (Schedule.Core.Ai.AiProviderPresets.All.Count < 8) problems.Add("模型服务预设太少");
+
+            var cloudPreset = Schedule.Core.Ai.AiProviderPresets.All.First(p => !p.IsLocal && p.BaseUrl.StartsWith("https://", StringComparison.Ordinal));
+            Schedule.Core.Ai.AiProviderPresets.Apply(cloudPreset, host.Settings);
+
+            if (!chat.IsCloud) problems.Add("套用云端预设后没有判定为云端（" + cloudPreset.Name + "）");
+            if (!chat.DescribeTarget().StartsWith("云端", StringComparison.Ordinal)) problems.Add("云端服务的描述应标注「云端」");
+            if (!host.Settings.AiBaseUrl.StartsWith("https://", StringComparison.Ordinal)) problems.Add("云端预设地址必须是 https");
+        }
+        finally
+        {
+            host.Settings.AiProvider = savedSettings[0];
+            host.Settings.AiBaseUrl = savedSettings[1];
+            host.Settings.AiModel = savedSettings[2];
+            host.Settings.AiAuthMode = Enum.Parse<AiAuthMode>(savedSettings[3]);
+            host.Settings.AiThinking = Enum.Parse<AiThinkingLevel>(savedSettings[4]);
+        }
+
+        // 鉴权方式下拉必须与设置一一对应（枚举顺序曾经和界面顺序不一致，导致显示成 api-key）
+        foreach (var (mode, expected) in new[]
+                 {
+                     (AiAuthMode.Bearer, "Bearer"),
+                     (AiAuthMode.ApiKeyHeader, "api-key"),
+                     (AiAuthMode.None, "不带"),
+                 })
+        {
+            var savedAuth = host.Settings.AiAuthMode;
+            host.Settings.AiAuthMode = mode;
+
+            try
+            {
+                var probe = new SettingsWindow(host, SettingsWindow.AiTabIndex);
+                var text = (probe.FindName("AiAuthModeBox") as ComboBox)?.SelectedItem is ComboBoxItem item
+                    ? item.Content?.ToString() ?? string.Empty
+                    : string.Empty;
+
+                if (!text.Contains(expected, StringComparison.Ordinal))
+                {
+                    problems.Add("鉴权方式下拉没有反映 " + mode + "（显示为「" + text + "」）");
+                }
+
+                probe.Hide();
+            }
+            finally
+            {
+                host.Settings.AiAuthMode = savedAuth;
+            }
+        }
+
         var options = Schedule.Core.Ai.AiClientFactory.CreateOptions(host.Settings);
         if (options.Model != host.Settings.AiModel) problems.Add("会话选项里的模型与设置不一致");
         if (options.MaxHistoryMessages != host.Settings.AiMaxHistoryMessages) problems.Add("会话选项里的上下文条数与设置不一致");
@@ -743,6 +801,23 @@ public static class UiSmoke
 
             tabs.SelectedIndex = 2; // 外观与默认值：最后一列是最容易被裁掉的位置
             window.UpdateLayout();
+
+            if (window.FindName("AiProviderBox") is not ComboBox providerBox
+                || providerBox.ItemsSource is not IEnumerable<Schedule.Core.Ai.AiProviderPreset> presets
+                || presets.Count() < 8)
+            {
+                problems.Add("设置窗口的「服务预设」下拉没有装满预设（联网模型靠它一键填好地址与密钥方式）");
+            }
+
+            if (window.FindName("AiAuthModeBox") is not ComboBox authBox || authBox.Items.Count != 3)
+            {
+                problems.Add("设置窗口缺少「鉴权方式」下拉（Bearer / api-key / 不带）");
+            }
+
+            if (window.FindName("AiReasoningBox") is not ComboBox reasoningBox || reasoningBox.Items.Count != 3)
+            {
+                problems.Add("设置窗口缺少「推理强度参数」下拉");
+            }
 
             if (window.FindName("AutoRestartThemeCheck") is not CheckBox autoRestart)
             {

@@ -51,4 +51,8 @@ public static class ThemeBrushes
     public static Brush Hint => Get("Brush.Hint", "#F9FAFB");
 
     public static Brush HintBorder => Get("Brush.HintBorder", "#E5E7EB");
+
+    public static Brush Success => Get("Brush.Success", "#16A34A");
+
+    public static Brush Warning => Get("Brush.Warning", "#D97706");
 }
