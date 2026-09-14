@@ -286,8 +286,24 @@ public static class UiSmoke
             }
         }
 
+        // 导入向导：故意用一个格式不匹配的 CSV，截图里能直接看到红色阻塞提示
+        void ShotImport()
+        {
+            var dir = Path.Combine(AppPaths.DataDirectory, "import-selftest");
+            Directory.CreateDirectory(dir);
+
+            var wrong = Path.Combine(dir, "wrong.csv");
+            File.WriteAllText(wrong, "姓名,电话,地址\r\n张三,13800000000,北京\r\n", new UTF8Encoding(false));
+
+            var window = new CsvImportWindow(host, wrong);
+            window.Show();
+            window.UpdateLayout();
+            Shot("12-import-mismatch", window);
+        }
+
         Shot("01-main", new MainWindow(host));
         ShotSelectedList();
+        ShotImport();
         ShotView("06-week", "WeekModeButton");
         ShotView("07-month", "MonthModeButton");
         Shot("02-settings", new SettingsWindow(host));
