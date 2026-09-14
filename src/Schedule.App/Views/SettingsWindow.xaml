@@ -325,6 +325,105 @@
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
+
+            <!-- ================= AI 助手 ================= -->
+            <TabItem Header="AI 助手">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                              Padding="18,16" MinWidth="580">
+                    <StackPanel>
+                        <TextBlock Text="模型服务（跑在本机，不需要联网）" Style="{StaticResource SectionTitle}" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="92" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="服务地址" VerticalAlignment="Center" Foreground="{DynamicResource Brush.Subtle}" />
+                            <TextBox x:Name="AiBaseUrlBox" Grid.Column="1"
+                                     ToolTip="OpenAI 兼容根地址。Ollama：http://127.0.0.1:11434　LM Studio：http://127.0.0.1:1234/v1" />
+                            <Button x:Name="TestAiButton" Grid.Column="2" Content="测试连接" Margin="8,0,0,0" Click="TestAi_Click" />
+                        </Grid>
+
+                        <Grid Margin="0,8,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="92" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="接口协议" VerticalAlignment="Center" Foreground="{DynamicResource Brush.Subtle}" />
+                            <ComboBox x:Name="AiApiModeBox" Grid.Column="1">
+                                <ComboBoxItem Content="自动判断（推荐）" />
+                                <ComboBoxItem Content="OpenAI 兼容 /v1/chat/completions" />
+                                <ComboBoxItem Content="Ollama 原生 /api/chat（能关掉思考，更快）" />
+                            </ComboBox>
+                            <Button x:Name="FetchAiModelsButton" Grid.Column="2" Content="获取模型列表" Margin="8,0,0,0" Click="FetchAiModels_Click" />
+                        </Grid>
+
+                        <Grid Margin="0,8,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="92" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="92" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="模型" VerticalAlignment="Center" Foreground="{DynamicResource Brush.Subtle}" />
+                            <ComboBox x:Name="AiModelBox" Grid.Column="1" IsEditable="True"
+                                      ToolTip="例如 qwen3:8b。点右边「获取模型列表」可自动填。" />
+                            <TextBlock Grid.Column="2" Text="接口密钥" VerticalAlignment="Center" Margin="12,0,0,0"
+                                       Foreground="{DynamicResource Brush.Subtle}" />
+                            <TextBox x:Name="AiApiKeyBox" Grid.Column="3" ToolTip="本地服务一般留空" />
+                        </Grid>
+
+                        <TextBlock x:Name="AiStatusText" Style="{StaticResource FieldHint}" MaxWidth="620" />
+
+                        <TextBlock Text="生成参数" Style="{StaticResource SectionTitle}" Margin="2,18,0,6" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Margin="0,0,10,0">
+                                <TextBlock Text="温度（0 ~ 2）" FontSize="11" Foreground="{DynamicResource Brush.Subtle}" Margin="0,0,0,3" />
+                                <TextBox x:Name="AiTemperatureBox" ToolTip="工具调用建议 0 ~ 0.3，越小越稳" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Margin="0,0,10,0">
+                                <TextBlock Text="超时（秒）" FontSize="11" Foreground="{DynamicResource Brush.Subtle}" Margin="0,0,0,3" />
+                                <TextBox x:Name="AiTimeoutBox" ToolTip="本地大模型首次加载较慢，可调大" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Margin="0,0,10,0">
+                                <TextBlock Text="上下文条数" FontSize="11" Foreground="{DynamicResource Brush.Subtle}" Margin="0,0,0,3" />
+                                <TextBox x:Name="AiHistoryBox" ToolTip="最多携带多少条历史消息" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="3">
+                                <TextBlock Text="最大输出 token" FontSize="11" Foreground="{DynamicResource Brush.Subtle}" Margin="0,0,0,3" />
+                                <TextBox x:Name="AiMaxTokensBox" ToolTip="0 = 交给服务端默认" />
+                            </StackPanel>
+                        </Grid>
+
+                        <CheckBox x:Name="AiDisableThinkingCheck" Margin="0,12,0,0"
+                                  Content="不让模型输出思考过程（Qwen3 等思考模型会快很多）" />
+                        <CheckBox x:Name="AiShowToolDetailsCheck" Margin="0,8,0,0"
+                                  Content="在对话里显示工具调用详情（能看到 AI 具体做了什么）" />
+                        <CheckBox x:Name="AiLogActionsCheck" Margin="0,8,0,0"
+                                  Content="把 AI 的改动写入日志，便于回溯" />
+
+                        <TextBlock Text="自定义系统提示（留空使用内置）" Style="{StaticResource SectionTitle}" Margin="2,18,0,6" />
+                        <TextBox x:Name="AiSystemPromptBox" AcceptsReturn="True" Height="76" TextWrapping="Wrap"
+                                 VerticalScrollBarVisibility="Auto"
+                                 ToolTip="内置提示已包含：必须调用工具、删除前确认、时间用 24 小时制等规则" />
+
+                        <Border Background="{DynamicResource Brush.Hint}" CornerRadius="6" Padding="12,10" Margin="0,14,0,0">
+                            <StackPanel>
+                                <TextBlock Text="怎么让对话功能跑起来" Style="{StaticResource SectionTitle}" />
+                                <TextBlock TextWrapping="Wrap" MaxWidth="600" FontSize="12" Foreground="{DynamicResource Brush.Subtle}"
+                                           Text="1) 安装 Ollama（ollama.com）并保持它在后台运行；&#10;2) 命令行执行：ollama pull qwen3:8b（约 5 GB）；&#10;3) 回到这里点「测试连接」，成功后即可用主界面的「AI 对话」开聊。&#10;也可以用 LM Studio / llama.cpp 等任何 OpenAI 兼容服务，把上面的服务地址换成它即可。" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
         </TabControl>
 
         <DockPanel Grid.Row="1" Margin="0,12,0,0">

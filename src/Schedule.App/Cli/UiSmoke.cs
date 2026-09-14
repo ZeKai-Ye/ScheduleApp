@@ -130,6 +130,15 @@ public static class UiSmoke
 
         Try("提醒弹窗", () => new ReminderWindow(host, due));
 
+        Try(
+            "AI 对话窗口",
+            () => new AiChatWindow(host),
+            window =>
+            {
+                var chat = (AiChatWindow)window;
+                return chat.BubbleCount > 0 ? null : "AI 对话窗口没有开场提示气泡";
+            });
+
         var csv = Path.Combine(AppPaths.DataDirectory, "ui-smoke-sample.csv");
         try
         {
@@ -221,8 +230,18 @@ public static class UiSmoke
         ShotView("07-month", "MonthModeButton");
         Shot("02-settings", new SettingsWindow(host));
         ShotThemeSettings();
+
+        // AI 助手设置页
+        void ShotAiSettings()
+        {
+            var window = new SettingsWindow(host, SettingsWindow.AiTabIndex);
+            Shot("10-settings-ai", window);
+        }
+
+        ShotAiSettings();
         Shot("03-editor", new ItemEditorWindow(host, sample, isNew: false));
         Shot("04-reminder", new ReminderWindow(host, due));
+        Shot("09-ai-chat", new AiChatWindow(host));
         Shot("05-reschedule", new RescheduleWindow(host, sample, sample.Start, sampleEnd, true));
 
         report.AppendLine(failures == 0 ? "结果：全部通过" : "结果：失败 " + failures + " 项");
@@ -268,6 +287,9 @@ public static class UiSmoke
 
         var (fileName, arguments) = command.Value;
         report.AppendLine("RESTART 命令=" + fileName + " " + RestartPlan.ToCommandLine(arguments));
+        report.AppendLine("AI 服务=" + Schedule.Core.Ai.AiClientFactory.Describe(host.Settings)
+            + "　超时=" + host.Settings.AiTimeoutSeconds + "s"
+            + "　工具=" + Schedule.Core.Ai.AiToolCatalog.Definitions.Count + " 个");
 
         if (!File.Exists(fileName)) problems.Add("重启用的可执行文件不存在：" + fileName);
 
@@ -526,6 +548,29 @@ public static class UiSmoke
             {
                 problems.Add("设置窗口最右列超出窗口宽度：" + RightEdge(window, box).ToString("0")
                     + " > " + window.ActualWidth.ToString("0"));
+            }
+
+            // AI 标签页：内容里有长文本，若被撑到超出可视宽度，右侧按钮会被挤出窗外
+            tabs.SelectedIndex = SettingsWindow.AiTabIndex;
+            window.UpdateLayout();
+
+            foreach (var name in new[] { "TestAiButton", "FetchAiModelsButton" })
+            {
+                if (window.FindName(name) is not FrameworkElement element)
+                {
+                    problems.Add("设置窗口找不到 " + name);
+                    continue;
+                }
+
+                if (element.ActualWidth < 20)
+                {
+                    problems.Add(name + " 被压扁（宽 " + element.ActualWidth.ToString("0") + "）");
+                }
+                else if (RightEdge(window, element) > window.ActualWidth + 1)
+                {
+                    problems.Add(name + " 被挤出窗口右侧：" + RightEdge(window, element).ToString("0")
+                        + " > " + window.ActualWidth.ToString("0"));
+                }
             }
         });
 

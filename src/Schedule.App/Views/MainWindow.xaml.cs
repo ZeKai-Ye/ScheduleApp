@@ -132,6 +132,11 @@ public partial class MainWindow : Window
             SearchBox.SelectAll();
             e.Handled = true;
         }
+        else if (e.Key == Key.K && Keyboard.Modifiers == ModifierKeys.Control)
+        {
+            OpenAiChat();
+            e.Handled = true;
+        }
         else if (e.Key == Key.F5)
         {
             ViewModel.Refresh();
@@ -145,6 +150,24 @@ public partial class MainWindow : Window
             SyncViewButtons();
             e.Handled = true;
         }
+    }
+
+    // ================= AI 对话 =================
+
+    private void AiChat_Click(object sender, RoutedEventArgs e) => OpenAiChat();
+
+    /// <summary>打开 AI 对话窗口（单例：重复点只是把已有窗口激活）。</summary>
+    private void OpenAiChat()
+    {
+        if (_aiChatWindow is { IsLoaded: true })
+        {
+            _aiChatWindow.Activate();
+            return;
+        }
+
+        _aiChatWindow = new AiChatWindow(_host) { Owner = this };
+        _aiChatWindow.Closed += (_, _) => _aiChatWindow = null;
+        _aiChatWindow.Show();
     }
 
     // ================= 视图切换 =================
@@ -369,6 +392,7 @@ public partial class MainWindow : Window
     private Point _dragOrigin;
     private Border? _dragBlock;
     private bool _dragging;
+    private AiChatWindow? _aiChatWindow;
 
     private void WeekBlock_DragStart(object sender, MouseButtonEventArgs e)
     {

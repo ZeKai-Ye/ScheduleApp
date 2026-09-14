@@ -5,6 +5,7 @@ using System.Windows.Threading;
 using Microsoft.Win32;
 using Schedule.App.Services;
 using Schedule.App.ViewModels;
+using Schedule.Core.Ai;
 using Schedule.Core.Models;
 using Schedule.Core.Storage;
 using Schedule.Core.Templating;
@@ -33,7 +34,14 @@ public partial class SettingsWindow : Window
     private List<VoiceChoice> _voiceChoices = new();
     private bool _loading = true;
 
-    public SettingsWindow(AppHost host)
+    /// <summary>「AI 助手」标签页下标（对话窗口的「AI 设置…」直接跳这里）。</summary>
+    public const int AiTabIndex = 4;
+
+    public SettingsWindow(AppHost host) : this(host, 0)
+    {
+    }
+
+    public SettingsWindow(AppHost host, int initialTab)
     {
         _host = host;
         _draft = host.Settings.Clone();
@@ -56,6 +64,8 @@ public partial class SettingsWindow : Window
         _loading = false;
         StatusText.Text = string.Empty;
         UpdatePreview();
+
+        if (initialTab > 0 && initialTab < Tabs.Items.Count) Tabs.SelectedIndex = initialTab;
     }
 
     private void LoadVoices()
@@ -194,6 +204,21 @@ public partial class SettingsWindow : Window
         ReminderFollowCursorCheck.IsChecked = _draft.ReminderFollowCursorScreen;
         UpdateReminderPositionHint();
 
+        // AI 助手
+        AiBaseUrlBox.Text = _draft.AiBaseUrl;
+        AiApiModeBox.SelectedIndex = (int)_draft.AiApiMode;
+        AiModelBox.Text = _draft.AiModel;
+        AiApiKeyBox.Text = _draft.AiApiKey;
+        AiTemperatureBox.Text = _draft.AiTemperature.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+        AiTimeoutBox.Text = _draft.AiTimeoutSeconds.ToString();
+        AiHistoryBox.Text = _draft.AiMaxHistoryMessages.ToString();
+        AiMaxTokensBox.Text = _draft.AiMaxTokens.ToString();
+        AiDisableThinkingCheck.IsChecked = _draft.AiDisableThinking;
+        AiShowToolDetailsCheck.IsChecked = _draft.AiShowToolDetails;
+        AiLogActionsCheck.IsChecked = _draft.AiLogActions;
+        AiSystemPromptBox.Text = _draft.AiSystemPrompt;
+        UpdateAiStatusText();
+
         // 桌面集成
         StartupArgumentsBox.Text = _draft.StartupArguments;
         StartMinimizedCheck.IsChecked = _draft.StartMinimized;
@@ -291,6 +316,72 @@ public partial class SettingsWindow : Window
         ThemeHintText.Text = ThemeService.Describe(mode)
             + (mode == AppTheme.System ? string.Empty : "（立即预览；取消会恢复原主题）");
     }
+
+    // ================= AI 助手 =================
+
+    /// <summary>按界面上的当前值拼一份 AI 设置（不落盘），用于「测试连接 / 获取模型列表」。</summary>
+    private AppSettings BuildAiDraft()
+    {
+        var settings = _draft.Clone();
+
+        settings.AiBaseUrl = (AiBaseUrlBox.Text ?? string.Empty).Trim();
+        settings.AiApiMode = (AiApiMode)Math.Max(0, AiApiModeBox.SelectedIndex);
+        settings.AiModel = (AiModelBox.Text ?? string.Empty).Trim();
+        settings.AiApiKey = (AiApiKeyBox.Text ?? string.Empty).Trim();
+        settings.AiTimeoutSeconds = ReadInt(AiTimeoutBox.Text, settings.AiTimeoutSeconds, 5, 3600);
+
+        return settings;
+    }
+
+    private void UpdateAiStatusText()
+    {
+        if (AiStatusText == null) return;
+
+        var draft = BuildAiDraft();
+
+        AiStatusText.Text = "当前：" + (string.IsNullOrWhiteSpace(draft.AiModel) ? "(未选择模型)" : draft.AiModel)
+            + "　" + OpenAiCompatibleClient.Normalize(draft.AiBaseUrl)
+            + "　" + AiClientFactory.DescribeProtocol(draft)
+            + "　（模型要事先在本地服务里存在，例如 ollama list 能看到 qwen3:8b）";
+    }
+
+    private async void TestAi_Click(object sender, RoutedEventArgs e) => await CheckAiAsync(fillModels: false);
+
+    private async void FetchAiModels_Click(object sender, RoutedEventArgs e) => await CheckAiAsync(fillModels: true);
+
+    private async Task CheckAiAsync(bool fillModels)
+    {
+        var draft = BuildAiDraft();
+        AiStatusText.Text = "正在连接 " + OpenAiCompatibleClient.Normalize(draft.AiBaseUrl) + " …";
+
+        try
+        {
+            using var client = AiClientFactory.Create(draft);
+            var models = await client.ListModelsAsync(CancellationToken.None);
+
+            if (fillModels)
+            {
+                AiModelBox.ItemsSource = models;
+
+                var match = models.FirstOrDefault(m => string.Equals(m.Id, draft.AiModel, StringComparison.OrdinalIgnoreCase));
+                if (match != null) AiModelBox.SelectedItem = match;
+                else if (models.Count == 1) AiModelBox.Text = models[0].Id;
+            }
+
+            AiStatusText.Text = "连接成功（" + AiClientFactory.DescribeProtocol(draft) + "）：共 " + models.Count + " 个模型　"
+                + string.Join("、", models.Select(m => m.Id + (string.IsNullOrWhiteSpace(m.Detail) ? string.Empty : "（" + m.Detail + "）")));
+        }
+        catch (Exception ex)
+        {
+            AiStatusText.Text = "连接失败：" + ex.Message;
+        }
+    }
+
+    private static double ReadDouble(string? text, double fallback, double min, double max)
+        => double.TryParse((text ?? string.Empty).Trim(), System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture, out var value)
+            ? Math.Clamp(value, min, max)
+            : fallback;
 
     private void ReminderPosition_Changed(object sender, SelectionChangedEventArgs e) => UpdateReminderPositionHint();
 
@@ -466,6 +557,20 @@ public partial class SettingsWindow : Window
         settings.ReminderPositionY = ReadInt(ReminderPositionYBox.Text, settings.ReminderPositionY, -20000, 20000);
         settings.ReminderRememberPosition = ReminderRememberPositionCheck.IsChecked == true;
         settings.ReminderFollowCursorScreen = ReminderFollowCursorCheck.IsChecked == true;
+
+        // AI 助手
+        settings.AiBaseUrl = (AiBaseUrlBox.Text ?? string.Empty).Trim();
+        settings.AiApiMode = (AiApiMode)(AiApiModeBox.SelectedIndex < 0 ? 0 : AiApiModeBox.SelectedIndex);
+        settings.AiModel = (AiModelBox.Text ?? string.Empty).Trim();
+        settings.AiApiKey = (AiApiKeyBox.Text ?? string.Empty).Trim();
+        settings.AiTemperature = ReadDouble(AiTemperatureBox.Text, settings.AiTemperature, 0, 2);
+        settings.AiTimeoutSeconds = ReadInt(AiTimeoutBox.Text, settings.AiTimeoutSeconds, 5, 3600);
+        settings.AiMaxHistoryMessages = ReadInt(AiHistoryBox.Text, settings.AiMaxHistoryMessages, 4, 200);
+        settings.AiMaxTokens = ReadInt(AiMaxTokensBox.Text, settings.AiMaxTokens, 0, 32000);
+        settings.AiDisableThinking = AiDisableThinkingCheck.IsChecked == true;
+        settings.AiShowToolDetails = AiShowToolDetailsCheck.IsChecked == true;
+        settings.AiLogActions = AiLogActionsCheck.IsChecked == true;
+        settings.AiSystemPrompt = AiSystemPromptBox.Text ?? string.Empty;
 
         settings.StartupArguments = (StartupArgumentsBox.Text ?? string.Empty).Trim();
         settings.StartMinimized = StartMinimizedCheck.IsChecked == true;

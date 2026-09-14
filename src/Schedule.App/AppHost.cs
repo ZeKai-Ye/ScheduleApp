@@ -15,7 +15,7 @@ namespace Schedule.App;
 /// 应用组合根：装配仓储、设置、语音、提示音、提醒调度、托盘与主窗口。
 /// 所有单例式服务都在这里创建与释放，界面只通过它访问。
 /// </summary>
-public sealed class AppHost : IDisposable
+public sealed class AppHost : IDisposable, IAiAppContext
 {
     private DispatcherTimer? _autoSaveTimer;
     private MainWindow? _mainWindow;
@@ -43,6 +43,9 @@ public sealed class AppHost : IDisposable
 
     /// <summary>本地 JSON 接口（供 AI / 脚本访问）。</summary>
     public ApiHost? Api { get; private set; }
+
+    /// <summary>AI 对话（内置聊天窗口用；模型跑在本地）。</summary>
+    public AiChatService? Chat { get; private set; }
 
     /// <summary>是否以无界面模式运行（--serve）。</summary>
     public bool IsHeadless { get; private set; }
@@ -72,6 +75,15 @@ public sealed class AppHost : IDisposable
     /// <summary>通知界面「调色板已换，请重建算好的画刷」。</summary>
     public void NotifyThemeChanged() => ThemeChanged?.Invoke(this, EventArgs.Empty);
 
+    // ---------- IAiAppContext：让 AI 工具执行与宿主解耦 ----------
+
+    public string DataDirectory => AppPaths.DataDirectory;
+
+    public string Version => typeof(AppHost).Assembly.GetName().Version?.ToString(3) ?? "0.1.0";
+
+    /// <summary>AI 改了设置（例如切换主题）后走这里：落盘 + 即时生效 + 通知界面。</summary>
+    public void SaveSettings() => NotifySettingsChanged();
+
     public void Start(CommandLineOptions options)
     {
         SettingsService = new SettingsService();
@@ -95,6 +107,8 @@ public sealed class AppHost : IDisposable
 
         Api = new ApiHost(this);
         Api.Start(options.ApiPort, enabled: !options.NoApi);
+
+        Chat = new AiChatService(this);
 
         IsHeadless = options.Serve;
         StartMinimized = options.Minimized || options.Serve;
@@ -461,6 +475,7 @@ public sealed class AppHost : IDisposable
             _autoSaveTimer?.Stop();
             Reminders?.Dispose();
             Api?.Dispose();
+            Chat?.Dispose();
             Tray?.Dispose();
             Audio?.Dispose();
             (Voice as IDisposable)?.Dispose();

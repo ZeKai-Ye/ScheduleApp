@@ -53,6 +53,14 @@ public static class CliRunner
             {
                 exitCode = Info(output);
             }
+            else if (options.AiModels)
+            {
+                exitCode = AiModels(output);
+            }
+            else if (!string.IsNullOrWhiteSpace(options.AiChatText))
+            {
+                exitCode = AiChat(options, output);
+            }
         }
         catch (Exception ex)
         {
@@ -312,5 +320,26 @@ public static class CliRunner
         var service = new SettingsService();
         service.Load();
         return service.Current;
+    }
+
+    // ================= AI 对话（无界面验证 / 脚本用） =================
+
+    private static int AiModels(StringBuilder output)
+    {
+        var settings = new SettingsService();
+        settings.Load();
+
+        return AiCliRunner.ListModels(settings, output);
+    }
+
+    private static int AiChat(CommandLineOptions options, StringBuilder output)
+    {
+        var settings = new SettingsService();
+        settings.Load();
+
+        var repository = new ScheduleRepository(backupKeepCount: settings.Current.BackupKeepCount);
+        repository.Load();
+
+        return AiCliRunner.Chat(settings, repository, options.AiChatText!.Trim(), output);
     }
 }

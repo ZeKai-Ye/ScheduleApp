@@ -46,6 +46,7 @@
                              Margin="0,0,10,0"
                              ToolTip="搜索标题 / 备注 / 分类（Ctrl+F）"
                              Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=250}" />
+                    <Button Content="AI 对话" Click="AiChat_Click" Margin="0,0,8,0" ToolTip="和本地大模型对话，直接让它查 / 改日程（Ctrl+K）" />
                     <Button Content="新建日程" Style="{StaticResource PrimaryButton}" Click="NewItem_Click" Margin="0,0,8,0" ToolTip="Ctrl+N" />
                     <Button Content="导入 CSV" Click="ImportCsv_Click" Margin="0,0,8,0" ToolTip="Ctrl+I" />
                     <Button Content="导出" Click="Export_Click" Margin="0,0,8,0" />

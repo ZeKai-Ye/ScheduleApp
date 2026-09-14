@@ -48,6 +48,12 @@ public sealed class CommandLineOptions
     /// <summary>启动时临时指定主题（light / dark / system），不写回设置。</summary>
     public string? ThemeOverride { get; set; }
 
+    /// <summary>命令行里跟 AI 说一句话并打印结果（无界面验证对话功能用）。</summary>
+    public string? AiChatText { get; set; }
+
+    /// <summary>列出模型服务上的模型后退出。</summary>
+    public bool AiModels { get; set; }
+
     /// <summary>创建快捷方式（desktop / startmenu）。</summary>
     public string? ShortcutTarget { get; set; }
 
@@ -69,7 +75,8 @@ public sealed class CommandLineOptions
 
     public bool HasCliAction =>
         ImportFile != null || ExportFile != null || SpeakText != null || ListVoices || ShowInfo || Help
-        || ShortcutTarget != null || RemoveShortcutTarget != null || StartupEnabled.HasValue || UiSmoke;
+        || ShortcutTarget != null || RemoveShortcutTarget != null || StartupEnabled.HasValue || UiSmoke
+        || AiChatText != null || AiModels;
 
     public static CommandLineOptions Parse(string[] args)
     {
@@ -162,6 +169,12 @@ public sealed class CommandLineOptions
                 case "--theme":
                     options.ThemeOverride = Value();
                     break;
+                case "--ai-chat":
+                    options.AiChatText = Value();
+                    break;
+                case "--ai-models":
+                    options.AiModels = true;
+                    break;
                 case "--shortcut":
                     options.ShortcutTarget = Value() ?? "desktop";
                     break;
@@ -224,6 +237,11 @@ public sealed class CommandLineOptions
         "  --minimized                           启动后直接最小化到托盘",
         "  --ui-smoke                            界面冒烟自检：依次构造全部窗口后退出（可截图）",
         "  --theme light|dark|system             临时指定主题（不写回设置）",
+        "",
+        "AI 对话（模型跑在本地，默认 Ollama + qwen3:8b）：",
+        "  --ai-chat <文本>      跟 AI 说一句话并打印回复（同时会把工具调用一并打印）",
+        "  --ai-models           列出模型服务上的可用模型",
+        "  地址 / 模型在设置里改，或直接用 settings.json 的 aiBaseUrl / aiModel",
         "",
         "通用选项：",
         "  --data <目录>         指定数据目录（默认 %APPDATA%\\ScheduleApp）",

@@ -45,4 +45,10 @@ public static class ThemeBrushes
     public static Brush OnAccent => Get("Brush.OnAccent", "#FFFFFF");
 
     public static Brush Danger => Get("Brush.Danger", "#DC2626");
+
+    public static Brush DangerSoft => Get("Brush.DangerSoft", "#FEF2F2");
+
+    public static Brush Hint => Get("Brush.Hint", "#F9FAFB");
+
+    public static Brush HintBorder => Get("Brush.HintBorder", "#E5E7EB");
 }
