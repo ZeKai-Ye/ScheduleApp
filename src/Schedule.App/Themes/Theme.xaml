@@ -416,12 +416,51 @@
         <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
     </Style>
 
+    <!--
+      列表行必须自绘：系统默认模板的"选中"状态是硬编码的浅色高亮，
+      夜间模式下选中一行会变成白底 + 浅色文字（完全读不了）。
+      自绘之后选中色走 Brush.RowSelected，跟随主题。
+    -->
     <Style TargetType="ListViewItem">
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Setter Property="Padding" Value="4,6" />
         <Setter Property="Margin" Value="0" />
         <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.Text}" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListViewItem">
+                    <Border x:Name="Bd"
+                            Background="Transparent"
+                            BorderBrush="{DynamicResource Brush.Border}"
+                            BorderThickness="0,0,0,1"
+                            Padding="{TemplateBinding Padding}"
+                            SnapsToDevicePixels="True">
+                        <!-- 列集合由 GridView 通过附加属性挂到行上；不绑定的话行内容会是空的 -->
+                        <GridViewRowPresenter
+                            Columns="{Binding Path=(GridView.ColumnCollection), RelativeSource={RelativeSource TemplatedParent}}"
+                            Content="{TemplateBinding Content}"
+                            HorizontalAlignment="Stretch"
+                            VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                            SnapsToDevicePixels="True" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Brush.RowHover}" />
+                        </Trigger>
+                        <!-- 放在 hover 之后：选中且悬停时仍显示选中色 -->
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Brush.RowSelected}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.55" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
     <Style TargetType="GridViewColumnHeader">

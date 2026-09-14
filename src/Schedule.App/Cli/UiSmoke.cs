@@ -2,6 +2,7 @@ using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using Schedule.App.Views;
 using Schedule.Core.Logging;
 using Schedule.Core.Models;
@@ -233,7 +234,50 @@ public static class UiSmoke
             Shot("08-settings-theme", window);
         }
 
+        // 列表选中态：夜间模式下这里曾经变成白底 + 浅字完全读不了，留一张有内容的截图便于复核
+        void ShotSelectedList()
+        {
+            var demo = new ScheduleItem
+            {
+                Title = "选中态截图（客户沟通）",
+                Start = DateTime.Now.AddHours(2),
+                End = DateTime.Now.AddHours(3),
+                Category = "工作",
+                Priority = Priority.High,
+                ReminderOffsets = new List<int> { 30, 5 },
+                Notes = "用来看选中行的背景与文字对比",
+            };
+
+            host.Repository.Add(demo);
+
+            try
+            {
+                var window = new MainWindow(host);
+                window.ViewModel.ViewMode = ScheduleViewMode.List;
+                window.Show();
+                window.UpdateLayout();
+
+                if (window.FindName("ScheduleList") is ListView list)
+                {
+                    list.UpdateLayout();
+
+                    var row = FindDescendant<ListViewItem>(list);
+                    if (row != null) row.IsSelected = true;
+
+                    window.UpdateLayout();
+                }
+
+                Shot("11-list-selected", window);
+            }
+            finally
+            {
+                host.Repository.Remove(demo.Id);
+                host.Repository.Save(force: true);
+            }
+        }
+
         Shot("01-main", new MainWindow(host));
+        ShotSelectedList();
         ShotView("06-week", "WeekModeButton");
         ShotView("07-month", "MonthModeButton");
         Shot("02-settings", new SettingsWindow(host));
@@ -280,6 +324,125 @@ public static class UiSmoke
     }
 
     /// <summary>
+    /// 列表选中行配色自检：把主窗口渲染成位图，采样选中行内部的一个像素，
+    /// 要求它等于调色板里的 Brush.RowSelected。
+    /// 系统默认 ListViewItem 模板的选中色是硬编码浅色，夜间模式下会变成"白底 + 浅字"完全读不了。
+    /// </summary>
+    private static void CheckSelectedRowBackground(AppHost host, List<string> problems)
+    {
+        var item = new ScheduleItem
+        {
+            Title = "选中行配色自检",
+            Start = DateTime.Now.AddHours(2),
+            End = DateTime.Now.AddHours(3),
+            Category = "自检",
+        };
+
+        host.Repository.Add(item);
+
+        try
+        {
+            var window = new MainWindow(host);
+            window.ViewModel.ViewMode = ScheduleViewMode.List;
+            window.Show();
+            window.UpdateLayout();
+
+            if (window.FindName("ScheduleList") is not ListView list)
+            {
+                problems.Add("找不到 ScheduleList，无法校验选中行配色");
+                return;
+            }
+
+            list.UpdateLayout();
+
+            // 列表按天分组，Items 里是分组对象，因此直接在可视树里找第一行的 ListViewItem
+            var row = FindDescendant<ListViewItem>(list);
+            if (row == null)
+            {
+                problems.Add("列表里没有可见的日程行（自检日程应落在默认筛选范围内）");
+                return;
+            }
+
+            row.IsSelected = true;
+            window.UpdateLayout();
+            row.UpdateLayout();
+
+            var width = (int)Math.Ceiling(window.ActualWidth);
+            var height = (int)Math.Ceiling(window.ActualHeight);
+            if (width <= 0 || height <= 0)
+            {
+                problems.Add("主窗口尺寸异常，无法渲染");
+                return;
+            }
+
+            var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+            bitmap.Render(window);
+
+            // 采样点：行内「完成」列左侧的空白处，避开文字、色块与复选框
+            var point = row.TransformToAncestor(window).Transform(new Point(16, 3));
+            var x = (int)Math.Round(point.X);
+            var y = (int)Math.Round(point.Y);
+
+            if (x < 0 || y < 0 || x >= width || y >= height)
+            {
+                problems.Add("列表行的采样点落在窗口外（" + x + "," + y + "）");
+                return;
+            }
+
+            var pixel = new byte[4];
+            bitmap.CopyPixels(new Int32Rect(x, y, 1, 1), pixel, 4, 0);
+
+            var sampled = Color.FromRgb(pixel[2], pixel[1], pixel[0]); // Pbgra32：B G R A
+
+            if (Application.Current?.TryFindResource("Brush.RowSelected") is not SolidColorBrush expected)
+            {
+                problems.Add("拿不到 Brush.RowSelected");
+                return;
+            }
+
+            var diff = Math.Abs(sampled.R - expected.Color.R)
+                + Math.Abs(sampled.G - expected.Color.G)
+                + Math.Abs(sampled.B - expected.Color.B);
+
+            if (diff > 12)
+            {
+                problems.Add("选中行背景不是主题色：实测 #" + sampled.R.ToString("X2") + sampled.G.ToString("X2")
+                    + sampled.B.ToString("X2") + "，期望 #" + expected.Color.R.ToString("X2")
+                    + expected.Color.G.ToString("X2") + expected.Color.B.ToString("X2")
+                    + "（系统默认模板会给出浅色高亮，夜间模式读不了）");
+            }
+
+            window.Hide();
+        }
+        catch (Exception ex)
+        {
+            problems.Add("选中行配色自检异常：" + ex.GetType().Name + " " + ex.Message);
+        }
+        finally
+        {
+            host.Repository.Remove(item.Id);
+            host.Repository.Save(force: true);
+        }
+    }
+
+    /// <summary>在可视树里找第一个指定类型的后代。</summary>
+    private static T? FindDescendant<T>(DependencyObject root) where T : DependencyObject
+    {
+        var count = VisualTreeHelper.GetChildrenCount(root);
+
+        for (var i = 0; i < count; i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is T match) return match;
+
+            var nested = FindDescendant<T>(child);
+            if (nested != null) return nested;
+        }
+
+        return null;
+    }
+
+    /// <summary>
     /// AI 自检：只验证「会话按设置复用 / 重建」这条窗口用到的链路，不连接模型服务。
     /// </summary>
     private static List<string> AiServiceChecks(AppHost host)
@@ -304,7 +467,7 @@ public static class UiSmoke
         var options = Schedule.Core.Ai.AiClientFactory.CreateOptions(host.Settings);
         if (options.Model != host.Settings.AiModel) problems.Add("会话选项里的模型与设置不一致");
         if (options.MaxHistoryMessages != host.Settings.AiMaxHistoryMessages) problems.Add("会话选项里的上下文条数与设置不一致");
-        if (options.DisableThinking != host.Settings.AiDisableThinking) problems.Add("会话选项里的思考开关与设置不一致");
+        if (options.Thinking != host.Settings.AiThinking) problems.Add("会话选项里的思考等级与设置不一致");
 
         var original = host.Settings.AiModel;
 
@@ -426,6 +589,9 @@ public static class UiSmoke
                 var errors = ScheduleItemValidator.Validate(stored);
                 if (errors.Count > 0) problems.Add("改期后校验不通过：" + string.Join("；", errors));
             }
+
+            // 1.5) 列表选中行的背景必须是主题色（夜间模式下系统默认高亮会让整行变白、文字读不了）
+            CheckSelectedRowBackground(host, problems);
 
             // 2) 重复日程的「仅这一次」改期仍然要写例外、且不能动整个系列
             var series = new ScheduleItem
