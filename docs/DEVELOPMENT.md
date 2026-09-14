@@ -61,6 +61,9 @@ if ($LASTEXITCODE -ne 0) { throw "自测失败" }
 | 测试快捷方式生成 | `ScheduleApp.exe --shortcut desktop --shortcut-dir .\tmp-lnk`（写进工作区，不污染桌面） |
 | 测试开机启动 | `ScheduleApp.exe --startup on`，再用 `--info` 看落地方式（注册表 / 启动文件夹） |
 | 验证弹窗位置 | 设置页「试一次位置」，或 `curl -X POST .../api/reminders/test` |
+| 用夜间主题跑一遍 | `ScheduleApp.exe --theme dark`（临时覆盖，不写回设置） |
+| 给界面截图核对 | `ScheduleApp.exe --ui-smoke --theme dark` → 数据目录 `logs\ui-*.png` |
+| 主题调色板 | `src/Schedule.App/Themes/Palette.Light.xaml` / `Palette.Dark.xaml`（键名必须一一对应） |
 
 ## 代码约定
 - `Nullable` 与 `ImplicitUsings` 全开，构建保持 **0 警告**

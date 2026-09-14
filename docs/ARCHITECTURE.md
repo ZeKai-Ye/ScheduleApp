@@ -178,6 +178,19 @@ Main
 - 界面侧：编辑窗口的「修改范围」把同一个表单复用为「仅本次」与「整个系列」两条路径；
   周视图拖动改期走纯像素换算（`deltaY ÷ 每小时高度 × 60` 后按 15 分钟吸附），Shift 表示整个系列
 
+### 15. 主题机制（浅色 / 夜间）
+- 调色板独立成字典：`Themes/Palette.Light.xaml` 与 `Themes/Palette.Dark.xaml`，键名完全一致；
+  `Themes/Theme.xaml` 通过 `MergedDictionaries` 引入其中一个，所有样式都用 **DynamicResource** 引用画刷
+  （共 128 处），切换时只替换那一个字典，界面即时更新、无需重建窗口
+- `Services/ThemeService.Apply` 定位 `Theme.xaml.MergedDictionaries[0]` 并整块替换；
+  `AppTheme.System` 读注册表 `AppsUseLightTheme`。设置页改选即预览，取消时回滚
+- 代码侧（视图模型算出来的画刷）用 `Mvvm/ThemeBrushes` 从应用资源取当前色，
+  取不到再退回浅色常量；主题变化会触发 `MainViewModel.Refresh` 重建卡片集合，因此颜色跟着刷新
+- **踩过的坑**：WPF 隐式样式按**精确类型**匹配，`Style TargetType="Window"` 不会作用于 `MainWindow`
+  这类派生窗口。此前窗口背景 / 字体 / TextFormattingMode 因此一直没生效（浅色下看不出来，夜间就暴露了）。
+  现在样式带 `x:Key="AppWindow"`，6 个窗口显式引用
+- 少数系统弹层（日历弹出、滚动条、右键菜单、消息框）沿用系统主题，未做自绘
+
 ## 扩展点
 
 | 需求 | 做法 |
