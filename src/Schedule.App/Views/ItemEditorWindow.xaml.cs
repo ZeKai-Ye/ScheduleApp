@@ -778,6 +778,9 @@ public partial class ItemEditorWindow : Window
             if (item.End.HasValue) item.End = item.End.Value.Date.AddDays(1);
         }
 
+        // 自愈：旧版本把「仅这一次」写到了非重复日程上，这里清掉，否则保存永远被校验拦下
+        ScheduleItemValidator.DropOccurrenceEditsWhenNotRepeating(item);
+
         var errors = ScheduleItemValidator.Validate(item);
         if (errors.Count > 0)
         {

@@ -382,8 +382,9 @@ public partial class MainWindow : Window
     {
         if (_dragBlock == null || e.LeftButton != MouseButtonState.Pressed) return;
 
+        // 8 像素才认为是拖动：长日程的事件块很高，阈值太小会导致「点一下就被改期」
         var delta = e.GetPosition(this).Y - _dragOrigin.Y;
-        if (!_dragging && Math.Abs(delta) < 5) return;
+        if (!_dragging && Math.Abs(delta) < 8) return;
 
         _dragging = true;
 
@@ -437,7 +438,10 @@ public partial class MainWindow : Window
 
         var duration = target.End - target.Start;
         var newStart = target.Start.AddMinutes(minutes);
-        var wholeSeries = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) && target.IsSeries;
+
+        // 非重复日程本来就只有「整体」一种改法：写成「仅本次」例外会污染数据，
+        // 让这条日程之后在编辑窗口里再也保存不了。
+        var wholeSeries = !target.IsSeries || Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
 
         ViewModel.Reschedule(target.Item, target.SeriesStart, newStart, newStart + duration, wholeSeries);
     }

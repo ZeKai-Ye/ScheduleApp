@@ -735,6 +735,17 @@ public sealed class MainViewModel : ObservableObject
         var item = _host.Repository.Find(series.Id);
         if (item == null) return false;
 
+        // 非重复日程没有「某一次」的概念：直接整体覆盖，避免写出无意义的例外
+        if (item.Repeat == RepeatKind.None)
+        {
+            edited.Id = item.Id;
+            edited.UpdatedAt = DateTime.Now;
+            _host.Repository.Update(edited);
+            _host.Repository.Save();
+            Refresh();
+            return true;
+        }
+
         item.UpsertOverride(OccurrenceOverride.FromItem(occurrenceStart, edited, item));
         item.UpdatedAt = DateTime.Now;
         _host.Repository.Update(item);
@@ -764,7 +775,9 @@ public sealed class MainViewModel : ObservableObject
         var item = _host.Repository.Find(series.Id);
         if (item == null) return false;
 
-        if (wholeSeries)
+        // 非重复日程只有「整体」一种改法：写成「仅本次」例外会让这条日程带着
+        // 无意义的例外数据，之后在编辑窗口里保存就会被校验拦下（"非重复日程不应带有「仅本次」例外"）。
+        if (wholeSeries || item.Repeat == RepeatKind.None)
         {
             // 整体平移：按原开始时间算偏移量，例外键一起跟着走
             item.Shift(newStart - item.Start);
