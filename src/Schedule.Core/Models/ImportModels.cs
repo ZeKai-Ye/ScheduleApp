@@ -1,3 +1,5 @@
+using Schedule.Core.Localization;
+
 namespace Schedule.Core.Models;
 
 /// <summary>导入策略。</summary>
@@ -165,9 +167,14 @@ public sealed class ImportReport
 
     public string ToSummary()
     {
-        var text = "共 " + TotalRows + " 行：新增 " + Imported + "，更新 " + Updated
-            + "，跳过 " + Skipped + "，失败 " + Failed
-            + "（用时 " + Elapsed.TotalMilliseconds.ToString("F0") + " ms）";
-        return text;
+        return Loc.F(
+            "共 {0} 行：新增 {1}，更新 {2}，跳过 {3}，失败 {4}（用时 {5} ms）",
+            "{0} rows: {1} added, {2} updated, {3} skipped, {4} failed ({5} ms)",
+            TotalRows,
+            Imported,
+            Updated,
+            Skipped,
+            Failed,
+            Elapsed.TotalMilliseconds.ToString("F0"));
     }
 }

@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Schedule.Core.Localization;
 using Schedule.Core.Logging;
 
 namespace Schedule.App.Services;
@@ -89,7 +90,7 @@ public static class ShortcutService
             var exe = ExecutablePath();
             if (string.IsNullOrEmpty(exe) || !File.Exists(exe))
             {
-                error = "找不到程序自身路径，无法创建快捷方式：" + exe;
+                error = Loc.F("找不到程序自身路径，无法创建快捷方式：{0}", "Cannot find the app's own path, so the shortcut cannot be created: {0}", exe);
                 return false;
             }
 
@@ -99,7 +100,8 @@ public static class ShortcutService
             var shellType = Type.GetTypeFromProgID("WScript.Shell");
             if (shellType == null)
             {
-                error = "系统中没有 WScript.Shell（无法生成 .lnk 快捷方式）";
+                error = Loc.T("系统中没有 WScript.Shell（无法生成 .lnk 快捷方式）",
+                    "WScript.Shell is not available on this system (cannot create .lnk shortcuts)");
                 return false;
             }
 

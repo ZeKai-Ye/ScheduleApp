@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using Schedule.App.Mvvm;
 using Schedule.Core.Csv;
+using Schedule.Core.Localization;
 using Schedule.Core.Models;
 using Schedule.Core.Scheduling;
 using Schedule.Core.Services;
@@ -84,7 +85,7 @@ public sealed class ScheduleRow
 /// <summary>主界面视图模型：列表 / 周 / 月三种视图，负责筛选、展开、统计与状态栏文本。</summary>
 public sealed class MainViewModel : ObservableObject
 {
-    public const string AllCategories = "全部分类";
+    public static string AllCategories => Loc.T("全部分类", "All categories");
 
     private const int RowLimit = 2000;
 
@@ -115,12 +116,12 @@ public sealed class MainViewModel : ObservableObject
 
         Filters = new ObservableCollection<FilterOption>
         {
-            new() { Value = TimeFilter.Today, Name = "今天" },
-            new() { Value = TimeFilter.Tomorrow, Name = "明天" },
-            new() { Value = TimeFilter.ThisWeek, Name = "本周" },
-            new() { Value = TimeFilter.Next30Days, Name = "未来 30 天" },
-            new() { Value = TimeFilter.All, Name = "全部待办" },
-            new() { Value = TimeFilter.Completed, Name = "已完成 / 已取消" },
+            new() { Value = TimeFilter.Today, Name = Loc.T("今天", "Today") },
+            new() { Value = TimeFilter.Tomorrow, Name = Loc.T("明天", "Tomorrow") },
+            new() { Value = TimeFilter.ThisWeek, Name = Loc.T("本周", "This week") },
+            new() { Value = TimeFilter.Next30Days, Name = Loc.T("未来 30 天", "Next 30 days") },
+            new() { Value = TimeFilter.All, Name = Loc.T("全部待办", "All open") },
+            new() { Value = TimeFilter.Completed, Name = Loc.T("已完成 / 已取消", "Done / canceled") },
         };
 
         _selectedFilter = Filters[3];
@@ -356,7 +357,7 @@ public sealed class MainViewModel : ObservableObject
         _capped = rows.Count >= RowLimit;
         IsEmpty = Rows.Count == 0;
 
-        PeriodLabel = SelectedFilter.Value == TimeFilter.Completed ? "已完成 / 已取消" : SelectedFilter.Name;
+        PeriodLabel = SelectedFilter.Value == TimeFilter.Completed ? Loc.T("已完成 / 已取消", "Done / canceled") : SelectedFilter.Name;
         UpdateCountText();
     }
 
@@ -447,7 +448,7 @@ public sealed class MainViewModel : ObservableObject
                     Width = Math.Max(16, slice - 5),
                     ToolTipText = BuildToolTip(block.Occurrence)
                         + Environment.NewLine + Environment.NewLine
-                        + "提示：直接拖动可改期（默认只改这一次；按住 Shift 拖动 = 整个系列）",
+                        + Loc.T("提示：直接拖动可改期（默认只改这一次；按住 Shift 拖动 = 整个系列）", "Tip: drag to reschedule (this occurrence only by default; hold Shift to move the whole series)"),
                 });
 
                 total++;
@@ -471,7 +472,7 @@ public sealed class MainViewModel : ObservableObject
 
         var weekEnd = weekStart.AddDays(6);
         var isCurrentWeek = weekStart <= today && today <= weekEnd;
-        PeriodLabel = FormatMonthDay(weekStart) + " - " + FormatMonthDay(weekEnd) + (isCurrentWeek ? "（本周）" : string.Empty);
+        PeriodLabel = FormatMonthDay(weekStart) + " - " + FormatMonthDay(weekEnd) + (isCurrentWeek ? Loc.T("（本周）", " (this week)") : string.Empty);
 
         UpdateCountText();
     }
@@ -544,8 +545,8 @@ public sealed class MainViewModel : ObservableObject
         _capped = false;
         IsEmpty = monthTotal == 0;
 
-        PeriodLabel = monthStart.ToString("yyyy年M月");
-        MonthSummaryText = "本月 " + monthTotal + " 项 · 今天 " + todayTotal + " 项";
+        PeriodLabel = Loc.IsEnglish ? monthStart.ToString("MMMM yyyy", Loc.Culture) : monthStart.ToString("yyyy年M月");
+        MonthSummaryText = Loc.F("本月 {0} 项 · 今天 {1} 项", "{0} items this month · {1} today", monthTotal, todayTotal);
 
         RefreshSelectedDay(filtered, now);
         UpdateCountText();
@@ -596,7 +597,7 @@ public sealed class MainViewModel : ObservableObject
         foreach (var row in rows) SelectedDayRows.Add(row);
 
         SelectedDayLabel = FormatMonthDay(from) + " " + VoiceTemplate.WeekdayText(from.DayOfWeek)
-            + " · " + rows.Count + " 项";
+            + Loc.F(" · {0} 项", " · {0} items", rows.Count);
     }
 
     private void RefreshWeekdayHeaders()
@@ -659,7 +660,7 @@ public sealed class MainViewModel : ObservableObject
             IsSeries = item.Repeat != RepeatKind.None,
             HasOccurrenceEdit = occurrence.IsOverride,
             IsRescheduled = occurrence.Override?.NewStart.HasValue ?? false,
-            TimeText = item.AllDay ? "全天" : start.ToString("HH:mm"),
+            TimeText = item.AllDay ? Loc.T("全天", "All day") : start.ToString("HH:mm"),
             TitleText = item.Title,
             ColorHex = color,
             IsDone = item.Status != ItemStatus.Pending,
@@ -684,14 +685,14 @@ public sealed class MainViewModel : ObservableObject
             OccurrenceEnd = end,
             DayLabel = BuildDayLabel(start, now),
             TimeText = BuildTimeText(item, start, end),
-            CategoryText = string.IsNullOrWhiteSpace(item.Category) ? "未分类" : item.Category,
+            CategoryText = string.IsNullOrWhiteSpace(item.Category) ? Loc.T("未分类", "Uncategorized") : item.Category,
             ReminderText = BuildReminderText(item, start),
             RepeatText = BuildRepeatText(item),
             PriorityText = CsvExporter.PriorityText(item.Priority),
             NotesPreview = BuildNotesPreview(item.Notes),
             SourceText = item.Origin == ItemOrigin.CsvImport
-                ? (string.IsNullOrWhiteSpace(item.Source) ? "CSV 导入" : "导入：" + item.Source)
-                : "手动创建",
+                ? (string.IsNullOrWhiteSpace(item.Source) ? Loc.T("CSV 导入", "From CSV") : Loc.T("导入：", "Imported: ") + item.Source)
+                : Loc.T("手动创建", "Created manually"),
             ColorHex = ResolveColor(item),
         };
     }
@@ -705,10 +706,10 @@ public sealed class MainViewModel : ObservableObject
             MainViewModelStatic.TimeRange(item, occurrence.Start, occurrence.End),
         };
 
-        if (!string.IsNullOrWhiteSpace(item.Category)) lines.Add("分类：" + item.Category);
-        lines.Add("重复：" + BuildRepeatText(item));
-        lines.Add("提醒：" + BuildReminderText(item, occurrence.Start));
-        if (!string.IsNullOrWhiteSpace(item.Notes)) lines.Add("备注：" + VoiceTemplate.SingleLine(item.Notes));
+        if (!string.IsNullOrWhiteSpace(item.Category)) lines.Add(Loc.T("分类：", "Category: ") + item.Category);
+        lines.Add(Loc.T("重复：", "Repeat: ") + BuildRepeatText(item));
+        lines.Add(Loc.T("提醒：", "Reminder: ") + BuildReminderText(item, occurrence.Start));
+        if (!string.IsNullOrWhiteSpace(item.Notes)) lines.Add(Loc.T("备注：", "Notes: ") + VoiceTemplate.SingleLine(item.Notes));
 
         return string.Join(Environment.NewLine, lines);
     }
@@ -853,7 +854,7 @@ public sealed class MainViewModel : ObservableObject
     private void RefreshCategories(List<ScheduleItem> items)
     {
         var categories = items
-            .Select(i => string.IsNullOrWhiteSpace(i.Category) ? "未分类" : i.Category.Trim())
+            .Select(i => string.IsNullOrWhiteSpace(i.Category) ? Loc.T("未分类", "Uncategorized") : i.Category.Trim())
             .Distinct(StringComparer.CurrentCultureIgnoreCase)
             .OrderBy(c => c, StringComparer.CurrentCulture)
             .ToList();
@@ -877,7 +878,7 @@ public sealed class MainViewModel : ObservableObject
     {
         if (SelectedCategory == AllCategories) return true;
 
-        var category = string.IsNullOrWhiteSpace(item.Category) ? "未分类" : item.Category.Trim();
+        var category = string.IsNullOrWhiteSpace(item.Category) ? Loc.T("未分类", "Uncategorized") : item.Category.Trim();
         return string.Equals(category, SelectedCategory, StringComparison.CurrentCultureIgnoreCase);
     }
 
@@ -897,8 +898,8 @@ public sealed class MainViewModel : ObservableObject
 
     private void UpdateCountText()
     {
-        CountText = "共 " + _totalCount + " 项 · 待办 " + _pendingCount + " · 今天 " + _todayCount
-            + (_capped ? "（仅显示前 " + RowLimit + " 条）" : string.Empty);
+        CountText = Loc.F("共 {0} 项 · 待办 {1} · 今天 {2}", "{0} items · {1} open · {2} today", _totalCount, _pendingCount, _todayCount)
+            + (_capped ? Loc.F("（仅显示前 {0} 条）", " (showing the first {0})", RowLimit) : string.Empty);
     }
 
     private void UpdateNextReminder(List<ScheduleItem> items, DateTime now)
@@ -906,12 +907,12 @@ public sealed class MainViewModel : ObservableObject
         var next = ReminderPlanner.NextUpcoming(items, now);
         if (next == null)
         {
-            NextReminderText = "下一次提醒：无";
+            NextReminderText = Loc.T("下一次提醒：无", "Next reminder: none");
             return;
         }
 
-        NextReminderText = "下一次提醒：" + next.FireAt.ToString("MM-dd HH:mm") + " " + next.Plan.OffsetText
-            + " 「" + next.Item.Title + "」（" + VoiceTemplate.DescribeCountdown(next.Occurrence.Start, now) + "开始）";
+        NextReminderText = Loc.T("下一次提醒：", "Next reminder: ") + next.FireAt.ToString("MM-dd HH:mm") + " " + next.Plan.OffsetText
+            + Loc.F(" 「{0}」（{1}开始）", " “{0}” ({1})", next.Item.Title, VoiceTemplate.DescribeCountdown(next.Occurrence.Start, now));
     }
 
     public static string BuildDayLabel(DateTime start, DateTime now)
@@ -920,10 +921,10 @@ public sealed class MainViewModel : ObservableObject
         var diff = (date - now.Date).Days;
         var prefix = diff switch
         {
-            0 => "今天 · ",
-            1 => "明天 · ",
-            2 => "后天 · ",
-            -1 => "昨天 · ",
+            0 => Loc.T("今天 · ", "Today · "),
+            1 => Loc.T("明天 · ", "Tomorrow · "),
+            2 => Loc.T("后天 · ", "In 2 days · "),
+            -1 => Loc.T("昨天 · ", "Yesterday · "),
             _ => string.Empty,
         };
 
@@ -931,15 +932,15 @@ public sealed class MainViewModel : ObservableObject
     }
 
     private static string FormatMonthDay(DateTime date)
-        => date.Month + "月" + date.Day + "日";
+        => Loc.IsEnglish ? date.ToString("MMM d", Loc.Culture) : date.Month + "月" + date.Day + "日";
 
     public static string BuildTimeText(ScheduleItem item, DateTime start, DateTime end)
     {
-        if (item.AllDay) return "全天";
+        if (item.AllDay) return Loc.T("全天", "All day");
 
         var text = start.ToString("HH:mm");
         if (end <= start) return text;
-        if (end.Date > start.Date) return text + " - 次日 " + end.ToString("HH:mm");
+        if (end.Date > start.Date) return text + Loc.T(" - 次日 ", " - next day ") + end.ToString("HH:mm");
 
         return text + " - " + end.ToString("HH:mm");
     }
@@ -947,63 +948,64 @@ public sealed class MainViewModel : ObservableObject
     /// <summary>多档提醒的可读描述，例如「提前 30分钟 / 15分钟 / 准点」。</summary>
     public static string BuildReminderText(ScheduleItem item, DateTime start)
     {
-        if (!item.ReminderEnabled) return "不提醒";
+        if (!item.ReminderEnabled) return Loc.T("不提醒", "No reminder");
 
         var parts = new List<string>();
 
         if (item.RemindAtOverride.HasValue && start == item.Start)
         {
-            parts.Add("定时 " + item.RemindAtOverride.Value.ToString("MM-dd HH:mm"));
+            parts.Add(Loc.F("定时 {0}", "At {0}", item.RemindAtOverride.Value.ToString("MM-dd HH:mm")));
         }
 
         var offsets = item.NormalizedOffsets();
         if (offsets.Count > 0)
         {
-            parts.Add("提前 " + string.Join(" / ", offsets.Select(ShortOffset)));
+            parts.Add(Loc.F("提前 {0}", "{0} before", string.Join(" / ", offsets.Select(ShortOffset))));
         }
 
-        return parts.Count == 0 ? "不提醒" : string.Join(" + ", parts);
+        return parts.Count == 0 ? Loc.T("不提醒", "No reminder") : string.Join(" + ", parts);
     }
 
     private static string ShortOffset(int minutes)
     {
-        if (minutes <= 0) return "准点";
+        if (minutes <= 0) return Loc.T("准点", "On time");
         return HumanizeMinutes(minutes).Replace(" ", string.Empty);
     }
 
     /// <summary>周期事件的可读描述，例如「每周（周一/三/五）· 共 8 次」。</summary>
     public static string BuildRepeatText(ScheduleItem item)
     {
-        if (item.Repeat == RepeatKind.None) return "无";
+        if (item.Repeat == RepeatKind.None) return Loc.T("无", "None");
 
         var text = item.Repeat switch
         {
-            RepeatKind.Daily => "每" + (item.RepeatInterval > 1 ? item.RepeatInterval + " " : string.Empty) + "天",
-            RepeatKind.Weekdays => "工作日",
-            RepeatKind.Weekly => item.RepeatInterval > 1 ? "每 " + item.RepeatInterval + " 周" : "每周",
-            RepeatKind.Monthly => "每" + (item.RepeatInterval > 1 ? item.RepeatInterval + " " : string.Empty) + "月",
-            RepeatKind.Yearly => "每" + (item.RepeatInterval > 1 ? item.RepeatInterval + " " : string.Empty) + "年",
-            _ => "无",
+            RepeatKind.Daily => item.RepeatInterval > 1 ? Loc.F("每 {0} 天", "Every {0} days", item.RepeatInterval) : Loc.T("每天", "Daily"),
+            RepeatKind.Weekdays => Loc.T("工作日", "Weekdays"),
+            RepeatKind.Weekly => item.RepeatInterval > 1 ? Loc.F("每 {0} 周", "Every {0} weeks", item.RepeatInterval) : Loc.T("每周", "Weekly"),
+            RepeatKind.Monthly => item.RepeatInterval > 1 ? Loc.F("每 {0} 月", "Every {0} months", item.RepeatInterval) : Loc.T("每月", "Monthly"),
+            RepeatKind.Yearly => item.RepeatInterval > 1 ? Loc.F("每 {0} 年", "Every {0} years", item.RepeatInterval) : Loc.T("每年", "Yearly"),
+            _ => Loc.T("无", "None"),
         };
 
         if (item.Repeat == RepeatKind.Weekly && item.RepeatWeekdays.Count > 0)
         {
-            text += "（" + string.Join("、", item.RepeatWeekdays.Distinct().OrderBy(d => d).Select(VoiceTemplate.ShortWeekdayText)) + "）";
+            var weekdays = item.RepeatWeekdays.Distinct().OrderBy(d => d).Select(VoiceTemplate.ShortWeekdayText);
+            text += Loc.F("（{0}）", " ({0})", string.Join(Loc.T("、", ", "), weekdays));
         }
 
-        if (item.RepeatCount.HasValue) text += " · 共 " + item.RepeatCount.Value + " 次";
-        else if (item.RepeatUntil.HasValue) text += " · 至 " + item.RepeatUntil.Value.ToString("yyyy-MM-dd");
+        if (item.RepeatCount.HasValue) text += Loc.F(" · 共 {0} 次", " · {0} times", item.RepeatCount.Value);
+        else if (item.RepeatUntil.HasValue) text += Loc.F(" · 至 {0}", " · until {0}", item.RepeatUntil.Value.ToString("yyyy-MM-dd"));
 
         return text;
     }
 
     public static string HumanizeMinutes(int minutes)
     {
-        if (minutes <= 0) return "0 分钟";
-        if (minutes % (60 * 24) == 0) return (minutes / (60 * 24)) + " 天";
-        if (minutes % 60 == 0) return (minutes / 60) + " 小时";
-        if (minutes > 60) return (minutes / 60) + " 小时 " + (minutes % 60) + " 分钟";
-        return minutes + " 分钟";
+        if (minutes <= 0) return Loc.T("0 分钟", "0 min");
+        if (minutes % (60 * 24) == 0) return Loc.F("{0} 天", "{0} d", minutes / (60 * 24));
+        if (minutes % 60 == 0) return Loc.F("{0} 小时", "{0} h", minutes / 60);
+        if (minutes > 60) return Loc.F("{0} 小时 {1} 分钟", "{0} h {1} min", minutes / 60, minutes % 60);
+        return Loc.F("{0} 分钟", "{0} min", minutes);
     }
 
     private static string BuildNotesPreview(string? notes)
@@ -1019,7 +1021,7 @@ internal static class MainViewModelStatic
 {
     public static string TimeRange(ScheduleItem item, DateTime start, DateTime end)
     {
-        if (item.AllDay) return start.ToString("yyyy-MM-dd") + " 全天";
+        if (item.AllDay) return start.ToString("yyyy-MM-dd") + Loc.T(" 全天", " All day");
         var text = start.ToString("yyyy-MM-dd HH:mm");
         if (end > start) text += " - " + end.ToString("HH:mm");
         return text;

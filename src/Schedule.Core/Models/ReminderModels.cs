@@ -1,3 +1,5 @@
+using Schedule.Core.Localization;
+
 namespace Schedule.Core.Models;
 
 /// <summary>一条日程的某一个「提醒档位」在某个发生时间上的具体触发计划。</summary>
@@ -12,30 +14,39 @@ public sealed class ReminderPlan
     /// <summary>是否由「绝对提醒时间」产生。</summary>
     public bool IsAbsolute { get; init; }
 
-    public string OffsetText => IsAbsolute ? "指定时间" : DescribeOffset(OffsetMinutes);
+    public string OffsetText => IsAbsolute ? Loc.T("指定时间", "Specific time") : DescribeOffset(OffsetMinutes);
 
     /// <summary>把提前分钟数描述成人话。</summary>
     public static string DescribeOffset(int minutes)
     {
-        if (minutes <= 0) return "准点";
+        if (minutes <= 0) return Loc.T("准点", "On time");
 
         if (minutes % (60 * 24) == 0)
         {
             var days = minutes / (60 * 24);
-            return "提前 " + days + " 天";
+            return days == 1
+                ? Loc.F("提前 1 天", "1 day before")
+                : Loc.F("提前 {0} 天", "{0} days before", days);
         }
 
         if (minutes % 60 == 0)
         {
-            return "提前 " + (minutes / 60) + " 小时";
+            var hours = minutes / 60;
+            return hours == 1
+                ? Loc.F("提前 1 小时", "1 hour before")
+                : Loc.F("提前 {0} 小时", "{0} hours before", hours);
         }
 
         if (minutes > 60)
         {
-            return "提前 " + (minutes / 60) + " 小时 " + (minutes % 60) + " 分钟";
+            var hours = minutes / 60;
+            var rest = minutes % 60;
+            return Loc.F("提前 {0} 小时 {1} 分钟", "{0} h {1} " + (rest == 1 ? "min" : "mins") + " before", hours, rest);
         }
 
-        return "提前 " + minutes + " 分钟";
+        return minutes == 1
+            ? Loc.F("提前 1 分钟", "1 min before")
+            : Loc.F("提前 {0} 分钟", "{0} mins before", minutes);
     }
 
     /// <summary>紧凑写法，用于列表与导出：30 / 15 / 5 / 0 / 1天。</summary>

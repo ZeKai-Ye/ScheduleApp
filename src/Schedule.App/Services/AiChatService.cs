@@ -1,4 +1,5 @@
 using Schedule.Core.Ai;
+using Schedule.Core.Localization;
 using Schedule.Core.Logging;
 
 namespace Schedule.App.Services;
@@ -74,8 +75,8 @@ public sealed class AiChatService : IDisposable
     {
         var settings = _host.Settings;
 
-        return (IsCloud ? "云端" : "本地") + " · " + AiClientFactory.DescribeProtocol(settings)
-            + " · 密钥：" + AiSecrets.Describe(settings.AiApiKey);
+        return (IsCloud ? Loc.T("云端", "Cloud") : Loc.T("本地", "Local")) + " · " + AiClientFactory.DescribeProtocol(settings)
+            + Loc.F(" · 密钥：{0}", " · Key: {0}", AiSecrets.Describe(settings.AiApiKey));
     }
 
     /// <summary>把「当前设置」与「上次建会话时的设置」比对，不一致就重建客户端与会话。</summary>

@@ -1,7 +1,8 @@
 <Window x:Class="Schedule.App.Views.RescheduleWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="改期"
+        xmlns:l="clr-namespace:Schedule.App.Mvvm"
+        Title="{l:Text '改期|Reschedule'}"
         Width="470" SizeToContent="Height"
         ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner"
@@ -12,41 +13,41 @@
             <TextBlock x:Name="HeaderText" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
             <TextBlock x:Name="CurrentText" Style="{StaticResource FieldHint}" Margin="0,4,0,0" />
 
-            <TextBlock Text="改到" Style="{StaticResource SectionTitle}" Margin="0,14,0,6" />
+            <TextBlock Text="{l:Text '改到|Move to'}" Style="{StaticResource SectionTitle}" Margin="0,14,0,6" />
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="86" />
-                    <ColumnDefinition Width="120" />
+                    <ColumnDefinition Width="200" />
                 </Grid.ColumnDefinitions>
                 <DatePicker x:Name="DateBox" />
-                <TextBox x:Name="TimeBox" Grid.Column="1" Margin="8,0,0,0" ToolTip="24 小时制，例如 15:30" />
-                <ComboBox x:Name="DurationBox" Grid.Column="2" Margin="8,0,0,0" ToolTip="结束时间 = 新开始时间 + 时长">
-                    <ComboBoxItem Content="保持原时长" Tag="keep" />
-                    <ComboBoxItem Content="15 分钟" Tag="15" />
-                    <ComboBoxItem Content="30 分钟" Tag="30" />
-                    <ComboBoxItem Content="45 分钟" Tag="45" />
-                    <ComboBoxItem Content="1 小时" Tag="60" />
-                    <ComboBoxItem Content="1.5 小时" Tag="90" />
-                    <ComboBoxItem Content="2 小时" Tag="120" />
+                <TextBox x:Name="TimeBox" Grid.Column="1" Margin="8,0,0,0" ToolTip="{l:Text '24 小时制，例如 15:30|24-hour clock, e.g. 15:30'}" />
+                <ComboBox x:Name="DurationBox" Grid.Column="2" Margin="8,0,0,0" ToolTip="{l:Text '结束时间 = 新开始时间 + 时长|End time = new start time + duration'}">
+                    <ComboBoxItem Content="{l:Text '保持原时长|Keep original duration'}" Tag="keep" />
+                    <ComboBoxItem Content="{l:Text '15 分钟|15 min'}" Tag="15" />
+                    <ComboBoxItem Content="{l:Text '30 分钟|30 min'}" Tag="30" />
+                    <ComboBoxItem Content="{l:Text '45 分钟|45 min'}" Tag="45" />
+                    <ComboBoxItem Content="{l:Text '1 小时|1 hour'}" Tag="60" />
+                    <ComboBoxItem Content="{l:Text '1.5 小时|1.5 hours'}" Tag="90" />
+                    <ComboBoxItem Content="{l:Text '2 小时|2 hours'}" Tag="120" />
                 </ComboBox>
             </Grid>
 
             <WrapPanel Margin="0,10,0,0">
-                <Button Content="今天" Style="{StaticResource GhostButton}" Click="Today_Click" />
-                <Button Content="明天" Style="{StaticResource GhostButton}" Click="Tomorrow_Click" />
-                <Button Content="+1 天" Style="{StaticResource GhostButton}" Tag="1" Click="ShiftDays_Click" />
-                <Button Content="-1 天" Style="{StaticResource GhostButton}" Tag="-1" Click="ShiftDays_Click" />
-                <Button Content="+1 周" Style="{StaticResource GhostButton}" Tag="7" Click="ShiftDays_Click" />
-                <Button Content="+1 小时" Style="{StaticResource GhostButton}" Tag="60" Click="ShiftMinutes_Click" />
-                <Button Content="-1 小时" Style="{StaticResource GhostButton}" Tag="-60" Click="ShiftMinutes_Click" />
+                <Button Content="{l:Text '今天|Today'}" Style="{StaticResource GhostButton}" Click="Today_Click" />
+                <Button Content="{l:Text '明天|Tomorrow'}" Style="{StaticResource GhostButton}" Click="Tomorrow_Click" />
+                <Button Content="{l:Text '+1 天|+1 day'}" Style="{StaticResource GhostButton}" Tag="1" Click="ShiftDays_Click" />
+                <Button Content="{l:Text '-1 天|-1 day'}" Style="{StaticResource GhostButton}" Tag="-1" Click="ShiftDays_Click" />
+                <Button Content="{l:Text '+1 周|+1 week'}" Style="{StaticResource GhostButton}" Tag="7" Click="ShiftDays_Click" />
+                <Button Content="{l:Text '+1 小时|+1 hour'}" Style="{StaticResource GhostButton}" Tag="60" Click="ShiftMinutes_Click" />
+                <Button Content="{l:Text '-1 小时|-1 hour'}" Style="{StaticResource GhostButton}" Tag="-60" Click="ShiftMinutes_Click" />
             </WrapPanel>
 
             <StackPanel x:Name="ScopePanel" Margin="0,14,0,0">
-                <TextBlock Text="应用范围" Style="{StaticResource SectionTitle}" />
+                <TextBlock Text="{l:Text '应用范围|Apply to'}" Style="{StaticResource SectionTitle}" />
                 <StackPanel Orientation="Horizontal">
-                    <RadioButton x:Name="ScopeSingleRadio" GroupName="Scope" Content="仅这一次" IsChecked="True" />
-                    <RadioButton x:Name="ScopeSeriesRadio" GroupName="Scope" Content="整个系列（含以后）" Margin="18,0,0,0" />
+                    <RadioButton x:Name="ScopeSingleRadio" GroupName="Scope" Content="{l:Text '仅这一次|This event only'}" IsChecked="True" />
+                    <RadioButton x:Name="ScopeSeriesRadio" GroupName="Scope" Content="{l:Text '整个系列（含以后）|All events (including future ones)'}" Margin="18,0,0,0" />
                 </StackPanel>
                 <TextBlock x:Name="ScopeHint" Style="{StaticResource FieldHint}" />
             </StackPanel>
@@ -55,8 +56,8 @@
                        Margin="0,10,0,0" TextWrapping="Wrap" />
 
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
-                <Button Content="取消" Click="Cancel_Click" Margin="0,0,8,0" IsCancel="True" />
-                <Button Content="确定改期" Style="{StaticResource PrimaryButton}" Click="Ok_Click" IsDefault="True" />
+                <Button Content="{l:Text '取消|Cancel'}" Click="Cancel_Click" Margin="0,0,8,0" IsCancel="True" />
+                <Button Content="{l:Text '确定改期|Reschedule'}" Style="{StaticResource PrimaryButton}" Click="Ok_Click" IsDefault="True" />
             </StackPanel>
         </StackPanel>
     </Border>

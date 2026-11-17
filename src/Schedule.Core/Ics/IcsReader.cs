@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using Schedule.Core.Csv;
+using Schedule.Core.Localization;
 using Schedule.Core.Models;
 
 namespace Schedule.Core.Ics;
@@ -41,7 +42,7 @@ public static class IcsReader
             var colon = FindValueSeparator(line);
             if (colon < 0)
             {
-                result.Warnings.Add("第 " + lineNumber + " 行缺少「:」分隔符，已跳过：" + Shorten(line));
+                result.Warnings.Add(Loc.F("第 {0} 行缺少「:」分隔符，已跳过：{1}", "Line {0} has no \":\" separator and was skipped: {1}", lineNumber, Shorten(line)));
                 continue;
             }
 
@@ -89,7 +90,7 @@ public static class IcsReader
             else current?.Properties.Add(property);
         }
 
-        if (result.Events.Count == 0 && result.LooksLikeCalendar) result.Warnings.Add("文件里没有找到任何日程（VEVENT）。");
+        if (result.Events.Count == 0 && result.LooksLikeCalendar) result.Warnings.Add(Loc.T("文件里没有找到任何日程（VEVENT）。", "No event (VEVENT) was found in the file."));
 
         return result;
     }
@@ -288,7 +289,7 @@ public static class IcsReader
         {
             if (freq.Length > 0)
             {
-                warnings.Add(label + "：暂不支持重复规则 FREQ=" + freq + "，已按单次日程导入。");
+                warnings.Add(Loc.F("{0}：暂不支持重复规则 FREQ={1}，已按单次日程导入。", "{0}: repeat rule FREQ={1} is not supported yet, imported as a single event.", label, freq));
             }
 
             return new RepeatSpec();
@@ -329,7 +330,7 @@ public static class IcsReader
 
             if (ordinalSeen)
             {
-                warnings.Add(label + "：「每月第 N 个星期几」（BYDAY=" + byDay + "）暂不支持，已按每周导入。");
+                warnings.Add(Loc.F("{0}：「每月第 N 个星期几」（BYDAY={1}）暂不支持，已按每周导入。", "{0}: \"nth weekday of the month\" (BYDAY={1}) is not supported yet, imported as weekly.", label, byDay));
             }
         }
 
@@ -337,7 +338,7 @@ public static class IcsReader
             && spec.Kind is RepeatKind.Monthly or RepeatKind.Yearly
             && !byMonthDay.Split(',').Any(day => int.TryParse(day, out var value) && value == start.Day))
         {
-            warnings.Add(label + "：「每月 " + byMonthDay + " 日」与开始日期不一致，暂不支持，已按单次日程导入。");
+            warnings.Add(Loc.F("{0}：「每月 {1} 日」与开始日期不一致，暂不支持，已按单次日程导入。", "{0}: \"day {1} of each month\" does not match the start date, which is not supported yet; imported as a single event.", label, byMonthDay));
             return new RepeatSpec();
         }
 
@@ -357,7 +358,7 @@ public static class IcsReader
 
         if (parts.ContainsKey("BYSETPOS") || parts.ContainsKey("BYWEEKNO") || parts.ContainsKey("BYYEARDAY"))
         {
-            warnings.Add(label + "：重复规则里的 BYSETPOS / BYWEEKNO / BYYEARDAY 暂不支持，已忽略这些限定。");
+            warnings.Add(Loc.F("{0}：重复规则里的 BYSETPOS / BYWEEKNO / BYYEARDAY 暂不支持，已忽略这些限定。", "{0}: BYSETPOS / BYWEEKNO / BYYEARDAY in the repeat rule are not supported yet; these restrictions were ignored.", label));
         }
 
         return spec;

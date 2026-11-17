@@ -2,6 +2,7 @@ using System.Text;
 using Schedule.App.Services;
 using Schedule.Core.Ai;
 using Schedule.Core.Logging;
+using Schedule.Core.Localization;
 using Schedule.Core.Services;
 
 namespace Schedule.App;
@@ -20,9 +21,9 @@ public static class AiCliRunner
             using var client = AiClientFactory.Create(settings.Current);
             var models = client.ListModelsAsync(CancellationToken.None).GetAwaiter().GetResult();
 
-            output.AppendLine("服务：" + OpenAiCompatibleClient.Normalize(settings.Current.AiBaseUrl)
-                + "　协议：" + AiClientFactory.DescribeProtocol(settings.Current));
-            output.AppendLine("共 " + models.Count + " 个模型：");
+            output.AppendLine(Loc.T("服务：", "Endpoint: ") + OpenAiCompatibleClient.Normalize(settings.Current.AiBaseUrl)
+                + Loc.T("　协议：", "  Protocol: ") + AiClientFactory.DescribeProtocol(settings.Current));
+            output.AppendLine(Loc.F("共 {0} 个模型：", "{0} models:", models.Count));
 
             foreach (var model in models)
             {
@@ -33,7 +34,7 @@ public static class AiCliRunner
         }
         catch (Exception ex)
         {
-            output.AppendLine("读取模型列表失败：" + ex.Message);
+            output.AppendLine(Loc.T("读取模型列表失败：", "Failed to load the model list: ") + ex.Message);
             return 2;
         }
     }
@@ -49,29 +50,29 @@ public static class AiCliRunner
             using var client = AiClientFactory.Create(settings.Current);
             var session = new AiSession(client, actions, AiClientFactory.CreateOptions(settings.Current));
 
-            output.AppendLine("模型：" + settings.Current.AiModel
-                + "　服务：" + OpenAiCompatibleClient.Normalize(settings.Current.AiBaseUrl)
-                + "　协议：" + AiClientFactory.DescribeProtocol(settings.Current));
+            output.AppendLine(Loc.T("模型：", "Model: ") + settings.Current.AiModel
+                + Loc.T("　服务：", "  Endpoint: ") + OpenAiCompatibleClient.Normalize(settings.Current.AiBaseUrl)
+                + Loc.T("　协议：", "  Protocol: ") + AiClientFactory.DescribeProtocol(settings.Current));
 
             var progress = new Progress<AiProgress>(p => output.AppendLine("  · " + p.Stage));
             var result = session.SendAsync(text, progress, CancellationToken.None).GetAwaiter().GetResult();
 
             foreach (var tool in result.Tools)
             {
-                output.AppendLine("工具 " + tool.Name + "(" + tool.Arguments + ")");
-                output.AppendLine("  结果：" + OpenAiCompatibleClient.Shorten(tool.Result, 400));
+                output.AppendLine(Loc.F("工具 {0}({1})", "Tool {0}({1})", tool.Name, tool.Arguments));
+                output.AppendLine(Loc.T("  结果：", "  Result: ") + OpenAiCompatibleClient.Shorten(tool.Result, 400));
             }
 
             output.AppendLine();
-            output.AppendLine("AI：" + result.Text);
+            output.AppendLine(Loc.T("AI：", "AI: ") + result.Text);
 
             // 思考等级调到最低档时这里应该是 0 字；如果很长说明等级没生效（会明显更慢）
-            output.AppendLine("思考过程：" + (result.Reasoning?.Length ?? 0) + " 字");
+            output.AppendLine(Loc.F("思考过程：{0} 字", "Reasoning: {0} chars", result.Reasoning?.Length ?? 0));
             output.AppendLine();
-            output.AppendLine("用时 " + result.Elapsed.TotalSeconds.ToString("0.0") + " 秒"
-                + "，工具 " + result.Tools.Count + " 次"
+            output.AppendLine(Loc.F("用时 {0} 秒", "Took {0}s", result.Elapsed.TotalSeconds.ToString("0.0"))
+                + Loc.F("，工具 {0} 次", ", {0} tool calls", result.Tools.Count)
                 + (result.PromptTokens.HasValue || result.CompletionTokens.HasValue
-                    ? "，token " + (result.PromptTokens ?? 0) + "+" + (result.CompletionTokens ?? 0)
+                    ? Loc.F("，token {0}+{1}", ", tokens {0}+{1}", result.PromptTokens ?? 0, result.CompletionTokens ?? 0)
                     : string.Empty));
 
             AppLog.Info("命令行 AI 对话完成：" + result.Elapsed.TotalSeconds.ToString("0.0") + " 秒");
@@ -79,7 +80,7 @@ public static class AiCliRunner
         }
         catch (Exception ex)
         {
-            output.AppendLine("AI 对话失败：" + ex.Message);
+            output.AppendLine(Loc.T("AI 对话失败：", "AI chat failed: ") + ex.Message);
             return 2;
         }
     }

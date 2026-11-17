@@ -6,6 +6,7 @@ using Microsoft.Win32;
 using Schedule.App.ViewModels;
 using Schedule.Core.Csv;
 using Schedule.Core.Ics;
+using Schedule.Core.Localization;
 using Schedule.Core.Logging;
 using Schedule.Core.Models;
 using Schedule.Core.Scheduling;
@@ -73,7 +74,7 @@ public partial class MainWindow : Window
         if (!_trayHintShown)
         {
             _trayHintShown = true;
-            _host.Tray?.ShowBalloon("日程助手仍在运行", "程序已最小化到托盘，右键托盘图标可退出。");
+            _host.Tray?.ShowBalloon(Loc.T("日程助手仍在运行", "Schedule Assistant is still running"), Loc.T("程序已最小化到托盘，右键托盘图标可退出。", "The app is minimized to the tray; right-click the tray icon to exit."));
         }
     }
 
@@ -339,8 +340,8 @@ public partial class MainWindow : Window
                 }
 
                 if (MessageBox.Show(this,
-                        "只删除 " + start.ToString("M月d日 HH:mm") + " 这一次？\n其它发生不受影响，之后仍可撤销。",
-                        "删除本次", MessageBoxButton.OKCancel, MessageBoxImage.Warning) == MessageBoxResult.OK)
+                        Loc.F("只删除 {0} 这一次？\n其它发生不受影响，之后仍可撤销。", "Delete only the {0} occurrence?\nThe other occurrences are unaffected, and you can undo this later.", start.ToString(Loc.IsEnglish ? "MMM d HH:mm" : "M月d日 HH:mm", Loc.Culture)),
+                        Loc.T("删除本次", "Delete this occurrence"), MessageBoxButton.OKCancel, MessageBoxImage.Warning) == MessageBoxResult.OK)
                 {
                     ViewModel.DeleteOccurrence(item, seriesStart);
                 }
@@ -354,7 +355,7 @@ public partial class MainWindow : Window
             case "restore":
                 if (!isSeries || !item.HasOccurrenceEdits)
                 {
-                    MessageBox.Show(this, "这一次没有单独的修改，无需恢复。", "恢复本次默认", MessageBoxButton.OK, MessageBoxImage.Information);
+                    MessageBox.Show(this, Loc.T("这一次没有单独的修改，无需恢复。", "This occurrence has no custom changes, so there is nothing to restore."), Loc.T("恢复本次默认", "Restore this occurrence"), MessageBoxButton.OK, MessageBoxImage.Information);
                     break;
                 }
 
@@ -370,10 +371,10 @@ public partial class MainWindow : Window
     private void ConfirmDeleteSeries(ScheduleItem item)
     {
         var message = item.Repeat == RepeatKind.None
-            ? "确定删除「" + item.Title + "」吗？"
-            : "「" + item.Title + "」是重复日程，将删除整个系列。确定继续吗？";
+            ? Loc.F("确定删除「{0}」吗？", "Delete “{0}”?", item.Title)
+            : Loc.F("「{0}」是重复日程，将删除整个系列。确定继续吗？", "“{0}” repeats, so the whole series will be deleted. Continue?", item.Title);
 
-        if (MessageBox.Show(this, message, "删除日程", MessageBoxButton.OKCancel, MessageBoxImage.Warning) != MessageBoxResult.OK) return;
+        if (MessageBox.Show(this, message, Loc.T("删除日程", "Delete event"), MessageBoxButton.OKCancel, MessageBoxImage.Warning) != MessageBoxResult.OK) return;
 
         ViewModel.Delete(item);
     }
@@ -534,7 +535,7 @@ public partial class MainWindow : Window
         {
             if (occurrence == null)
             {
-                MessageBox.Show(this, "这一次没有单独的修改，无需恢复。", "恢复本次默认", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(this, Loc.T("这一次没有单独的修改，无需恢复。", "This occurrence has no custom changes, so there is nothing to restore."), Loc.T("恢复本次默认", "Restore this occurrence"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
@@ -550,8 +551,8 @@ public partial class MainWindow : Window
                 ViewModel.DeleteOccurrence(current, occurrence!.SeriesStart);
             }
             else if (MessageBox.Show(this,
-                         "确定删除「" + current.Title + "」" + (current.Repeat == RepeatKind.None ? "吗？" : " 整个系列吗？"),
-                         "删除日程", MessageBoxButton.OKCancel, MessageBoxImage.Warning) == MessageBoxResult.OK)
+                         Loc.F("确定删除「{0}」整个系列吗？", "Delete the whole series “{0}”?", current.Title),
+                         Loc.T("删除日程", "Delete event"), MessageBoxButton.OKCancel, MessageBoxImage.Warning) == MessageBoxResult.OK)
             {
                 _host.Repository.Remove(current.Id);
                 _host.Repository.Save();
@@ -577,10 +578,10 @@ public partial class MainWindow : Window
     private void DeleteItem(ScheduleRow row)
     {
         var message = row.Item.Repeat == RepeatKind.None
-            ? "确定删除「" + row.Item.Title + "」吗？"
-            : "「" + row.Item.Title + "」是重复日程，将删除整个系列。确定继续吗？";
+            ? Loc.F("确定删除「{0}」吗？", "Delete “{0}”?", row.Item.Title)
+            : Loc.F("「{0}」是重复日程，将删除整个系列。确定继续吗？", "“{0}” repeats, so the whole series will be deleted. Continue?", row.Item.Title);
 
-        var result = MessageBox.Show(this, message, "删除日程", MessageBoxButton.OKCancel, MessageBoxImage.Warning);
+        var result = MessageBox.Show(this, message, Loc.T("删除日程", "Delete event"), MessageBoxButton.OKCancel, MessageBoxImage.Warning);
         if (result != MessageBoxResult.OK) return;
 
         ViewModel.Delete(row);
@@ -588,7 +589,9 @@ public partial class MainWindow : Window
 
     private void ClearCompleted_Click(object sender, RoutedEventArgs e)
     {
-        var result = MessageBox.Show(this, "确定删除所有已完成 / 已取消的日程吗？", "清理", MessageBoxButton.OKCancel, MessageBoxImage.Question);
+        var result = MessageBox.Show(this,
+            Loc.T("确定删除所有已完成 / 已取消的日程吗？", "Delete all done / canceled events?"),
+            Loc.T("清理", "Clean up"), MessageBoxButton.OKCancel, MessageBoxImage.Question);
         if (result != MessageBoxResult.OK) return;
 
         var removed = _host.Repository.RemoveCompleted();
@@ -597,7 +600,7 @@ public partial class MainWindow : Window
 
         if (removed == 0)
         {
-            MessageBox.Show(this, "没有需要清理的日程。", "清理", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(this, Loc.T("没有需要清理的日程。", "There is nothing to clean up."), Loc.T("清理", "Clean up"), MessageBoxButton.OK, MessageBoxImage.Information);
         }
     }
 
@@ -611,11 +614,11 @@ public partial class MainWindow : Window
     {
         var dialog = new OpenFileDialog
         {
-            Title = "选择要导入的日程文件（CSV / iCalendar）",
-            Filter = "日程文件 (*.csv;*.ics;*.txt)|*.csv;*.ics;*.txt"
-                + "|CSV 文件 (*.csv;*.txt)|*.csv;*.txt"
-                + "|iCalendar (*.ics)|*.ics"
-                + "|所有文件 (*.*)|*.*",
+            Title = Loc.T("选择要导入的日程文件（CSV / iCalendar）", "Choose a schedule file to import (CSV / iCalendar)"),
+            Filter = Loc.T("日程文件 (*.csv;*.ics;*.txt)|*.csv;*.ics;*.txt", "Event files (*.csv;*.ics;*.txt)|*.csv;*.ics;*.txt")
+                + "|" + Loc.T("CSV 文件 (*.csv;*.txt)|*.csv;*.txt", "CSV files (*.csv;*.txt)|*.csv;*.txt")
+                + "|" + Loc.T("iCalendar (*.ics)|*.ics", "iCalendar (*.ics)|*.ics")
+                + "|" + Loc.T("所有文件 (*.*)|*.*", "All files (*.*)|*.*"),
             CheckFileExists = true,
             Multiselect = false,
         };
@@ -639,16 +642,16 @@ public partial class MainWindow : Window
         var items = _host.Repository.Snapshot();
         if (items.Count == 0)
         {
-            MessageBox.Show(this, "还没有日程可以导出。", "导出", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(this, Loc.T("还没有日程可以导出。", "There are no events to export."), Loc.T("导出", "Export"), MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
         var dialog = new SaveFileDialog
         {
-            Title = "导出日程（CSV 用本程序的统一格式；.ics 可导入 Google 日历 / Outlook）",
-            Filter = "CSV 文件 (*.csv)|*.csv|iCalendar (*.ics)|*.ics",
+            Title = Loc.T("导出日程（CSV 用本程序的统一格式；.ics 可导入 Google 日历 / Outlook）", "Export events (CSV uses this app’s unified format; .ics works with Google Calendar / Outlook)"),
+            Filter = Loc.T("CSV 文件 (*.csv)|*.csv|iCalendar (*.ics)|*.ics", "CSV file (*.csv)|*.csv|iCalendar (*.ics)|*.ics"),
             FilterIndex = string.Equals(_host.Settings.LastExportFormat, "ics", StringComparison.OrdinalIgnoreCase) ? 2 : 1,
-            FileName = "日程导出-" + DateTime.Now.ToString("yyyyMMdd-HHmm") + (string.Equals(_host.Settings.LastExportFormat, "ics", StringComparison.OrdinalIgnoreCase) ? ".ics" : ".csv"),
+            FileName = Loc.T("日程导出-", "Schedule export-") + DateTime.Now.ToString("yyyyMMdd-HHmm") + (string.Equals(_host.Settings.LastExportFormat, "ics", StringComparison.OrdinalIgnoreCase) ? ".ics" : ".csv"),
         };
 
         if (Directory.Exists(AppPaths.ExportDirectory))
@@ -675,14 +678,17 @@ public partial class MainWindow : Window
 
             _host.SaveAll();
 
-            MessageBox.Show(this, "已导出 " + items.Count + " 条日程到：\n" + dialog.FileName
-                + (asIcs ? "\n\n（iCalendar 格式，可直接导入 Google 日历 / Outlook）" : "\n\n（CSV 为统一格式，可原样再导入本程序）"),
-                "导出完成", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(this,
+                Loc.F("已导出 {0} 条日程到：\n{1}", "Exported {0} items to:\n{1}", items.Count, dialog.FileName)
+                + (asIcs
+                    ? Loc.T("\n\n（iCalendar 格式，可直接导入 Google 日历 / Outlook）", "\n\n(iCalendar format; can be imported into Google Calendar / Outlook)")
+                    : Loc.T("\n\n（CSV 为统一格式，可原样再导入本程序）", "\n\n(CSV uses the unified format and can be imported back into this app as-is)")),
+                Loc.T("导出完成", "Export finished"), MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex)
         {
             AppLog.Error("导出失败", ex);
-            MessageBox.Show(this, "导出失败：" + ex.Message, "导出", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(this, Loc.T("导出失败：", "Export failed: ") + ex.Message, Loc.T("导出", "Export"), MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 

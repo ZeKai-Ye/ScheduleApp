@@ -1,5 +1,6 @@
 using System.Windows.Media;
 using Schedule.App.Mvvm;
+using Schedule.Core.Localization;
 
 namespace Schedule.App.ViewModels;
 
@@ -49,13 +50,13 @@ public sealed class OffsetVoiceRow : ObservableObject
         }
     }
 
-    public string SoundLabel => string.IsNullOrEmpty(SoundFile) ? "铃声" : "铃声 ✓";
+    public string SoundLabel => string.IsNullOrEmpty(SoundFile) ? Loc.T("铃声", "Sound") : Loc.T("铃声 ✓", "Sound ✓");
 
     public string SoundTooltip => string.IsNullOrEmpty(SoundFile)
-        ? "为该档位选择专属提示音"
-        : SoundFile + "（点击可更换，「清」可移除）";
+        ? Loc.T("为该档位选择专属提示音", "Choose a dedicated sound for this offset")
+        : SoundFile + Loc.T("（点击可更换，「清」可移除）", " (click to change, Clear to remove)");
 
-    public string SourceHint => string.IsNullOrWhiteSpace(Text) ? "留空 → 用通用 / 全局设置" : "本档位专属";
+    public string SourceHint => string.IsNullOrWhiteSpace(Text) ? Loc.T("留空 → 用通用 / 全局设置", "Empty → uses the event / global settings") : Loc.T("本档位专属", "Custom for this offset");
 }
 
 /// <summary>全局「按档位默认文案」编辑行（设置页）。</summary>
@@ -73,7 +74,7 @@ public sealed class OffsetTextRow : ObservableObject
         set => SetProperty(ref _text, value);
     }
 
-    public string Hint => Minutes == 0 ? "准点" : "提前 " + Minutes + " 分钟";
+    public string Hint => Minutes == 0 ? Loc.T("准点", "On time") : Loc.F("提前 {0} 分钟", "{0} min before", Minutes);
 }
 
 /// <summary>
@@ -131,7 +132,7 @@ public sealed class CategoryColorChoice : ObservableObject
 
     public Brush Brush => string.IsNullOrEmpty(Hex) ? ThemeBrushes.Border : BrushCache.Get(Hex);
 
-    public string Display => string.IsNullOrEmpty(Hex) ? "自动" : Hex;
+    public string Display => string.IsNullOrEmpty(Hex) ? Loc.T("自动", "Auto") : Hex;
 
     /// <summary>点击一次切换到调色板中的下一个颜色。</summary>
     public void Cycle()

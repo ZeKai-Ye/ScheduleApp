@@ -1,4 +1,5 @@
 using System.Globalization;
+using Schedule.Core.Localization;
 using Schedule.Core.Logging;
 using Schedule.Core.Models;
 
@@ -25,7 +26,8 @@ public sealed class SapiVoiceService : IVoiceService, IDisposable
             _voiceType = Type.GetTypeFromProgID("SAPI.SpVoice");
             if (_voiceType == null)
             {
-                LastError = "系统中未注册 SAPI.SpVoice（缺少语音组件）";
+                LastError = Loc.T("系统中未注册 SAPI.SpVoice（缺少语音组件）",
+                    "SAPI.SpVoice is not registered on this system (voice component missing)");
             }
         }
         catch (Exception ex)
@@ -63,7 +65,7 @@ public sealed class SapiVoiceService : IVoiceService, IDisposable
                     IsDefault = i == 0,
                 };
 
-                if (descriptor.Name.Length == 0) descriptor.Name = "语音 " + (i + 1);
+                if (descriptor.Name.Length == 0) descriptor.Name = Loc.F("语音 {0}", "Voice {0}", i + 1);
                 list.Add(descriptor);
             }
         }
@@ -219,8 +221,8 @@ public sealed class SapiVoiceService : IVoiceService, IDisposable
 
     private static string DescribeGender(string raw) => raw?.Trim().ToLowerInvariant() switch
     {
-        "female" => "女声",
-        "male" => "男声",
+        "female" => Loc.T("女声", "Female"),
+        "male" => Loc.T("男声", "Male"),
         null or "" => string.Empty,
         _ => raw,
     };

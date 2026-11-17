@@ -7,6 +7,7 @@ using Schedule.App.Services;
 using Schedule.App.ViewModels;
 using Schedule.Core.Ai;
 using Schedule.Core.Models;
+using Schedule.Core.Localization;
 using Schedule.Core.Storage;
 using Schedule.Core.Templating;
 
@@ -75,7 +76,7 @@ public partial class SettingsWindow : Window
     {
         var voices = _host.Voice.GetVoices();
 
-        _voiceChoices = new List<VoiceChoice> { new() { Voice = null, Text = "（系统默认音色）" } };
+        _voiceChoices = new List<VoiceChoice> { new() { Voice = null, Text = Loc.T("（系统默认音色）", "(System default voice)") } };
         foreach (var voice in voices)
         {
             _voiceChoices.Add(new VoiceChoice { Voice = voice, Text = SapiVoiceService.FormatVoice(voice) });
@@ -85,8 +86,10 @@ public partial class SettingsWindow : Window
         VoiceBox.SelectedItem = _voiceChoices.FirstOrDefault(c => c.Voice != null && c.Voice.Id == _draft.VoiceId) ?? _voiceChoices[0];
 
         VoiceEngineText.Text = _host.Voice.IsAvailable
-            ? "语音引擎：Windows SAPI（已安装 " + voices.Count + " 个音色）"
-            : "语音引擎不可用：" + (_host.Voice.LastError ?? "未知原因") + "。可在「Windows 设置 → 时间和语言 → 语音」中添加语音包。";
+            ? Loc.F("语音引擎：Windows SAPI（已安装 {0} 个音色）", "Voice engine: Windows SAPI ({0} voices installed)", voices.Count)
+            : Loc.F("语音引擎不可用：{0}。可在「Windows 设置 → 时间和语言 → 语音」中添加语音包。",
+                "Voice engine unavailable: {0}. You can add voice packs in Windows Settings > Time and language > Speech.",
+                _host.Voice.LastError ?? Loc.T("未知原因", "unknown reason"));
     }
 
     /// <summary>分类配色列表 = 现有日程用到的分类 ∪ 已保存的映射。</summary>
@@ -125,7 +128,7 @@ public partial class SettingsWindow : Window
         {
             CategoryColorList.ItemsSource = new List<CategoryColorChoice>
             {
-                new() { Name = "（暂无分类：给日程填上分类后即可在此配色）", Hex = string.Empty },
+                new() { Name = Loc.T("（暂无分类：给日程填上分类后即可在此配色）", "(No categories yet: add a category to an event to set its color here)"), Hex = string.Empty },
             };
         }
     }
@@ -148,7 +151,7 @@ public partial class SettingsWindow : Window
             _offsetVoiceRows.Add(new OffsetTextRow
             {
                 Minutes = value,
-                Label = value == 0 ? "准点提醒" : "提前 " + value + " 分钟",
+                Label = value == 0 ? Loc.T("准点提醒", "On time") : Loc.F("提前 {0} 分钟", "{0} minutes before", value),
                 Text = text ?? string.Empty,
             });
         }
@@ -172,7 +175,9 @@ public partial class SettingsWindow : Window
         SoundBeforeSpeechCheck.IsChecked = _draft.SoundBeforeSpeech;
 
         LookAheadBox.Text = _draft.LookAheadDays.ToString();
-        CsvCategoryBox.Text = _draft.CsvDefaultCategory;
+        CsvCategoryBox.Text = string.IsNullOrWhiteSpace(_draft.CsvDefaultCategory)
+            ? Loc.T("导入", "Imported")
+            : _draft.CsvDefaultCategory;
         BackupBox.Text = _draft.BackupKeepCount.ToString();
 
         SpeechEnabledCheck.IsChecked = _draft.SpeechEnabled;
@@ -198,6 +203,9 @@ public partial class SettingsWindow : Window
         ThemeBox.SelectedIndex = (int)_draft.Theme;
         ThemeHintText.Text = Schedule.App.Services.ThemeService.Describe(_draft.Theme);
         AutoRestartThemeCheck.IsChecked = _draft.AutoRestartOnThemeChange;
+
+        LanguageBox.SelectedIndex = (int)_draft.Language;
+        UpdateLanguageHint();
 
         // 提醒弹窗位置
         ReminderPositionBox.SelectedIndex = (int)_draft.ReminderPosition;
@@ -238,12 +246,16 @@ public partial class SettingsWindow : Window
         RefreshSystemStatus();
 
         DataDirBox.Text = AppPaths.DataDirectory;
-        AboutText.Text = "日程助手 ScheduleApp v" + (typeof(SettingsWindow).Assembly.GetName().Version?.ToString(3) ?? "0.1.0")
-            + "　·　基于 .NET 9 + WPF 的原生轻量实现，零第三方依赖"
+        var version = typeof(SettingsWindow).Assembly.GetName().Version?.ToString(3) ?? "0.1.0";
+        AboutText.Text = Loc.F("日程助手 ScheduleApp v{0}", "ScheduleApp v{0}", version)
+            + Loc.T("　·　基于 .NET 9 + WPF 的原生轻量实现，零第三方依赖",
+                "  ·  A lightweight native implementation on .NET 9 + WPF with no third-party dependencies")
             + Environment.NewLine
-            + "支持：多档语音提醒（30/15/5 分钟前等）、周 / 月日历视图、事件配色、周期事件（间隔 / 多星期 / 次数）"
+            + Loc.T("支持：多档语音提醒（30/15/5 分钟前等）、周 / 月日历视图、事件配色、周期事件（间隔 / 多星期 / 次数）",
+                "Supports: multiple voice reminder offsets (30/15/5 minutes before, etc.), week / month calendar views, event colors, recurring events (interval / weekdays / count)")
             + Environment.NewLine
-            + "语音引擎：Windows SAPI5（音色、语速、音量、播报模板均可自定义）";
+            + Loc.T("语音引擎：Windows SAPI5（音色、语速、音量、播报模板均可自定义）",
+                "Voice engine: Windows SAPI5 (voice, rate, volume and voice template are all customizable)");
 
         UpdateSliderTexts();
         _loading = false;
@@ -264,8 +276,9 @@ public partial class SettingsWindow : Window
         PreviewText.Text = VoiceTemplate.Preview(template, DateTime.Now);
 
         var choice = VoiceBox.SelectedItem as VoiceChoice;
-        var voiceName = choice?.Voice?.Name ?? "系统默认音色";
-        StatusText.Text = "音色：" + voiceName + "　语速 " + (int)Math.Round(RateSlider.Value) + "　音量 " + (int)Math.Round(VolumeSlider.Value) + "%";
+        var voiceName = choice?.Voice?.Name ?? Loc.T("系统默认音色", "system default voice");
+        StatusText.Text = Loc.F("音色：{0}　语速 {1}　音量 {2}%", "Voice: {0}  Rate {1}  Volume {2}%",
+            voiceName, (int)Math.Round(RateSlider.Value), (int)Math.Round(VolumeSlider.Value));
     }
 
     private void InsertToken_Click(object sender, RoutedEventArgs e)
@@ -288,15 +301,17 @@ public partial class SettingsWindow : Window
         var (mode, command) = StartupService.Detect();
 
         AutostartStatusText.Text = mode == AutostartMode.Disabled
-            ? "当前未启用开机启动。"
-            : "已启用（" + StartupService.Describe(mode) + "）：" + command;
+            ? Loc.T("当前未启用开机启动。", "Start with Windows is currently off.")
+            : Loc.F("已启用（{0}）：{1}", "Enabled ({0}): {1}", StartupService.Describe(mode), command);
 
         var desktop = ShortcutService.Exists("desktop");
         var startMenu = ShortcutService.Exists("startmenu");
 
-        ShortcutStatusText.Text = "桌面：" + (desktop ? "已创建" : "未创建")
-            + "　开始菜单：" + (startMenu ? "已创建" : "未创建")
-            + "　（保存后按设置同步开机启动）";
+        var createdText = Loc.T("已创建", "created");
+        var missingText = Loc.T("未创建", "not created");
+        ShortcutStatusText.Text = Loc.F("桌面：{0}　开始菜单：{1}　（保存后按设置同步开机启动）",
+            "Desktop: {0}  Start menu: {1}  (autostart is synced to these settings after saving)",
+            desktop ? createdText : missingText, startMenu ? createdText : missingText);
     }
 
     private void UpdateReminderPositionHint()
@@ -307,9 +322,12 @@ public partial class SettingsWindow : Window
 
         ReminderPositionHint.Text = mode switch
         {
-            ReminderPositionMode.Custom => "X / Y 为弹窗左上角的屏幕坐标（设备无关单位，拖动弹窗会自动填这里）；越界会自动贴回可见区域，多屏时可跨屏。",
-            ReminderPositionMode.Center => "X / Y 为相对屏幕中央的偏移（正数向右 / 向下）。",
-            _ => "X / Y 为相对该角落的偏移（正数向内移动；默认留 18 单位边距）。",
+            ReminderPositionMode.Custom => Loc.T("X / Y 为弹窗左上角的屏幕坐标（设备无关单位，拖动弹窗会自动填这里）；越界会自动贴回可见区域，多屏时可跨屏。",
+                "X / Y are the screen coordinates of the popup top-left corner (device-independent units; dragging the popup fills them in automatically); out-of-range values snap back to a visible area and multiple monitors are supported."),
+            ReminderPositionMode.Center => Loc.T("X / Y 为相对屏幕中央的偏移（正数向右 / 向下）。",
+                "X / Y are offsets from the center of the screen (positive values move right / down)."),
+            _ => Loc.T("X / Y 为相对该角落的偏移（正数向内移动；默认留 18 单位边距）。",
+                "X / Y are offsets from that corner (positive values move inward; the default margin is 18 units)."),
         };
     }
 
@@ -327,7 +345,30 @@ public partial class SettingsWindow : Window
         }
 
         ThemeHintText.Text = ThemeService.Describe(mode)
-            + (mode == AppTheme.System ? string.Empty : "（立即预览；取消会恢复原主题）");
+            + (mode == AppTheme.System ? string.Empty : Loc.T("（立即预览；取消会恢复原主题）", " (previewed immediately; cancelling restores the previous theme)"));
+    }
+
+    /// <summary>界面语言：只改草稿并提示，必须重启界面才会全部换成新语言。</summary>
+    private void Language_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading) return;
+
+        UpdateLanguageHint();
+    }
+
+    private void UpdateLanguageHint()
+    {
+        if (LanguageHintText == null) return;
+
+        var mode = (AppLanguage)Math.Max(0, LanguageBox.SelectedIndex);
+        var hint = Loc.Describe(mode);
+
+        if (mode != _draft.Language)
+        {
+            hint += Loc.T("　（保存后需重启软件生效）", "  (takes effect after saving and restarting)");
+        }
+
+        LanguageHintText.Text = hint;
     }
 
     // ================= AI 助手 =================
@@ -356,15 +397,16 @@ public partial class SettingsWindow : Window
 
         var draft = BuildAiDraft();
 
-        AiStatusText.Text = "当前：" + (string.IsNullOrWhiteSpace(draft.AiModel) ? "(未选择模型)" : draft.AiModel)
-            + "　" + OpenAiCompatibleClient.Normalize(draft.AiBaseUrl)
-            + "　" + AiClientFactory.DescribeProtocol(draft)
-            + "　密钥：" + AiSecrets.Describe(draft.AiApiKey)
-            + "　（模型要事先在服务端存在，可点「获取模型列表」查看）";
+        AiStatusText.Text = Loc.F("当前：{0}　{1}　{2}　密钥：{3}　（模型要事先在服务端存在，可点「获取模型列表」查看）",
+            "Current: {0}  {1}  {2}  Key: {3}  (the model must already exist on the server; click Fetch models to check)",
+            string.IsNullOrWhiteSpace(draft.AiModel) ? Loc.T("(未选择模型)", "(no model selected)") : draft.AiModel,
+            OpenAiCompatibleClient.Normalize(draft.AiBaseUrl),
+            AiClientFactory.DescribeProtocol(draft),
+            AiSecrets.Describe(draft.AiApiKey));
 
-        AiKeyHint.Text = "密钥：" + AiSecrets.Describe(draft.AiApiKey)
-            + "　可以写 env:OPENAI_API_KEY 从环境变量读取，这样密钥不会写进 settings.json。"
-            + "密钥只保存在本机，不会上传到任何地方。";
+        AiKeyHint.Text = Loc.F("密钥：{0}　可以写 env:OPENAI_API_KEY 从环境变量读取，这样密钥不会写进 settings.json。密钥只保存在本机，不会上传到任何地方。",
+            "Key: {0}  You can write env:OPENAI_API_KEY to read it from an environment variable so the key is never written to settings.json. The key is only stored on this machine and is never uploaded anywhere.",
+            AiSecrets.Describe(draft.AiApiKey));
 
         UpdateAiCloudNotice();
     }
@@ -379,13 +421,17 @@ public partial class SettingsWindow : Window
 
         if (AiEndpoint.IsLocal(draft.AiBaseUrl))
         {
-            AiCloudNotice.Text = "本地模型：对话与日程数据都留在本机，断网也能用。";
+            AiCloudNotice.Text = Loc.T("本地模型：对话与日程数据都留在本机，断网也能用。", "Local model: chat and schedule data stay on this machine and also work offline.");
             return;
         }
 
-        AiCloudNotice.Text = "云端模型：对话内容（必要时包含相关日程标题 / 时间）会发送给你配置的服务商"
-            + (preset != null && preset.NeedsKey ? "（" + preset.Name + "）" : string.Empty)
-            + "。密钥只存在本机配置文件里，但请自行确认该服务商的隐私政策。";
+        var providerNote = preset != null && preset.NeedsKey
+            ? Loc.F("（{0}）", " ({0})", preset.Name)
+            : string.Empty;
+
+        AiCloudNotice.Text = Loc.F("云端模型：对话内容（必要时包含相关日程标题 / 时间）会发送给你配置的服务商{0}。密钥只存在本机配置文件里，但请自行确认该服务商的隐私政策。",
+            "Cloud model: the conversation (including related event titles / times when needed) is sent to the provider you configured{0}. The key is only stored in the local settings file, but please check the privacy policy of that provider yourself.",
+            providerNote);
     }
 
     /// <summary>选中预设：自动填地址 / 模型 / 鉴权方式，并显示该服务商的提示。</summary>
@@ -406,7 +452,7 @@ public partial class SettingsWindow : Window
     }
 
     private void UpdateAiProviderHint()
-        => AiProviderHint.Text = (AiProviderBox.SelectedItem as AiProviderPreset)?.Hint ?? string.Empty;
+        => AiProviderHint.Text = (AiProviderBox.SelectedItem as AiProviderPreset)?.HintText ?? string.Empty;
 
     private async void TestAi_Click(object sender, RoutedEventArgs e) => await CheckAiAsync(fillModels: false);
 
@@ -415,7 +461,7 @@ public partial class SettingsWindow : Window
     private async Task CheckAiAsync(bool fillModels)
     {
         var draft = BuildAiDraft();
-        AiStatusText.Text = "正在连接 " + OpenAiCompatibleClient.Normalize(draft.AiBaseUrl) + " …";
+        AiStatusText.Text = Loc.F("正在连接 {0} …", "Connecting to {0} …", OpenAiCompatibleClient.Normalize(draft.AiBaseUrl));
 
         try
         {
@@ -431,12 +477,17 @@ public partial class SettingsWindow : Window
                 else if (models.Count == 1) AiModelBox.Text = models[0].Id;
             }
 
-            AiStatusText.Text = "连接成功（" + AiClientFactory.DescribeProtocol(draft) + "）：共 " + models.Count + " 个模型　"
-                + string.Join("、", models.Select(m => m.Id + (string.IsNullOrWhiteSpace(m.Detail) ? string.Empty : "（" + m.Detail + "）")));
+            AiStatusText.Text = Loc.F("连接成功（{0}）：共 {1} 个模型　{2}",
+                "Connected ({0}): {1} models  {2}",
+                AiClientFactory.DescribeProtocol(draft),
+                models.Count,
+                string.Join(Loc.T("、", ", "), models.Select(m => string.IsNullOrWhiteSpace(m.Detail)
+                    ? m.Id
+                    : Loc.F("{0}（{1}）", "{0} ({1})", m.Id, m.Detail))));
         }
         catch (Exception ex)
         {
-            AiStatusText.Text = "连接失败：" + ex.Message;
+            AiStatusText.Text = Loc.F("连接失败：{0}", "Connection failed: {0}", ex.Message);
         }
     }
 
@@ -460,7 +511,7 @@ public partial class SettingsWindow : Window
         _host.SetReminderPosition(mode, x, y);
         _host.Reminders.ShowPositionPreview();
 
-        StatusText.Text = "已按「" + ReminderPositionMath.Describe(mode) + "」弹出预览窗，拖动它可继续微调。";
+        StatusText.Text = Loc.F("已按「{0}」弹出预览窗，拖动它可继续微调。", "Preview window opened for {0}; drag it to fine-tune the position.", ReminderPositionMath.Describe(mode));
     }
 
     private void DesktopShortcut_Click(object sender, RoutedEventArgs e) => CreateShortcut("desktop");
@@ -471,11 +522,11 @@ public partial class SettingsWindow : Window
     {
         if (_host.SetShortcut(target, true, null, out var path, out var error))
         {
-            MessageBox.Show(this, "已创建快捷方式：\n" + path, "快捷方式", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(this, Loc.F("已创建快捷方式：\n{0}", "Shortcut created:\n{0}", path), Loc.T("快捷方式", "Shortcut"), MessageBoxButton.OK, MessageBoxImage.Information);
         }
         else
         {
-            MessageBox.Show(this, "创建失败：" + error, "快捷方式", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, Loc.F("创建失败：{0}", "Create failed: {0}", error), Loc.T("快捷方式", "Shortcut"), MessageBoxButton.OK, MessageBoxImage.Warning);
         }
 
         RefreshSystemStatus();
@@ -489,7 +540,7 @@ public partial class SettingsWindow : Window
     {
         if (!_host.SetShortcut(target, false, null, out _, out var error))
         {
-            MessageBox.Show(this, "删除失败：" + error, "快捷方式", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, Loc.F("删除失败：{0}", "Delete failed: {0}", error), Loc.T("快捷方式", "Shortcut"), MessageBoxButton.OK, MessageBoxImage.Warning);
         }
 
         RefreshSystemStatus();
@@ -509,8 +560,8 @@ public partial class SettingsWindow : Window
     {
         var dialog = new OpenFileDialog
         {
-            Title = "选择提醒提示音",
-            Filter = "音频文件 (*.wav;*.mp3;*.wma;*.m4a)|*.wav;*.mp3;*.wma;*.m4a|所有文件 (*.*)|*.*",
+            Title = Loc.T("选择提醒提示音", "Choose a reminder sound"),
+            Filter = Loc.T("音频文件 (*.wav;*.mp3;*.wma;*.m4a)|*.wav;*.mp3;*.wma;*.m4a|所有文件 (*.*)|*.*", "Audio files (*.wav;*.mp3;*.wma;*.m4a)|*.wav;*.mp3;*.wma;*.m4a|All files (*.*)|*.*"),
             CheckFileExists = true,
         };
 
@@ -538,7 +589,7 @@ public partial class SettingsWindow : Window
             Volume = settings.VoiceVolume,
         });
 
-        StatusText.Text = "正在试听：" + text;
+        StatusText.Text = Loc.F("正在试听：{0}", "Previewing: {0}", text);
     }
 
     private void StopVoice_Click(object sender, RoutedEventArgs e) => _host.Voice.Stop();
@@ -546,7 +597,7 @@ public partial class SettingsWindow : Window
     private void RefreshVoices_Click(object sender, RoutedEventArgs e)
     {
         LoadVoices();
-        StatusText.Text = "已刷新音色列表。";
+        StatusText.Text = Loc.T("已刷新音色列表。", "Voice list refreshed.");
     }
 
     private void OpenDataDir_Click(object sender, RoutedEventArgs e)
@@ -558,13 +609,13 @@ public partial class SettingsWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, "无法打开目录：" + ex.Message, "设置", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, Loc.F("无法打开目录：{0}", "Cannot open the folder: {0}", ex.Message), Loc.T("设置", "Settings"), MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
     private void Reset_Click(object sender, RoutedEventArgs e)
     {
-        var result = MessageBox.Show(this, "确定把设置恢复为默认值吗？", "恢复默认", MessageBoxButton.OKCancel, MessageBoxImage.Question);
+        var result = MessageBox.Show(this, Loc.T("确定把设置恢复为默认值吗？", "Restore all settings to their defaults?"), Loc.T("恢复默认", "Restore defaults"), MessageBoxButton.OKCancel, MessageBoxImage.Question);
         if (result != MessageBoxResult.OK) return;
 
         _draft = new AppSettings();
@@ -572,7 +623,7 @@ public partial class SettingsWindow : Window
         LoadValues();
         BuildOffsetVoiceRows();
         UpdatePreview();
-        StatusText.Text = "已恢复默认值，点击「保存」生效。";
+        StatusText.Text = Loc.T("已恢复默认值，点击「保存」生效。", "Defaults restored; click Save to apply.");
     }
 
     private AppSettings ReadValues()
@@ -613,6 +664,7 @@ public partial class SettingsWindow : Window
         settings.MonthCellCapacity = ReadInt(MonthCapacityBox.Text, settings.MonthCellCapacity, 1, 8);
         settings.WeekStartsOnMonday = WeekStartCheck.IsChecked == true;
 
+        settings.Language = (AppLanguage)Math.Max(0, LanguageBox.SelectedIndex);
         settings.Theme = (AppTheme)Math.Max(0, ThemeBox.SelectedIndex);
         settings.AutoRestartOnThemeChange = AutoRestartThemeCheck.IsChecked == true;
         settings.ReminderPosition = (ReminderPositionMode)Math.Max(0, ReminderPositionBox.SelectedIndex);
@@ -693,12 +745,29 @@ public partial class SettingsWindow : Window
         try
         {
             var previousTheme = _host.Settings.Theme;
+            var previousLanguage = _host.Settings.Language;
             var settings = ReadValues();
 
             _host.SettingsService.Replace(settings);
             _host.NotifySettingsChanged();
 
             DialogResult = true;
+
+            // 语言：XAML 里的文案在窗口加载时求值，必须重启界面才会全部换成新语言
+            if (settings.Language != previousLanguage)
+            {
+                var answer = MessageBox.Show(this,
+                    Loc.T("界面语言已保存，需要重启软件才能完全生效。" + Environment.NewLine + Environment.NewLine + "现在重启吗？",
+                          "The language has been saved. Restart the app to apply it fully." + Environment.NewLine + Environment.NewLine + "Restart now?"),
+                    Loc.T("界面语言", "Language"),
+                    MessageBoxButton.YesNo, MessageBoxImage.Question);
+
+                if (answer == MessageBoxResult.Yes)
+                {
+                    RestartAfterClose();
+                    return;
+                }
+            }
 
             // 主题换了：界面大部分已经即时生效，但已经算好的画刷（日历色块）与少数系统弹层
             // 需要整个界面重新加载才完全一致，按设置自动重启一次最省心。
@@ -709,7 +778,7 @@ public partial class SettingsWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, "保存设置失败：" + ex.Message, "设置", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(this, Loc.F("保存设置失败：{0}", "Failed to save settings: {0}", ex.Message), Loc.T("设置", "Settings"), MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -717,8 +786,9 @@ public partial class SettingsWindow : Window
     private void Restart_Click(object sender, RoutedEventArgs e)
     {
         var confirm = MessageBox.Show(this,
-            "立即重启日程助手？" + Environment.NewLine + Environment.NewLine + "当前改动会先保存，数据与提醒计划不受影响。",
-            "重启", MessageBoxButton.OKCancel, MessageBoxImage.Question);
+            Loc.T("立即重启日程助手？" + Environment.NewLine + Environment.NewLine + "当前改动会先保存，数据与提醒计划不受影响。",
+                "Restart the scheduler now?" + Environment.NewLine + Environment.NewLine + "Current changes are saved first; data and reminders are unaffected."),
+            Loc.T("重启", "Restart"), MessageBoxButton.OKCancel, MessageBoxImage.Question);
 
         if (confirm != MessageBoxResult.OK) return;
 
@@ -730,7 +800,7 @@ public partial class SettingsWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, "保存设置失败：" + ex.Message, "设置", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(this, Loc.F("保存设置失败：{0}", "Failed to save settings: {0}", ex.Message), Loc.T("设置", "Settings"), MessageBoxButton.OK, MessageBoxImage.Error);
             return;
         }
 
@@ -745,9 +815,9 @@ public partial class SettingsWindow : Window
         {
             if (_host.Restart(out var error) || string.IsNullOrWhiteSpace(error)) return;
 
-            MessageBox.Show("自动重启失败：" + error + Environment.NewLine + Environment.NewLine
-                    + "请手动关闭并重新打开日程助手。",
-                "重启", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(Loc.F("自动重启失败：{0}" + Environment.NewLine + Environment.NewLine + "请手动关闭并重新打开日程助手。",
+                    "Automatic restart failed: {0}" + Environment.NewLine + Environment.NewLine + "Please close and reopen the scheduler manually.", error),
+                Loc.T("重启", "Restart"), MessageBoxButton.OK, MessageBoxImage.Warning);
         }), DispatcherPriority.Background);
     }
 

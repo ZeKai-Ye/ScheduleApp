@@ -7,6 +7,7 @@ using Schedule.App.Mvvm;
 using Schedule.App.Services;
 using Schedule.Core.Csv;
 using Schedule.Core.Ics;
+using Schedule.Core.Localization;
 using Schedule.Core.Models;
 using Schedule.Core.Services;
 
@@ -80,27 +81,29 @@ public partial class CsvImportWindow : Window
         FilePathBox.Text = filePath;
         MappingList.ItemsSource = _mappings;
 
-        EncodingBox.Items.Add(new ComboBoxItem { Content = "自动识别", Tag = "auto" });
+        EncodingBox.Items.Add(new ComboBoxItem { Content = Loc.T("自动识别", "Auto-detect"), Tag = "auto" });
         EncodingBox.Items.Add(new ComboBoxItem { Content = "UTF-8", Tag = "utf-8" });
         EncodingBox.Items.Add(new ComboBoxItem { Content = "GBK / GB2312", Tag = "gbk" });
         EncodingBox.Items.Add(new ComboBoxItem { Content = "GB18030", Tag = "gb18030" });
         EncodingBox.Items.Add(new ComboBoxItem { Content = "UTF-16", Tag = "utf-16" });
         EncodingBox.SelectedIndex = EncodingIndex(host.Settings.CsvEncoding);
 
-        HeaderBox.Items.Add(new ComboBoxItem { Content = "自动判断", Tag = "auto" });
-        HeaderBox.Items.Add(new ComboBoxItem { Content = "第一行是表头", Tag = "yes" });
-        HeaderBox.Items.Add(new ComboBoxItem { Content = "没有表头", Tag = "no" });
+        HeaderBox.Items.Add(new ComboBoxItem { Content = Loc.T("自动判断", "Auto-detect"), Tag = "auto" });
+        HeaderBox.Items.Add(new ComboBoxItem { Content = Loc.T("第一行是表头", "First row is the header"), Tag = "yes" });
+        HeaderBox.Items.Add(new ComboBoxItem { Content = Loc.T("没有表头", "No header row"), Tag = "no" });
         HeaderBox.SelectedIndex = 0;
 
-        ModeBox.Items.Add(new ComboBoxItem { Content = "追加为新日程", Tag = "append" });
-        ModeBox.Items.Add(new ComboBoxItem { Content = "更新重复项（按标题 + 开始时间）", Tag = "upsert" });
-        ModeBox.Items.Add(new ComboBoxItem { Content = "覆盖全部日程（先清空）", Tag = "replace" });
+        ModeBox.Items.Add(new ComboBoxItem { Content = Loc.T("追加为新日程", "Append as new events"), Tag = "append" });
+        ModeBox.Items.Add(new ComboBoxItem { Content = Loc.T("更新重复项（按标题 + 开始时间）", "Update duplicates (by title + start time)"), Tag = "upsert" });
+        ModeBox.Items.Add(new ComboBoxItem { Content = Loc.T("覆盖全部日程（先清空）", "Replace all events (clear first)"), Tag = "replace" });
         ModeBox.SelectedIndex = 0;
 
         DefaultRemindBox.Text = host.Settings.DefaultReminderOffsets.Count > 0
             ? string.Join(",", host.Settings.DefaultReminderOffsets)
             : host.Settings.DefaultRemindBeforeMinutes.ToString();
-        DefaultCategoryBox.Text = host.Settings.CsvDefaultCategory;
+        DefaultCategoryBox.Text = string.IsNullOrWhiteSpace(host.Settings.CsvDefaultCategory)
+            ? Loc.T("导入", "Imported")
+            : host.Settings.CsvDefaultCategory;
 
         Loaded += (_, _) => Reload();
     }
@@ -133,11 +136,11 @@ public partial class CsvImportWindow : Window
     {
         var dialog = new OpenFileDialog
         {
-            Title = "选择要导入的日程文件",
-            Filter = "日程文件 (*.csv;*.ics;*.txt)|*.csv;*.ics;*.txt"
-                + "|CSV 文件 (*.csv;*.txt)|*.csv;*.txt"
+            Title = Loc.T("选择要导入的日程文件", "Choose the event file to import"),
+            Filter = Loc.T("日程文件", "Event files") + " (*.csv;*.ics;*.txt)|*.csv;*.ics;*.txt"
+                + "|" + Loc.T("CSV 文件", "CSV files") + " (*.csv;*.txt)|*.csv;*.txt"
                 + "|iCalendar (*.ics)|*.ics"
-                + "|所有文件 (*.*)|*.*",
+                + "|" + Loc.T("所有文件", "All files") + " (*.*)|*.*",
             CheckFileExists = true,
         };
 
@@ -206,14 +209,14 @@ public partial class CsvImportWindow : Window
         try
         {
             _isIcs = DetectIcs();
-            FormatHintText.Text = "统一格式表头：" + CsvSchema.HeaderLine;
+            FormatHintText.Text = Loc.T("统一格式表头：", "Standard header row: ") + CsvSchema.HeaderLine;
 
             if (_isIcs) ReloadIcs();
             else ReloadCsv();
         }
         catch (Exception ex)
         {
-            ReportText.Text = "预览失败：" + ex.Message;
+            ReportText.Text = Loc.T("预览失败：", "Preview failed: ") + ex.Message;
         }
         finally
         {
@@ -243,7 +246,7 @@ public partial class CsvImportWindow : Window
 
     private void ReloadCsv()
     {
-        FileKindText.Text = "CSV 文件（统一格式）";
+        FileKindText.Text = Loc.T("CSV 文件（统一格式）", "CSV file (standard format)");
         MappingCard.Visibility = Visibility.Visible;
         SetCsvOptionsEnabled(true);
 
@@ -252,10 +255,11 @@ public partial class CsvImportWindow : Window
         _preview = preview;
         _icsPreview = null;
 
-        EncodingText.Text = "识别编码：" + preview.EncodingName + "　分隔符：" + DescribeDelimiter(preview.Delimiter);
+        EncodingText.Text = Loc.T("识别编码：", "Detected encoding: ") + preview.EncodingName + Loc.T("　分隔符：", "  ·  Delimiter: ") + DescribeDelimiter(preview.Delimiter);
         WarningText.Text = preview.Warnings.Count == 0 ? string.Empty : string.Join("　", preview.Warnings);
-        PreviewTitle.Text = "数据预览（共 " + preview.TotalDataRows + " 行数据，显示前 " + preview.SampleRows.Count + " 行" +
-                            (preview.HasHeader ? "，已识别表头" : "，未检测到表头") + "）";
+        PreviewTitle.Text = Loc.F("数据预览（共 {0} 行数据，显示前 {1} 行{2}）", "Data preview ({0} rows of data, showing the first {1}{2})",
+                            preview.TotalDataRows, preview.SampleRows.Count,
+                            preview.HasHeader ? Loc.T("，已识别表头", ", header row detected") : Loc.T("，未检测到表头", ", no header row detected"));
 
         BuildMappingUi(preview);
         PreviewBox.Text = BuildPreviewText(preview);
@@ -264,7 +268,7 @@ public partial class CsvImportWindow : Window
 
     private void ReloadIcs()
     {
-        FileKindText.Text = "iCalendar 文件（.ics）";
+        FileKindText.Text = Loc.T("iCalendar 文件（.ics）", "iCalendar file (.ics)");
         MappingCard.Visibility = Visibility.Collapsed;
         SetCsvOptionsEnabled(false);
 
@@ -285,29 +289,29 @@ public partial class CsvImportWindow : Window
         _icsPreview = preview;
         _preview = null;
 
-        EncodingText.Text = "识别编码：" + preview.EncodingName;
-        PreviewTitle.Text = "iCalendar 预览";
+        EncodingText.Text = Loc.T("识别编码：", "Detected encoding: ") + preview.EncodingName;
+        PreviewTitle.Text = Loc.T("iCalendar 预览", "iCalendar preview");
         WarningText.Text = preview.Warnings.Count == 0
             ? string.Empty
-            : string.Join("；", preview.Warnings.Take(3)) + (preview.Warnings.Count > 3 ? "　…（共 " + preview.Warnings.Count + " 条提示）" : string.Empty);
+            : string.Join(Loc.T("；", "; "), preview.Warnings.Take(3)) + (preview.Warnings.Count > 3 ? Loc.F("　…（共 {0} 条提示）", " … ({0} notes in total)", preview.Warnings.Count) : string.Empty);
 
         var sb = new StringBuilder();
-        sb.AppendLine(preview.LooksLikeCalendar ? "已识别为 iCalendar 文件。" : "没有找到 BEGIN:VCALENDAR，可能不是标准 ICS。");
+        sb.AppendLine(preview.LooksLikeCalendar ? Loc.T("已识别为 iCalendar 文件。", "Recognised as an iCalendar file.") : Loc.T("没有找到 BEGIN:VCALENDAR，可能不是标准 ICS。", "BEGIN:VCALENDAR was not found, so this may not be a standard ICS file."));
         sb.AppendLine(preview.ToSummary());
 
         if (preview.Warnings.Count > 0)
         {
             sb.AppendLine();
-            sb.AppendLine("提示：");
+            sb.AppendLine(Loc.T("提示：", "Notes:"));
             foreach (var warning in preview.Warnings.Take(20)) sb.AppendLine("· " + warning);
-            if (preview.Warnings.Count > 20) sb.AppendLine("（还有 " + (preview.Warnings.Count - 20) + " 条）");
+            if (preview.Warnings.Count > 20) sb.AppendLine(Loc.F("（还有 {0} 条）", "({0} more)", preview.Warnings.Count - 20));
         }
 
         if (preview.RowErrors.Count > 0)
         {
             sb.AppendLine();
-            sb.AppendLine("无法导入的事件：");
-            foreach (var error in preview.RowErrors.Take(20)) sb.AppendLine("· 第 " + error.Line + " 行：" + error.Message);
+            sb.AppendLine(Loc.T("无法导入的事件：", "Events that cannot be imported:"));
+            foreach (var error in preview.RowErrors.Take(20)) sb.AppendLine(Loc.F("· 第 {0} 行：{1}", "· Line {0}: {1}", error.Line, error.Message));
         }
 
         PreviewBox.Text = sb.ToString();
@@ -343,19 +347,19 @@ public partial class CsvImportWindow : Window
 
     private static string DescribeDelimiter(char delimiter) => delimiter switch
     {
-        ',' => "逗号",
-        ';' => "分号",
-        '\t' => "制表符",
-        '|' => "竖线",
+        ',' => Loc.T("逗号", "comma"),
+        ';' => Loc.T("分号", "semicolon"),
+        '\t' => Loc.T("制表符", "tab"),
+        '|' => Loc.T("竖线", "pipe"),
         _ => delimiter.ToString(),
     };
 
     private void BuildMappingUi(CsvPreview preview)
     {
-        var choices = new List<ColumnChoice> { new() { Index = -1, Text = "（忽略此列）" } };
+        var choices = new List<ColumnChoice> { new() { Index = -1, Text = Loc.T("（忽略此列）", "(ignore this column)") } };
         for (var i = 0; i < preview.Headers.Count; i++)
         {
-            choices.Add(new ColumnChoice { Index = i, Text = "第 " + (i + 1) + " 列：" + preview.Headers[i] });
+            choices.Add(new ColumnChoice { Index = i, Text = Loc.F("第 {0} 列：{1}", "Column {0}: {1}", i + 1, preview.Headers[i]) });
         }
 
         _mappings.Clear();
@@ -376,7 +380,7 @@ public partial class CsvImportWindow : Window
 
     private static string BuildPreviewText(CsvPreview preview)
     {
-        if (preview.Headers.Count == 0) return "（没有可显示的数据）";
+        if (preview.Headers.Count == 0) return Loc.T("（没有可显示的数据）", "(no data to display)");
 
         var widths = new int[preview.Headers.Count];
         for (var i = 0; i < widths.Length; i++)
@@ -444,17 +448,19 @@ public partial class CsvImportWindow : Window
     {
         if (SelectedTag(ModeBox) == "replace")
         {
-            var confirm = MessageBox.Show(this, "「覆盖全部日程」会先清空现有全部日程，确定继续吗？", "导入",
-                MessageBoxButton.OKCancel, MessageBoxImage.Warning);
+            var confirm = MessageBox.Show(this, Loc.T("「覆盖全部日程」会先清空现有全部日程，确定继续吗？", "“Replace all events” clears every existing event first. Continue?"),
+                Loc.T("导入", "Import"), MessageBoxButton.OKCancel, MessageBoxImage.Warning);
             if (confirm != MessageBoxResult.OK) return;
         }
 
         var text = RunImport();
+        var finishedMark = Loc.T("导入完成", "Import finished");
 
         // 一条都没进来时必须弹窗说清楚原因，不能只把报告写在角落里
-        if (text.Contains("导入完成：共", StringComparison.Ordinal) && text.Contains("新增 0，更新 0", StringComparison.Ordinal))
+        // 「新增 0，更新 0」来自 Core 的 ImportReport.ToSummary()，跟随 Core 侧的语言实现
+        if (text.Contains(finishedMark, StringComparison.Ordinal) && text.Contains("新增 0，更新 0", StringComparison.Ordinal))
         {
-            MessageBox.Show(this, FirstLines(text, 12), "没有任何日程被导入", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, FirstLines(text, 12), Loc.T("没有任何日程被导入", "No events were imported"), MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
@@ -466,7 +472,7 @@ public partial class CsvImportWindow : Window
     {
         if (!File.Exists(_filePath))
         {
-            ReportText.Text = "导入失败：文件不存在（" + _filePath + "）";
+            ReportText.Text = Loc.F("导入失败：文件不存在（{0}）", "Import failed: file not found ({0})", _filePath);
             return ReportText.Text;
         }
 
@@ -476,7 +482,7 @@ public partial class CsvImportWindow : Window
         }
         catch (Exception ex)
         {
-            ReportText.Text = "导入失败：" + ex.Message;
+            ReportText.Text = Loc.T("导入失败：", "Import failed: ") + ex.Message;
             return ReportText.Text;
         }
     }
@@ -489,7 +495,7 @@ public partial class CsvImportWindow : Window
 
         if (report.Blocked)
         {
-            ReportText.Text = "已终止导入（未改动任何日程）：" + Environment.NewLine + report.BlockReason;
+            ReportText.Text = Loc.T("已终止导入（未改动任何日程）：", "Import aborted (no events were changed): ") + Environment.NewLine + report.BlockReason;
             ApplyBlockState(report.BlockReason);
             return ReportText.Text;
         }
@@ -521,7 +527,7 @@ public partial class CsvImportWindow : Window
 
         if (report.Blocked)
         {
-            ReportText.Text = "已终止导入（未改动任何日程）：" + Environment.NewLine + report.BlockReason;
+            ReportText.Text = Loc.T("已终止导入（未改动任何日程）：", "Import aborted (no events were changed): ") + Environment.NewLine + report.BlockReason;
             ApplyBlockState(report.BlockReason);
             return ReportText.Text;
         }
@@ -549,12 +555,12 @@ public partial class CsvImportWindow : Window
         _host.SaveAll();
 
         var text = new StringBuilder();
-        text.AppendLine("导入完成：" + report.ToSummary());
-        text.AppendLine("来源：" + kind + "　文件：" + Path.GetFileName(_filePath));
+        text.AppendLine(Loc.T("导入完成：", "Import finished: ") + report.ToSummary());
+        text.AppendLine(Loc.T("来源：", "Source: ") + kind + Loc.T("　文件：", "  ·  File: ") + Path.GetFileName(_filePath));
 
-        foreach (var warning in report.Warnings) text.AppendLine("[提示] " + warning);
-        foreach (var error in report.Errors.Take(30)) text.AppendLine("[第 " + error.Line + " 行] " + error.Message);
-        if (report.Errors.Count > 30) text.AppendLine("（还有 " + (report.Errors.Count - 30) + " 条错误未显示）");
+        foreach (var warning in report.Warnings) text.AppendLine(Loc.T("[提示] ", "[Note] ") + warning);
+        foreach (var error in report.Errors.Take(30)) text.AppendLine(Loc.F("[第 {0} 行] {1}", "[Line {0}] {1}", error.Line, error.Message));
+        if (report.Errors.Count > 30) text.AppendLine(Loc.F("（还有 {0} 条错误未显示）", "({0} more errors not shown)", report.Errors.Count - 30));
 
         ReportText.Text = text.ToString();
 
@@ -575,8 +581,8 @@ public partial class CsvImportWindow : Window
     {
         var dialog = new SaveFileDialog
         {
-            Title = "保存 CSV 模板",
-            Filter = "CSV 文件 (*.csv)|*.csv",
+            Title = Loc.T("保存 CSV 模板", "Save CSV template"),
+            Filter = Loc.T("CSV 文件", "CSV files") + " (*.csv)|*.csv",
             FileName = "日程导入模板.csv",
         };
 
@@ -585,19 +591,19 @@ public partial class CsvImportWindow : Window
         try
         {
             CsvSchema.WriteTemplate(dialog.FileName);
-            ReportText.Text = "模板已保存：" + dialog.FileName + Environment.NewLine
-                + "第一行是统一格式的表头，下面两行是示例，照着填就能导入。" + Environment.NewLine
+            ReportText.Text = Loc.T("模板已保存：", "Template saved: ") + dialog.FileName + Environment.NewLine
+                + Loc.T("第一行是统一格式的表头，下面两行是示例，照着填就能导入。", "The first line is the standard header row and the next two lines are examples; fill them in the same way to import.") + Environment.NewLine
                 + Environment.NewLine + CsvSchema.HeaderLine;
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, "保存模板失败：" + ex.Message, "导入", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, Loc.T("保存模板失败：", "Failed to save the template: ") + ex.Message, Loc.T("导入", "Import"), MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
     /// <summary>列出统一格式的每一列（含义 / 是否必填 / 示例）。</summary>
     private void ShowFormat_Click(object sender, RoutedEventArgs e)
-        => MessageBox.Show(this, CsvSchema.DescribeColumns(), "CSV 统一格式", MessageBoxButton.OK, MessageBoxImage.Information);
+        => MessageBox.Show(this, CsvSchema.DescribeColumns(), Loc.T("CSV 统一格式", "Standard CSV format"), MessageBoxButton.OK, MessageBoxImage.Information);
 
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
 }

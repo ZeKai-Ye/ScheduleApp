@@ -4,6 +4,7 @@ using Microsoft.Win32;
 using Schedule.App.Services;
 using Schedule.App.ViewModels;
 using Schedule.Core.Csv;
+using Schedule.Core.Localization;
 using Schedule.Core.Models;
 using Schedule.Core.Services;
 using Schedule.Core.Templating;
@@ -54,18 +55,24 @@ public partial class ItemEditorWindow : Window
         InitializeComponent();
 
         Title = isNew
-            ? "新建日程"
-            : editingOccurrence ? "编辑这一次（" + occurrence!.Start.ToString("M月d日 HH:mm") + "）" : "编辑日程";
+            ? Loc.T("新建日程", "New event")
+            : editingOccurrence
+                ? Loc.F("编辑这一次（{0}）", "Edit this event ({0})", occurrence!.Start.ToString(Loc.IsEnglish ? "MMM d HH:mm" : "M月d日 HH:mm", Loc.Culture))
+                : Loc.T("编辑日程", "Edit event");
         DeleteButton.Visibility = isNew ? Visibility.Collapsed : Visibility.Visible;
         ScopePanel.Visibility = editingOccurrence ? Visibility.Visible : Visibility.Collapsed;
+
+        PlaceholderHintText.Text = Loc.T(
+            "可用占位符：{title} {time} {date} {weekday} {category} {notes} {priority} {countdown} {status} {offset}",
+            "Placeholders: {title} {time} {date} {weekday} {category} {notes} {priority} {countdown} {status} {offset}");
 
         if (editingOccurrence)
         {
             UpdateScopeUi();
             RestoreButton.Visibility = _existingOverride != null ? Visibility.Visible : Visibility.Collapsed;
             OccurrenceStateText.Text = _existingOverride == null
-                ? "这一次目前没有任何单独修改。"
-                : "这一次已被单独修改：" + _existingOverride.Describe();
+                ? Loc.T("这一次目前没有任何单独修改。", "No changes have been made to this event yet.")
+                : Loc.T("这一次已被单独修改：", "This event was edited: ") + _existingOverride.Describe();
         }
 
         var icon = AppIcons.LoadWindowIcon();
@@ -141,14 +148,16 @@ public partial class ItemEditorWindow : Window
 
         if (DeleteButton != null)
         {
-            DeleteButton.Content = single ? "删除本次" : "删除整个系列";
+            DeleteButton.Content = single ? Loc.T("删除本次", "Delete this event") : Loc.T("删除整个系列", "Delete all events");
         }
 
         if (ScopeHintText != null)
         {
             ScopeHintText.Text = single
-                ? "只影响这一次：改时间即「改期」，改文案 / 档位 / 状态也只对这一条生效。"
-                : "影响整个系列（含以后的所有发生），已记录的「仅本次」修改会保留。";
+                ? Loc.T("只影响这一次：改时间即「改期」，改文案 / 档位 / 状态也只对这一条生效。",
+                    "Only this event: changing the time reschedules it, and text / offsets / status apply to this event only.")
+                : Loc.T("影响整个系列（含以后的所有发生），已记录的「仅本次」修改会保留。",
+                    "Applies to every event in the series (including future ones); existing per-event edits are kept.");
         }
 
         // 重复规则属于系列级属性，「仅这一次」下不允许改
@@ -221,7 +230,7 @@ public partial class ItemEditorWindow : Window
         var itemColor = EventColors.Normalize(_working.Color);
 
         _colorChoices.Clear();
-        _colorChoices.Add(new ColorChoice { Hex = string.Empty, Name = "跟随分类", IsSelected = itemColor.Length == 0 });
+        _colorChoices.Add(new ColorChoice { Hex = string.Empty, Name = Loc.T("跟随分类", "Follow category"), IsSelected = itemColor.Length == 0 });
         foreach (var (name, hex) in EventColors.Presets)
         {
             _colorChoices.Add(new ColorChoice { Hex = hex, Name = name, IsSelected = itemColor == hex });
@@ -245,7 +254,7 @@ public partial class ItemEditorWindow : Window
             _weekdayChoices.Add(new WeekdayChoice
             {
                 Day = day,
-                Label = VoiceTemplate.ShortWeekdayText(day),
+                Label = WeekdayLabel(day),
                 IsSelected = _working.RepeatWeekdays.Contains(day),
             });
         }
@@ -378,8 +387,10 @@ public partial class ItemEditorWindow : Window
         OffsetDetailList.ItemsSource = _offsetRows;
 
         OffsetDetailHint.Text = _offsetRows.Count == 0
-            ? "先勾选上面的提醒档位，这里会为每个档位提供单独的播报文案与铃声。"
-            : "优先级：本档位专属文案 > 本日程通用文案 > 全局档位文案 > 全局模板。";
+            ? Loc.T("先勾选上面的提醒档位，这里会为每个档位提供单独的播报文案与铃声。",
+                "Select reminder offsets above; each offset then gets its own voice text and sound.")
+            : Loc.T("优先级：本档位专属文案 > 本日程通用文案 > 全局档位文案 > 全局模板。",
+                "Priority: this offset’s text > this event’s text > global offset text > global template.");
     }
 
     private void OffsetSound_Click(object sender, RoutedEventArgs e)
@@ -388,8 +399,9 @@ public partial class ItemEditorWindow : Window
 
         var dialog = new OpenFileDialog
         {
-            Title = "为「" + row.Label + "」选择提示音",
-            Filter = "音频文件 (*.wav;*.mp3;*.wma;*.m4a)|*.wav;*.mp3;*.wma;*.m4a|所有文件 (*.*)|*.*",
+            Title = Loc.F("为「{0}」选择提示音", "Choose a sound for {0}", row.Label),
+            Filter = Loc.T("音频文件", "Audio files") + " (*.wav;*.mp3;*.wma;*.m4a)|*.wav;*.mp3;*.wma;*.m4a|"
+                + Loc.T("所有文件", "All files") + " (*.*)|*.*",
             CheckFileExists = true,
         };
 
@@ -443,7 +455,7 @@ public partial class ItemEditorWindow : Window
         var repeat = (RepeatKind)Math.Max(0, RepeatBox.SelectedIndex);
         if (repeat == RepeatKind.None)
         {
-            RepeatSummaryText.Text = "只发生一次。";
+            RepeatSummaryText.Text = Loc.T("只发生一次。", "Happens once.");
             return;
         }
 
@@ -453,30 +465,30 @@ public partial class ItemEditorWindow : Window
 
         var text = repeat switch
         {
-            RepeatKind.Daily => interval > 1 ? "每 " + interval + " 天" : "每天",
-            RepeatKind.Weekdays => "每个工作日",
-            RepeatKind.Weekly => interval > 1 ? "每 " + interval + " 周" : "每周",
-            RepeatKind.Monthly => interval > 1 ? "每 " + interval + " 个月" : "每月",
-            RepeatKind.Yearly => interval > 1 ? "每 " + interval + " 年" : "每年",
-            _ => "不重复",
+            RepeatKind.Daily => interval > 1 ? Loc.F("每 {0} 天", "Every {0} days", interval) : Loc.T("每天", "Every day"),
+            RepeatKind.Weekdays => Loc.T("每个工作日", "Every weekday"),
+            RepeatKind.Weekly => interval > 1 ? Loc.F("每 {0} 周", "Every {0} weeks", interval) : Loc.T("每周", "Every week"),
+            RepeatKind.Monthly => interval > 1 ? Loc.F("每 {0} 个月", "Every {0} months", interval) : Loc.T("每月", "Every month"),
+            RepeatKind.Yearly => interval > 1 ? Loc.F("每 {0} 年", "Every {0} years", interval) : Loc.T("每年", "Every year"),
+            _ => Loc.T("不重复", "Does not repeat"),
         };
 
         if (repeat == RepeatKind.Weekly && weekdays.Count > 0)
         {
-            text += "（" + string.Join("、", weekdays.Select(VoiceTemplate.ShortWeekdayText)) + "）";
+            text += Loc.T("（", " (") + string.Join(Loc.T("、", ", "), weekdays.Select(WeekdayLabel)) + Loc.T("）", ")");
         }
 
-        if (count.HasValue) text += " · 共 " + count.Value + " 次";
+        if (count.HasValue) text += Loc.F(" · 共 {0} 次", " · {0} times", count.Value);
         else if (RepeatUntilCheck.IsChecked == true && RepeatUntilPicker.SelectedDate.HasValue)
         {
-            text += " · 至 " + RepeatUntilPicker.SelectedDate.Value.ToString("yyyy-MM-dd");
+            text += Loc.F(" · 至 {0}", " · until {0}", RepeatUntilPicker.SelectedDate.Value.ToString("yyyy-MM-dd"));
         }
         else
         {
-            text += " · 无限重复";
+            text += Loc.T(" · 无限重复", " · repeats forever");
         }
 
-        RepeatSummaryText.Text = "效果：" + text;
+        RepeatSummaryText.Text = Loc.T("效果：", "Result: ") + text;
     }
 
     private List<int> CollectOffsets()
@@ -501,13 +513,13 @@ public partial class ItemEditorWindow : Window
 
         if (ReminderEnabledCheck.IsChecked != true)
         {
-            ReminderSummaryText.Text = "提醒已关闭，不会弹窗也不会播报。";
+            ReminderSummaryText.Text = Loc.T("提醒已关闭，不会弹窗也不会播报。", "Reminders are off; nothing will pop up and nothing will be spoken.");
             return;
         }
 
         if (!TryReadStart(out var start))
         {
-            ReminderSummaryText.Text = "开始时间格式无法识别，暂时无法计算提醒时刻。";
+            ReminderSummaryText.Text = Loc.T("开始时间格式无法识别，暂时无法计算提醒时刻。", "Can’t read the start time, so reminder times can’t be calculated.");
             return;
         }
 
@@ -516,17 +528,17 @@ public partial class ItemEditorWindow : Window
         if (AbsoluteCheck.IsChecked == true
             && FlexibleDateTime.TryParse(AbsoluteTimeBox.Text, out var absolute, AbsoluteDatePicker.SelectedDate ?? start.Date))
         {
-            points.Add(absolute.ToString("MM-dd HH:mm") + "（指定时刻）");
+            points.Add(absolute.ToString("MM-dd HH:mm") + Loc.T("（指定时刻）", " (set time)"));
         }
 
         foreach (var offset in CollectOffsets())
         {
-            points.Add(start.AddMinutes(-offset).ToString("MM-dd HH:mm") + "（" + ReminderPlan.DescribeOffset(offset) + "）");
+            points.Add(start.AddMinutes(-offset).ToString("MM-dd HH:mm") + Loc.T("（", " (") + ReminderPlan.DescribeOffset(offset) + ")");
         }
 
         ReminderSummaryText.Text = points.Count == 0
-            ? "还没有选择任何档位，保存时将使用默认档位。"
-            : "提醒时间点：" + string.Join("、", points);
+            ? Loc.T("还没有选择任何档位，保存时将使用默认档位。", "No offset selected yet; the default offsets are used when saving.")
+            : Loc.T("提醒时间点：", "Reminder times: ") + string.Join(Loc.T("、", ", "), points);
     }
 
     private void UpdateVoicePreview()
@@ -545,27 +557,29 @@ public partial class ItemEditorWindow : Window
 
         var probe = new ScheduleItem
         {
-            Title = string.IsNullOrWhiteSpace(TitleBox.Text) ? "（未命名日程）" : TitleBox.Text,
+            Title = string.IsNullOrWhiteSpace(TitleBox.Text) ? Loc.T("（未命名日程）", "(Untitled event)") : TitleBox.Text,
             Category = CategoryBox.Text ?? string.Empty,
             Notes = NotesBox.Text ?? string.Empty,
             Priority = ReadPriority(),
             Start = start,
         };
 
-        VoicePreviewText.Text = "试听效果：" + VoiceTemplate.Render(template, probe, start, DateTime.Now, hasOffset ? offset : null);
+        VoicePreviewText.Text = Loc.T("试听效果：", "Preview: ") + VoiceTemplate.Render(template, probe, start, DateTime.Now, hasOffset ? offset : null);
     }
 
     private static string OffsetLabel(int minutes)
     {
-        if (minutes <= 0) return "准点";
+        if (minutes <= 0) return Loc.T("准点", "On time");
 
         return minutes switch
         {
-            60 => "1 小时",
-            120 => "2 小时",
-            1440 => "1 天",
-            2880 => "2 天",
-            _ => minutes % 60 == 0 ? (minutes / 60) + " 小时" : minutes + " 分钟",
+            60 => Loc.T("1 小时", "1 hour"),
+            120 => Loc.T("2 小时", "2 hours"),
+            1440 => Loc.T("1 天", "1 day"),
+            2880 => Loc.T("2 天", "2 days"),
+            _ => minutes % 60 == 0
+                ? Loc.F("{0} 小时", "{0} hours", minutes / 60)
+                : Loc.F("{0} 分钟", "{0} min", minutes),
         };
     }
 
@@ -616,7 +630,7 @@ public partial class ItemEditorWindow : Window
         if (hasTime && !hasDate && TryParseDuration(EndTimeBox.Text, out var duration))
         {
             end = start + duration;
-            note = "结束时间按「开始 + " + HumanizeDuration(duration) + "」计算：" + end.Value.ToString("MM-dd HH:mm");
+            note = Loc.F("结束时间按「开始 + {0}」计算：{1}", "End time is calculated as start + {0}: {1}", HumanizeDuration(duration), end.Value.ToString("MM-dd HH:mm"));
             return true;
         }
 
@@ -629,7 +643,7 @@ public partial class ItemEditorWindow : Window
             if (!hasDate && parsed <= start)
             {
                 parsed = parsed.AddDays(1);
-                note = "结束时间早于开始时间，已按次日处理：" + parsed.ToString("MM-dd HH:mm");
+                note = Loc.F("结束时间早于开始时间，已按次日处理：{0}", "End time is earlier than the start, so it was treated as the next day: {0}", parsed.ToString("MM-dd HH:mm"));
             }
 
             end = parsed;
@@ -666,10 +680,27 @@ public partial class ItemEditorWindow : Window
 
     private static string HumanizeDuration(TimeSpan duration)
     {
-        if (duration.TotalMinutes < 60) return (int)duration.TotalMinutes + " 分钟";
-        if (duration.TotalMinutes % 60 == 0) return (int)duration.TotalHours + " 小时";
-        return (int)duration.TotalHours + " 小时 " + (int)(duration.TotalMinutes % 60) + " 分钟";
+        if (duration.TotalMinutes < 60) return Loc.F("{0} 分钟", "{0} min", (int)duration.TotalMinutes);
+
+        var hours = (int)duration.TotalHours;
+        var minutes = (int)(duration.TotalMinutes % 60);
+
+        if (minutes == 0) return hours == 1 ? Loc.T("1 小时", "1 hour") : Loc.F("{0} 小时", "{0} hours", hours);
+
+        return Loc.F("{0} 小时 {1} 分钟", "{0} h {1} min", hours, minutes);
     }
+
+    /// <summary>紧凑星期名（重复设置里的胶囊）。</summary>
+    private static string WeekdayLabel(DayOfWeek day) => day switch
+    {
+        DayOfWeek.Monday => Loc.T("周一", "Mon"),
+        DayOfWeek.Tuesday => Loc.T("周二", "Tue"),
+        DayOfWeek.Wednesday => Loc.T("周三", "Wed"),
+        DayOfWeek.Thursday => Loc.T("周四", "Thu"),
+        DayOfWeek.Friday => Loc.T("周五", "Fri"),
+        DayOfWeek.Saturday => Loc.T("周六", "Sat"),
+        _ => Loc.T("周日", "Sun"),
+    };
 
     private Priority ReadPriority() => PriorityBox.SelectedIndex switch
     {
@@ -684,13 +715,13 @@ public partial class ItemEditorWindow : Window
     {
         if (!TryReadStart(out var start))
         {
-            ShowError("开始时间格式无法识别（示例：09:30）。");
+            ShowError(Loc.T("开始时间格式无法识别（示例：09:30）。", "Can’t read the start time (example: 09:30)."));
             return;
         }
 
         if (!TryReadEnd(start, out var end, out var endNote))
         {
-            ShowError("结束时间格式无法识别（示例：18:00，或直接写 6小时）。");
+            ShowError(Loc.T("结束时间格式无法识别（示例：18:00，或直接写 6小时）。", "Can’t read the end time (example: 18:00, or type 6h)."));
             return;
         }
 
@@ -699,7 +730,7 @@ public partial class ItemEditorWindow : Window
         var customColorText = CustomColorBox.Text?.Trim() ?? string.Empty;
         if (customColorText.Length > 0 && EventColors.Normalize(customColorText).Length != 7)
         {
-            ShowError("自定义颜色格式不正确，请填 6 位十六进制（例如 2563EB）。");
+            ShowError(Loc.T("自定义颜色格式不正确，请填 6 位十六进制（例如 2563EB）。", "Custom color is invalid; enter 6 hex digits (e.g. 2563EB)."));
             return;
         }
 
@@ -742,7 +773,7 @@ public partial class ItemEditorWindow : Window
             var date = AbsoluteDatePicker.SelectedDate ?? start.Date;
             if (!FlexibleDateTime.TryParse(AbsoluteTimeBox.Text, out var parsed, date))
             {
-                ShowError("指定提醒时刻格式无法识别（示例：08:00）。");
+                ShowError(Loc.T("指定提醒时刻格式无法识别（示例：08:00）。", "Can’t read the set reminder time (example: 08:00)."));
                 return;
             }
 
@@ -784,7 +815,7 @@ public partial class ItemEditorWindow : Window
         var errors = ScheduleItemValidator.Validate(item);
         if (errors.Count > 0)
         {
-            ShowError(string.Join("；", errors));
+            ShowError(string.Join(Loc.T("；", "; "), errors));
             return;
         }
 
@@ -799,10 +830,13 @@ public partial class ItemEditorWindow : Window
         var single = Scope == ItemEditScope.SingleOccurrence && _seriesStart.HasValue;
 
         var message = single
-            ? "只删除这一次（" + _seriesStart!.Value.ToString("M月d日 HH:mm") + "）？其它发生不受影响。"
-            : "删除这条日程" + (_working.Repeat == RepeatKind.None ? "吗？" : " 的整个系列吗？");
+            ? Loc.F("只删除这一次（{0}）？其它发生不受影响。", "Delete only this event ({0})? Other events are not affected.",
+                _seriesStart!.Value.ToString(Loc.IsEnglish ? "MMM d HH:mm" : "M月d日 HH:mm", Loc.Culture))
+            : Loc.T("删除这条日程", "Delete this event") + (_working.Repeat == RepeatKind.None
+                ? Loc.T("吗？", "?")
+                : Loc.T(" 的整个系列吗？", " and every event in the series?"));
 
-        var result = MessageBox.Show(this, message, "删除", MessageBoxButton.OKCancel, MessageBoxImage.Warning);
+        var result = MessageBox.Show(this, message, Loc.T("删除", "Delete"), MessageBoxButton.OKCancel, MessageBoxImage.Warning);
         if (result != MessageBoxResult.OK) return;
 
         DeleteRequested = true;
@@ -813,8 +847,9 @@ public partial class ItemEditorWindow : Window
     {
         var dialog = new OpenFileDialog
         {
-            Title = "选择提醒提示音",
-            Filter = "音频文件 (*.wav;*.mp3;*.wma;*.m4a)|*.wav;*.mp3;*.wma;*.m4a|所有文件 (*.*)|*.*",
+            Title = Loc.T("选择提醒提示音", "Choose a reminder sound"),
+            Filter = Loc.T("音频文件", "Audio files") + " (*.wav;*.mp3;*.wma;*.m4a)|*.wav;*.mp3;*.wma;*.m4a|"
+                + Loc.T("所有文件", "All files") + " (*.*)|*.*",
             CheckFileExists = true,
         };
 
@@ -834,7 +869,7 @@ public partial class ItemEditorWindow : Window
     {
         if (!TryReadStart(out var start))
         {
-            ShowError("请先填写合法的开始时间。");
+            ShowError(Loc.T("请先填写合法的开始时间。", "Enter a valid start time first."));
             return;
         }
 
@@ -843,7 +878,7 @@ public partial class ItemEditorWindow : Window
 
         var probe = new ScheduleItem
         {
-            Title = string.IsNullOrWhiteSpace(TitleBox.Text) ? "（未命名日程）" : TitleBox.Text,
+            Title = string.IsNullOrWhiteSpace(TitleBox.Text) ? Loc.T("（未命名日程）", "(Untitled event)") : TitleBox.Text,
             Category = CategoryBox.Text ?? string.Empty,
             Notes = NotesBox.Text ?? string.Empty,
             Priority = ReadPriority(),
@@ -874,12 +909,12 @@ public partial class ItemEditorWindow : Window
         if (TryReadEnd(start, out var end, out var note))
         {
             EndHintText.Text = note ?? (end.HasValue
-                ? "结束：" + end.Value.ToString("MM-dd HH:mm") + "（时长 " + HumanizeDuration(end.Value - start) + "）"
+                ? Loc.F("结束：{0}（时长 {1}）", "End: {0} (duration {1})", end.Value.ToString("MM-dd HH:mm"), HumanizeDuration(end.Value - start))
                 : string.Empty);
         }
         else
         {
-            EndHintText.Text = "结束时间格式无法识别。";
+            EndHintText.Text = Loc.T("结束时间格式无法识别。", "Can’t read the end time.");
         }
     }
 

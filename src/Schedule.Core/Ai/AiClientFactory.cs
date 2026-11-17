@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Schedule.Core.Localization;
 using Schedule.Core.Models;
 
 namespace Schedule.Core.Ai;
@@ -26,15 +27,15 @@ public static class AiClientFactory
     {
         var normalized = OpenAiCompatibleClient.Normalize(settings.AiBaseUrl);
         return OpenAiCompatibleClient.ResolveMode(settings.AiApiMode, normalized) == AiApiMode.Ollama
-            ? "Ollama 原生 /api/chat"
-            : "OpenAI 兼容 /v1/chat/completions";
+            ? Loc.T("Ollama 原生 /api/chat", "Ollama native /api/chat")
+            : Loc.T("OpenAI 兼容 /v1/chat/completions", "OpenAI-compatible /v1/chat/completions");
     }
 
     /// <summary>设置页「测试连接」用的一句话说明。</summary>
     public static string Describe(AppSettings settings)
         => OpenAiCompatibleClient.Normalize(settings.AiBaseUrl)
-            + "　模型：" + (string.IsNullOrWhiteSpace(settings.AiModel) ? "(未选择)" : settings.AiModel)
-            + "　协议：" + DescribeProtocol(settings);
+            + Loc.T("　模型：", "  ·  Model: ") + (string.IsNullOrWhiteSpace(settings.AiModel) ? Loc.T("(未选择)", "(none)") : settings.AiModel)
+            + Loc.T("　协议：", "  ·  Protocol: ") + DescribeProtocol(settings);
 
     /// <summary>把工具结果里的内容压成一行，便于界面显示「AI 执行了什么」。</summary>
     public static string SummarizeToolResult(string? json)
@@ -46,8 +47,8 @@ public static class AiClientFactory
             var node = JsonNode.Parse(json);
             if (node is JsonObject obj)
             {
-                if (obj.TryGetPropertyValue("error", out var error)) return "错误：" + error;
-                if (obj.TryGetPropertyValue("summary", out var summary)) return summary?.ToString() ?? "完成";
+                if (obj.TryGetPropertyValue("error", out var error)) return Loc.T("错误：", "Error: ") + error;
+                if (obj.TryGetPropertyValue("summary", out var summary)) return summary?.ToString() ?? Loc.T("完成", "Done");
             }
         }
         catch (JsonException)

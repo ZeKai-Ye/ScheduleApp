@@ -1,4 +1,5 @@
 using Microsoft.Win32;
+using Schedule.Core.Localization;
 using Schedule.Core.Logging;
 
 namespace Schedule.App.Services;
@@ -66,9 +67,9 @@ public static class StartupService
 
     public static string Describe(AutostartMode mode) => mode switch
     {
-        AutostartMode.Registry => "注册表 Run 键",
-        AutostartMode.StartupFolder => "启动文件夹快捷方式",
-        _ => "未启用",
+        AutostartMode.Registry => Loc.T("注册表 Run 键", "Registry Run key"),
+        AutostartMode.StartupFolder => Loc.T("启动文件夹快捷方式", "Startup folder shortcut"),
+        _ => Loc.T("未启用", "Disabled"),
     };
 
     /// <summary>启用 / 停用开机启动。</summary>
@@ -106,13 +107,15 @@ public static class StartupService
             if (ShortcutService.TryCreate("startup", arguments, null, out _, out var linkError))
             {
                 mode = "StartupFolder";
-                error = "注册表写入失败（" + registryError + "），已改用启动文件夹快捷方式";
-                AppLog.Warn(error);
+                error = Loc.F("注册表写入失败（{0}），已改用启动文件夹快捷方式",
+                    "Registry write failed ({0}); switched to a Startup folder shortcut", registryError);
+                AppLog.Warn("注册表写入失败（" + registryError + "），已改用启动文件夹快捷方式");
                 return true;
             }
 
-            error = "注册表写入失败：" + registryError + "；启动文件夹创建失败：" + linkError;
-            AppLog.Error(error);
+            error = Loc.F("注册表写入失败：{0}；启动文件夹创建失败：{1}",
+                "Registry write failed: {0}; startup folder shortcut failed: {1}", registryError, linkError);
+            AppLog.Error("注册表写入失败：" + registryError + "；启动文件夹创建失败：" + linkError);
             return false;
         }
         catch (Exception ex)
@@ -137,7 +140,7 @@ public static class StartupService
 
             if (key == null)
             {
-                error = "无法打开注册表 Run 键";
+                error = Loc.T("无法打开注册表 Run 键", "Cannot open the registry Run key");
                 return false;
             }
 
@@ -163,7 +166,7 @@ public static class StartupService
         }
         catch (Exception ex)
         {
-            error = "清理注册表失败：" + ex.Message;
+            error = Loc.F("清理注册表失败：{0}", "Failed to clean up the registry: {0}", ex.Message);
             return false;
         }
     }

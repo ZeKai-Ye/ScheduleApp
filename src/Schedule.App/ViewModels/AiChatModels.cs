@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Media;
 using Schedule.App.Mvvm;
+using Schedule.Core.Localization;
 
 namespace Schedule.App.ViewModels;
 
@@ -74,12 +75,12 @@ public sealed class AiChatBubble : ObservableObject
     public Visibility DetailsVisibility
         => string.IsNullOrWhiteSpace(Details) ? Visibility.Collapsed : Visibility.Visible;
 
-    public static AiChatBubble User(string text) => new() { IsUser = true, Header = "我", Text = text };
+    public static AiChatBubble User(string text) => new() { IsUser = true, Header = Loc.T("我", "You"), Text = text };
 
-    public static AiChatBubble Assistant(string text) => new() { Header = "AI 助手", Text = text };
+    public static AiChatBubble Assistant(string text) => new() { Header = Loc.T("AI 助手", "AI assistant"), Text = text };
 
     public static AiChatBubble Tool(string name, string summary, string details)
-        => new() { IsTool = true, Header = "工具 " + name, Text = summary, Details = details };
+        => new() { IsTool = true, Header = Loc.F("工具 {0}", "Tool {0}", name), Text = summary, Details = details };
 
-    public static AiChatBubble Error(string text) => new() { IsError = true, Header = "出错了", Text = text };
+    public static AiChatBubble Error(string text) => new() { IsError = true, Header = Loc.T("出错了", "Error"), Text = text };
 }

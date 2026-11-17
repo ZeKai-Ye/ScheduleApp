@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Schedule.App.Views;
+using Schedule.Core.Localization;
 using Schedule.Core.Csv;
 using Schedule.Core.Ics;
 using Schedule.Core.Logging;
@@ -412,7 +413,7 @@ public static class UiSmoke
 
                 var report = goodWindow.RunImport();
 
-                if (!report.Contains("导入完成", StringComparison.Ordinal))
+                if (!report.Contains(Loc.T("导入完成", "Import finished"), StringComparison.Ordinal))
                 {
                     problems.Add("导入报告内容异常：" + report.Replace(Environment.NewLine, " / "));
                 }
@@ -635,7 +636,7 @@ public static class UiSmoke
             Schedule.Core.Ai.AiProviderPresets.Apply(cloudPreset, host.Settings);
 
             if (!chat.IsCloud) problems.Add("套用云端预设后没有判定为云端（" + cloudPreset.Name + "）");
-            if (!chat.DescribeTarget().StartsWith("云端", StringComparison.Ordinal)) problems.Add("云端服务的描述应标注「云端」");
+            if (!chat.DescribeTarget().StartsWith(Loc.T("云端", "Cloud"), StringComparison.Ordinal)) problems.Add("云端服务的描述应标注「云端」");
             if (!host.Settings.AiBaseUrl.StartsWith("https://", StringComparison.Ordinal)) problems.Add("云端预设地址必须是 https");
         }
         finally
@@ -652,7 +653,7 @@ public static class UiSmoke
                  {
                      (AiAuthMode.Bearer, "Bearer"),
                      (AiAuthMode.ApiKeyHeader, "api-key"),
-                     (AiAuthMode.None, "不带"),
+                     (AiAuthMode.None, Loc.T("不带", "No auth")),
                  })
         {
             var savedAuth = host.Settings.AiAuthMode;

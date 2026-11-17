@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Schedule.Core.Localization;
 using Schedule.Core.Models;
 using Schedule.Core.Services;
 
@@ -34,7 +35,7 @@ public sealed class CsvImportService
 
         if (rows.Count == 0)
         {
-            preview.Warnings.Add("文件中没有可解析的数据行。");
+            preview.Warnings.Add(Loc.T("文件中没有可解析的数据行。", "The file contains no parsable data rows."));
             return preview;
         }
 
@@ -81,29 +82,31 @@ public sealed class CsvImportService
 
             if (probe == null)
             {
-                preview.BlockReason = "没有识别到表头，而且第一行数据也解析不出来（" + (probeError ?? "无法解析") + "）。\n"
-                    + "标准格式的第一行应为：\n" + CsvSchema.HeaderLine + "\n"
-                    + "如果文件其实有表头，请在上面把「表头」改成「第一行是表头」；也可以手动指定列映射。";
+                preview.BlockReason = Loc.F(
+                    "没有识别到表头，而且第一行数据也解析不出来（{0}）。\n标准格式的第一行应为：\n{1}\n如果文件其实有表头，请在上面把「表头」改成「第一行是表头」；也可以手动指定列映射。",
+                    "No header was recognized, and the first data row cannot be parsed either ({0}).\nThe first row of the standard format should be:\n{1}\nIf the file does have a header, change \"Header\" above to \"First row is a header\"; you can also map the columns by hand.",
+                    probeError ?? Loc.T("无法解析", "unparsable"),
+                    CsvSchema.HeaderLine);
 
-                preview.Warnings.Add("文件格式无法识别：既不像有表头的 CSV，第一行也不是可解析的数据行。");
+                preview.Warnings.Add(Loc.T("文件格式无法识别：既不像有表头的 CSV，第一行也不是可解析的数据行。", "Unrecognized file format: it neither looks like a CSV with a header nor starts with a parsable data row."));
                 return;
             }
         }
 
         if (preview.TotalDataRows == 0)
         {
-            preview.Warnings.Add("文件里只有表头，没有数据行。");
+            preview.Warnings.Add(Loc.T("文件里只有表头，没有数据行。", "The file has only a header and no data rows."));
         }
 
         if (missing.Count > 0)
         {
             preview.BlockReason = hasHeader
                 ? preview.Diagnosis.Describe()
-                : "文件没有表头，且列数不足：至少要有「标题,开始时间」两列。\n标准格式的第一行应为：\n" + CsvSchema.HeaderLine;
+                : Loc.F("文件没有表头，且列数不足：至少要有「标题,开始时间」两列。\n标准格式的第一行应为：\n{0}", "The file has no header and too few columns: it needs at least the \"Title,Start\" columns.\nThe first row of the standard format should be:\n{0}", CsvSchema.HeaderLine);
 
             preview.Warnings.Add(hasHeader
                 ? preview.Diagnosis.DescribeShort()
-                : "缺少必需的列：" + string.Join("、", missing) + "，无法导入。");
+                : Loc.F("缺少必需的列：{0}，无法导入。", "Missing required column(s): {0}, cannot import.", string.Join(Loc.T("、", ", "), missing)));
 
             return;
         }
@@ -129,7 +132,7 @@ public sealed class CsvImportService
         var rows = CsvReader.Parse(source.Text, delimiter);
         if (rows.Count == 0)
         {
-            report.Warnings.Add("文件中没有可解析的数据行。");
+            report.Warnings.Add(Loc.T("文件中没有可解析的数据行。", "The file contains no parsable data rows."));
             report.Elapsed = stopwatch.Elapsed;
             return report;
         }
@@ -155,9 +158,9 @@ public sealed class CsvImportService
             if (BuildItem(dataRows[0], map, options, now: _clock(), "probe", out _) == null)
             {
                 report.Blocked = true;
-                report.BlockReason = "没有识别到表头，而且第一行数据也解析不出来。\n标准格式的第一行应为：\n" + CsvSchema.HeaderLine;
-                report.Warnings.Add("文件格式无法识别：既不像有表头的 CSV，第一行也不是可解析的数据行。");
-                report.Errors.Add(new ImportError { Line = 1, Message = "无法识别文件格式，已终止导入（没有改动任何日程）", Raw = Shorten(string.Join(delimiter.ToString(), dataRows[0])) });
+                report.BlockReason = Loc.F("没有识别到表头，而且第一行数据也解析不出来。\n标准格式的第一行应为：\n{0}", "No header was recognized, and the first data row cannot be parsed either.\nThe first row of the standard format should be:\n{0}", CsvSchema.HeaderLine);
+                report.Warnings.Add(Loc.T("文件格式无法识别：既不像有表头的 CSV，第一行也不是可解析的数据行。", "Unrecognized file format: it neither looks like a CSV with a header nor starts with a parsable data row."));
+                report.Errors.Add(new ImportError { Line = 1, Message = Loc.T("无法识别文件格式，已终止导入（没有改动任何日程）", "Unrecognized file format, import aborted (no event was changed)"), Raw = Shorten(string.Join(delimiter.ToString(), dataRows[0])) });
                 report.Elapsed = stopwatch.Elapsed;
                 return report;
             }
@@ -170,13 +173,13 @@ public sealed class CsvImportService
             report.Blocked = true;
             report.BlockReason = hasHeader
                 ? diagnosis.Describe()
-                : "文件没有表头，且列数不足：至少要有「标题,开始时间」两列。\n标准格式的第一行应为：\n" + CsvSchema.HeaderLine;
+                : Loc.F("文件没有表头，且列数不足：至少要有「标题,开始时间」两列。\n标准格式的第一行应为：\n{0}", "The file has no header and too few columns: it needs at least the \"Title,Start\" columns.\nThe first row of the standard format should be:\n{0}", CsvSchema.HeaderLine);
 
-            report.Warnings.Add(hasHeader ? diagnosis.DescribeShort() : "缺少必需的列：" + string.Join("、", missingColumns) + "，无法导入。");
+            report.Warnings.Add(hasHeader ? diagnosis.DescribeShort() : Loc.F("缺少必需的列：{0}，无法导入。", "Missing required column(s): {0}, cannot import.", string.Join(Loc.T("、", ", "), missingColumns)));
             report.Errors.Add(new ImportError
             {
                 Line = hasHeader ? 1 : 0,
-                Message = "缺少必需的列：" + string.Join("、", missingColumns) + "，已终止导入（没有改动任何日程）",
+                Message = Loc.F("缺少必需的列：{0}，已终止导入（没有改动任何日程）", "Missing required column(s): {0}, import aborted (no event was changed)", string.Join(Loc.T("、", ", "), missingColumns)),
                 Raw = Shorten(string.Join(delimiter.ToString(), headers)),
             });
 
@@ -213,7 +216,7 @@ public sealed class CsvImportService
             if (item == null)
             {
                 report.Failed++;
-                report.Errors.Add(new ImportError { Line = lineNumber, Message = error ?? "无法解析该行", Raw = Shorten(raw) });
+                report.Errors.Add(new ImportError { Line = lineNumber, Message = error ?? Loc.T("无法解析该行", "This row cannot be parsed"), Raw = Shorten(raw) });
                 lineNumber++;
                 continue;
             }
@@ -254,7 +257,7 @@ public sealed class CsvImportService
 
         if (report.Updated > 0)
         {
-            report.Warnings.Add("已按「标题 + 开始时间」更新 " + report.Updated + " 条重复日程。");
+            report.Warnings.Add(Loc.F("已按「标题 + 开始时间」更新 {0} 条重复日程。", "Updated {0} duplicate event(s) matched by title + start time.", report.Updated));
         }
 
         report.Elapsed = stopwatch.Elapsed;
@@ -281,7 +284,7 @@ public sealed class CsvImportService
         var title = TextNormalizer.Clean(Get(CsvField.Title));
         if (title.Length == 0)
         {
-            error = "缺少标题（标题列必填）";
+            error = Loc.T("缺少标题（标题列必填）", "Missing title (the title column is required)");
             return null;
         }
 
@@ -301,7 +304,7 @@ public sealed class CsvImportService
         {
             if (!FlexibleDateTime.TryParse(startText, out start, datePart, options.DayFirst))
             {
-                error = "无法解析开始时间：" + startText;
+                error = Loc.F("无法解析开始时间：{0}", "Cannot parse the start time: {0}", startText);
                 return null;
             }
 
@@ -314,7 +317,7 @@ public sealed class CsvImportService
         }
         else
         {
-            error = "缺少开始时间";
+            error = Loc.T("缺少开始时间", "Missing start time");
             return null;
         }
 
@@ -498,8 +501,8 @@ public sealed class CsvImportService
             return new CsvTextSource
             {
                 Text = string.Empty,
-                EncodingName = "文件不存在",
-                Note = "找不到文件：" + options.FilePath,
+                EncodingName = Loc.T("文件不存在", "File not found"),
+                Note = Loc.F("找不到文件：{0}", "File not found: {0}", options.FilePath),
             };
         }
 
@@ -512,8 +515,8 @@ public sealed class CsvImportService
             return new CsvTextSource
             {
                 Text = string.Empty,
-                EncodingName = "读取失败",
-                Note = "读取文件失败：" + ex.Message,
+                EncodingName = Loc.T("读取失败", "Read failed"),
+                Note = Loc.F("读取文件失败：{0}", "Failed to read the file: {0}", ex.Message),
             };
         }
     }

@@ -1,6 +1,7 @@
 using System.Text;
 using Schedule.Core.Csv;
 using Schedule.Core.Ics;
+using Schedule.Core.Localization;
 using Schedule.Core.Models;
 using Schedule.Core.Services;
 using Schedule.Core.Storage;
@@ -70,7 +71,7 @@ public static class CliRunner
         catch (Exception ex)
         {
             exitCode = 2;
-            output.AppendLine("执行失败：" + ex.GetType().Name + ": " + ex.Message);
+            output.AppendLine(Loc.T("执行失败：", "Failed: ") + ex.GetType().Name + ": " + ex.Message);
         }
 
         var text = output.ToString();
@@ -94,7 +95,7 @@ public static class CliRunner
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine("写入 --out 文件失败：" + ex.Message);
+                Console.Error.WriteLine(Loc.T("写入 --out 文件失败：", "Failed to write the --out file: ") + ex.Message);
             }
         }
 
@@ -105,11 +106,11 @@ public static class CliRunner
     {
         if (ShortcutService.TryCreate(options.ShortcutTarget!, null, options.ShortcutDirectory, out var path, out var error))
         {
-            output.AppendLine("已创建快捷方式：" + path);
+            output.AppendLine(Loc.T("已创建快捷方式：", "Shortcut created: ") + path);
             return 0;
         }
 
-        output.AppendLine("创建快捷方式失败：" + error);
+        output.AppendLine(Loc.T("创建快捷方式失败：", "Failed to create the shortcut: ") + error);
         return 6;
     }
 
@@ -117,11 +118,11 @@ public static class CliRunner
     {
         if (ShortcutService.TryDelete(options.RemoveShortcutTarget!, options.ShortcutDirectory, out var path, out var error))
         {
-            output.AppendLine("已删除快捷方式：" + path);
+            output.AppendLine(Loc.T("已删除快捷方式：", "Shortcut removed: ") + path);
             return 0;
         }
 
-        output.AppendLine("删除快捷方式失败：" + error);
+        output.AppendLine(Loc.T("删除快捷方式失败：", "Failed to delete the shortcut: ") + error);
         return 6;
     }
 
@@ -132,21 +133,21 @@ public static class CliRunner
 
         if (!StartupService.Apply(enabled, arguments, out var mode, out var error))
         {
-            output.AppendLine("设置开机启动失败：" + error);
+            output.AppendLine(Loc.T("设置开机启动失败：", "Failed to update Start with Windows: ") + error);
             return 6;
         }
 
         if (enabled)
         {
-            output.AppendLine("开机启动已启用（" + StartupService.Describe(mode == "StartupFolder" ? AutostartMode.StartupFolder : AutostartMode.Registry) + "）");
-            output.AppendLine("执行命令：" + StartupService.BuildCommand(arguments));
+            output.AppendLine(Loc.F("开机启动已启用（{0}）", "Start with Windows enabled ({0})", StartupService.Describe(mode == "StartupFolder" ? AutostartMode.StartupFolder : AutostartMode.Registry)));
+            output.AppendLine(Loc.T("执行命令：", "Command: ") + StartupService.BuildCommand(arguments));
         }
         else
         {
-            output.AppendLine("开机启动已停用。");
+            output.AppendLine(Loc.T("开机启动已停用。", "Start with Windows disabled."));
         }
 
-        if (!string.IsNullOrEmpty(error)) output.AppendLine("[提示] " + error);
+        if (!string.IsNullOrEmpty(error)) output.AppendLine(Loc.T("[提示] ", "[Notice] ") + error);
         return 0;
     }
 
@@ -155,22 +156,22 @@ public static class CliRunner
         var service = new SapiVoiceService();
         if (!service.IsAvailable)
         {
-            output.AppendLine("未检测到可用的 SAPI 语音引擎：" + (service.LastError ?? "未知原因"));
+            output.AppendLine(Loc.T("未检测到可用的 SAPI 语音引擎：", "No usable SAPI voice engine found: ") + (service.LastError ?? Loc.T("未知原因", "Unknown reason")));
             return 3;
         }
 
         var voices = service.GetVoices();
-        output.AppendLine("已安装语音 " + voices.Count + " 个：");
+        output.AppendLine(Loc.F("已安装语音 {0} 个：", "{0} voices installed:", voices.Count));
         foreach (var voice in voices)
         {
             output.AppendLine("  " + voice.Name);
-            output.AppendLine("      Id      : " + voice.Id);
-            output.AppendLine("      语言/性别: " + voice.Language + " / " + voice.Gender);
+            output.AppendLine(Loc.T("      Id      : ", "      Id             : ") + voice.Id);
+            output.AppendLine(Loc.T("      语言/性别: ", "      Language/Gender: ") + voice.Language + " / " + voice.Gender);
         }
 
         if (voices.Count == 0)
         {
-            output.AppendLine("（系统未安装任何语音包，可在「设置 → 时间和语言 → 语音」中添加）");
+            output.AppendLine(Loc.T("（系统未安装任何语音包，可在「设置 → 时间和语言 → 语音」中添加）", "(No voice packs installed — add one in Settings → Time & Language → Speech)"));
         }
 
         return 0;
@@ -182,15 +183,15 @@ public static class CliRunner
         var service = new SapiVoiceService();
         if (!service.IsAvailable)
         {
-            output.AppendLine("语音引擎不可用：" + (service.LastError ?? "未知原因"));
+            output.AppendLine(Loc.T("语音引擎不可用：", "Voice engine not available: ") + (service.LastError ?? Loc.T("未知原因", "Unknown reason")));
             return 3;
         }
 
         var voiceId = string.IsNullOrWhiteSpace(options.VoiceId) ? settings.VoiceId : options.VoiceId!;
-        var name = service.GetVoices().FirstOrDefault(v => v.Id == voiceId)?.Name ?? "系统默认";
+        var name = service.GetVoices().FirstOrDefault(v => v.Id == voiceId)?.Name ?? Loc.T("系统默认", "System default");
 
-        output.AppendLine("音色：" + name);
-        output.AppendLine("文本：" + options.SpeakText);
+        output.AppendLine(Loc.T("音色：", "Voice: ") + name);
+        output.AppendLine(Loc.T("文本：", "Text: ") + options.SpeakText);
 
         service.SpeakAndWait(new SpeechRequest
         {
@@ -202,12 +203,12 @@ public static class CliRunner
 
         if (!string.IsNullOrEmpty(service.LastError))
         {
-            output.AppendLine("朗读失败：" + service.LastError);
-            output.AppendLine("（常见原因：当前会话没有可用音频输出设备，或所选音色不可用）");
+            output.AppendLine(Loc.T("朗读失败：", "Speak failed: ") + service.LastError);
+            output.AppendLine(Loc.T("（常见原因：当前会话没有可用音频输出设备，或所选音色不可用）", "(Common causes: the current session has no audio output device, or the selected voice is unavailable)"));
             return 3;
         }
 
-        output.AppendLine("朗读完成。");
+        output.AppendLine(Loc.T("朗读完成。", "Speech finished."));
         return 0;
     }
 
@@ -233,7 +234,7 @@ public static class CliRunner
         var file = options.ImportFile!;
         if (!File.Exists(file))
         {
-            output.AppendLine("文件不存在：" + file);
+            output.AppendLine(Loc.T("文件不存在：", "File not found: ") + file);
             return 4;
         }
 
@@ -260,7 +261,9 @@ public static class CliRunner
                 Mode = mode,
                 SkipPastItems = options.SkipPast,
                 SkipDuplicates = !options.NoSkipDuplicates,
-                DefaultCategory = settings.CsvDefaultCategory,
+                DefaultCategory = string.IsNullOrWhiteSpace(settings.CsvDefaultCategory)
+                    ? Loc.T("导入", "Imported")
+                    : settings.CsvDefaultCategory,
                 DefaultColor = settings.DefaultEventColor,
                 DefaultReminderEnabled = settings.DefaultReminderEnabled,
                 DefaultReminderOffsets = new List<int>(settings.DefaultReminderOffsets),
@@ -274,7 +277,9 @@ public static class CliRunner
                 Mode = mode,
                 SkipPastItems = options.SkipPast,
                 SkipDuplicates = !options.NoSkipDuplicates,
-                DefaultCategory = settings.CsvDefaultCategory,
+                DefaultCategory = string.IsNullOrWhiteSpace(settings.CsvDefaultCategory)
+                    ? Loc.T("导入", "Imported")
+                    : settings.CsvDefaultCategory,
                 DefaultColor = settings.DefaultEventColor,
                 DefaultReminderEnabled = settings.DefaultReminderEnabled,
                 DefaultReminderOffsets = new List<int>(settings.DefaultReminderOffsets),
@@ -284,14 +289,14 @@ public static class CliRunner
         repository.ReplaceAll(items);
         repository.Save(force: true);
 
-        output.AppendLine("导入文件：" + file);
-        output.AppendLine("格式：" + (isIcs ? "iCalendar（.ics）" : "CSV"));
-        output.AppendLine("编码：" + report.EncodingName);
+        output.AppendLine(Loc.T("导入文件：", "Import file: ") + file);
+        output.AppendLine(Loc.T("格式：", "Format: ") + (isIcs ? Loc.T("iCalendar（.ics）", "iCalendar (.ics)") : "CSV"));
+        output.AppendLine(Loc.T("编码：", "Encoding: ") + report.EncodingName);
 
         if (report.Blocked)
         {
-            output.AppendLine("已终止导入（未改动任何日程）：");
-            output.AppendLine(report.BlockReason ?? "格式不匹配。");
+            output.AppendLine(Loc.T("已终止导入（未改动任何日程）：", "Import aborted (no events were changed):"));
+            output.AppendLine(report.BlockReason ?? Loc.T("格式不匹配。", "Format does not match."));
             return 5;
         }
 
@@ -299,17 +304,17 @@ public static class CliRunner
 
         foreach (var warning in report.Warnings)
         {
-            output.AppendLine("[提示] " + warning);
+            output.AppendLine(Loc.T("[提示] ", "[Notice] ") + warning);
         }
 
         foreach (var error in report.Errors.Take(50))
         {
-            output.AppendLine("[第 " + error.Line + " 行] " + error.Message);
+            output.AppendLine(Loc.F("[第 {0} 行] ", "[Line {0}] ", error.Line) + error.Message);
         }
 
         if (report.Errors.Count > 50)
         {
-            output.AppendLine("（还有 " + (report.Errors.Count - 50) + " 条错误未显示）");
+            output.AppendLine(Loc.F("（还有 {0} 条错误未显示）", "({0} more errors not shown)", report.Errors.Count - 50));
         }
 
         return report.Failed > 0 && report.Imported == 0 && report.Updated == 0 ? 5 : 0;
@@ -326,12 +331,12 @@ public static class CliRunner
         if (file.EndsWith(".ics", StringComparison.OrdinalIgnoreCase))
         {
             IcsWriter.WriteFile(file, items);
-            output.AppendLine("已导出 " + items.Count + " 条日程到：" + file + "（iCalendar，可导入 Google 日历 / Outlook）");
+            output.AppendLine(Loc.F("已导出 {0} 条日程到：{1}（iCalendar，可导入 Google 日历 / Outlook）", "Exported {0} events to {1} (iCalendar, importable by Google Calendar / Outlook)", items.Count, file));
         }
         else
         {
             CsvExporter.WriteFile(file, items);
-            output.AppendLine("已导出 " + items.Count + " 条日程到：" + file + "（统一格式 CSV，可原样再导入）");
+            output.AppendLine(Loc.F("已导出 {0} 条日程到：{1}（统一格式 CSV，可原样再导入）", "Exported {0} events to {1} (unified CSV, can be imported back as-is)", items.Count, file));
         }
 
         return 0;
@@ -344,30 +349,30 @@ public static class CliRunner
         var settings = LoadSettings();
         var voices = new SapiVoiceService();
 
-        output.AppendLine("数据目录：" + AppPaths.DataDirectory);
-        output.AppendLine("便携模式：" + (AppPaths.IsPortable ? "是" : "否"));
-        output.AppendLine("日程文件：" + repository.FilePath);
-        output.AppendLine("日程数量：" + repository.Count);
-        output.AppendLine("语音引擎：" + (voices.IsAvailable ? "可用（" + voices.GetVoices().Count + " 个音色）" : "不可用"));
-        output.AppendLine("当前音色：" + (string.IsNullOrWhiteSpace(settings.VoiceName) ? "系统默认" : settings.VoiceName));
-        output.AppendLine("语音模板：" + settings.VoiceTemplate);
-        output.AppendLine("默认提醒档位：" + Schedule.Core.Models.ReminderPlan.FormatOffsets(settings.DefaultReminderOffsets));
-        output.AppendLine("日志目录：" + AppPaths.LogDirectory);
+        output.AppendLine(Loc.T("数据目录：", "Data directory: ") + AppPaths.DataDirectory);
+        output.AppendLine(Loc.T("便携模式：", "Portable mode: ") + (AppPaths.IsPortable ? Loc.T("是", "Yes") : Loc.T("否", "No")));
+        output.AppendLine(Loc.T("日程文件：", "Events file: ") + repository.FilePath);
+        output.AppendLine(Loc.F("日程数量：{0}", "Event count: {0}", repository.Count));
+        output.AppendLine(Loc.T("语音引擎：", "Voice engine: ") + (voices.IsAvailable ? Loc.F("可用（{0} 个音色）", "Available ({0} voices)", voices.GetVoices().Count) : Loc.T("不可用", "Unavailable")));
+        output.AppendLine(Loc.T("当前音色：", "Current voice: ") + (string.IsNullOrWhiteSpace(settings.VoiceName) ? Loc.T("系统默认", "System default") : settings.VoiceName));
+        output.AppendLine(Loc.T("语音模板：", "Voice template: ") + settings.VoiceTemplate);
+        output.AppendLine(Loc.T("默认提醒档位：", "Default reminder offsets: ") + Schedule.Core.Models.ReminderPlan.FormatOffsets(settings.DefaultReminderOffsets));
+        output.AppendLine(Loc.T("日志目录：", "Log directory: ") + AppPaths.LogDirectory);
         var (autostartMode, autostartCommand) = StartupService.Detect();
-        output.AppendLine("开机启动：" + StartupService.Describe(autostartMode)
-            + (autostartCommand.Length > 0 ? "（" + autostartCommand + "）" : string.Empty));
-        output.AppendLine("桌面快捷方式：" + (ShortcutService.Exists("desktop") ? "已创建" : "未创建")
-            + "；开始菜单：" + (ShortcutService.Exists("startmenu") ? "已创建" : "未创建"));
-        output.AppendLine("提醒弹窗位置：" + Schedule.Core.Models.ReminderPositionMath.Describe(settings.ReminderPosition)
+        output.AppendLine(Loc.T("开机启动：", "Start with Windows: ") + StartupService.Describe(autostartMode)
+            + (autostartCommand.Length > 0 ? Loc.F("（{0}）", " ({0})", autostartCommand) : string.Empty));
+        output.AppendLine(Loc.T("桌面快捷方式：", "Desktop shortcut: ") + (ShortcutService.Exists("desktop") ? Loc.T("已创建", "created") : Loc.T("未创建", "not created"))
+            + Loc.T("；开始菜单：", "; Start menu: ") + (ShortcutService.Exists("startmenu") ? Loc.T("已创建", "created") : Loc.T("未创建", "not created")));
+        output.AppendLine(Loc.T("提醒弹窗位置：", "Reminder popup position: ") + Schedule.Core.Models.ReminderPositionMath.Describe(settings.ReminderPosition)
             + (settings.ReminderPosition == Schedule.Core.Models.ReminderPositionMode.Custom
-                ? "（" + settings.ReminderPositionX + ", " + settings.ReminderPositionY + "）"
+                ? Loc.F("（{0}, {1}）", " ({0}, {1})", settings.ReminderPositionX, settings.ReminderPositionY)
                 : string.Empty));
-        output.AppendLine("本地接口：" + (settings.ApiEnabled
-            ? "已启用（端口 " + settings.ApiPort + "，令牌见 " + Path.Combine(AppPaths.DataDirectory, "api.json") + "）"
-            : "已禁用（设置 apiEnabled=false）"));
-        output.AppendLine("全局档位文案：" + (settings.OffsetVoiceTemplates.Count == 0
-            ? "未配置"
-            : string.Join(" / ", settings.OffsetVoiceTemplates.OrderByDescending(p => p.Key).Select(p => p.Key + " 分钟 → " + p.Value))));
+        output.AppendLine(Loc.T("本地接口：", "Local API: ") + (settings.ApiEnabled
+            ? Loc.F("已启用（端口 {0}，令牌见 {1}）", "Enabled (port {0}, token in {1})", settings.ApiPort, Path.Combine(AppPaths.DataDirectory, "api.json"))
+            : Loc.T("已禁用（设置 apiEnabled=false）", "Disabled (apiEnabled=false in settings)")));
+        output.AppendLine(Loc.T("全局档位文案：", "Offset templates: ") + (settings.OffsetVoiceTemplates.Count == 0
+            ? Loc.T("未配置", "Not configured")
+            : string.Join(" / ", settings.OffsetVoiceTemplates.OrderByDescending(p => p.Key).Select(p => Loc.F("{0} 分钟 → {1}", "{0} min → {1}", p.Key, p.Value)))));
         return 0;
     }
 
@@ -385,15 +390,15 @@ public static class CliRunner
         {
             CsvSchema.WriteTemplate(path);
 
-            output.AppendLine("已写入 CSV 模板：" + path);
-            output.AppendLine("表头：" + CsvSchema.HeaderLine);
+            output.AppendLine(Loc.T("已写入 CSV 模板：", "CSV template written: ") + path);
+            output.AppendLine(Loc.T("表头：", "Header: ") + CsvSchema.HeaderLine);
             output.AppendLine();
             output.AppendLine(CsvSchema.DescribeColumns());
             return 0;
         }
         catch (Exception ex)
         {
-            output.AppendLine("写入模板失败：" + ex.Message);
+            output.AppendLine(Loc.T("写入模板失败：", "Failed to write the template: ") + ex.Message);
             return 4;
         }
     }

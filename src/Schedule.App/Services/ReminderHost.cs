@@ -1,5 +1,6 @@
 using System.Windows.Threading;
 using Schedule.Core.Logging;
+using Schedule.Core.Localization;
 using Schedule.Core.Models;
 using Schedule.Core.Scheduling;
 using Schedule.Core.Templating;
@@ -140,10 +141,11 @@ public sealed class ReminderHost : IDisposable
     {
         var preview = new ScheduleItem
         {
-            Title = "位置预览",
-            Notes = "这是提醒弹窗的预览。拖动它可以调整位置（若已开启「记住位置」会自动保存）。",
-            Category = "设置",
+            Title = Loc.T("位置预览", "Position preview"),
             Start = DateTime.Now.AddMinutes(5),
+            Notes = Loc.T("这是提醒弹窗的预览。拖动它可以调整位置（若已开启「记住位置」会自动保存）。",
+                "This is a preview of the reminder popup. Drag it to adjust the position (saved automatically when \"Remember position\" is on)."),
+            Category = Loc.T("设置", "Settings"),
             ReminderOffsets = new List<int> { 5 },
         };
 

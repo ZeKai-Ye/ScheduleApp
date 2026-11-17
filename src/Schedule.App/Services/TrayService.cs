@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Windows.Forms;
+using Schedule.Core.Localization;
 using Schedule.Core.Models;
 using Schedule.Core.Scheduling;
 
@@ -25,29 +26,29 @@ public sealed class TrayService : IDisposable
         _ownedIcon = AppIcons.LoadTrayIcon();
 
         var menu = new ContextMenuStrip();
-        menu.Items.Add("打开主界面(&O)", null, (_, _) => onOpen());
-        menu.Items.Add("新建日程(&N)", null, (_, _) => onNew());
-        menu.Items.Add("查看今天(&T)", null, (_, _) => onToday());
+        menu.Items.Add(Loc.T("打开主界面(&O)", "Open (&O)"), null, (_, _) => onOpen());
+        menu.Items.Add(Loc.T("新建日程(&N)", "New event (&N)"), null, (_, _) => onNew());
+        menu.Items.Add(Loc.T("查看今天(&T)", "Today (&T)"), null, (_, _) => onToday());
         menu.Items.Add(new ToolStripSeparator());
 
-        _nextItem = new ToolStripMenuItem("下一次提醒：无") { Enabled = false };
+        _nextItem = new ToolStripMenuItem(Loc.T("下一次提醒：无", "Next reminder: none")) { Enabled = false };
         menu.Items.Add(_nextItem);
         menu.Items.Add(new ToolStripSeparator());
 
         if (onCreateShortcut != null)
         {
-            menu.Items.Add("创建桌面快捷方式(&S)", null, (_, _) => onCreateShortcut());
+            menu.Items.Add(Loc.T("创建桌面快捷方式(&S)", "Create desktop shortcut (&S)"), null, (_, _) => onCreateShortcut());
         }
 
         if (onToggleAutostart != null)
         {
-            _autostartItem = new ToolStripMenuItem("开机自动启动(&A)") { CheckOnClick = false };
+            _autostartItem = new ToolStripMenuItem(Loc.T("开机自动启动(&A)", "Start with Windows (&A)")) { CheckOnClick = false };
             _autostartItem.Click += (_, _) => onToggleAutostart();
             menu.Items.Add(_autostartItem);
         }
         else
         {
-            _autostartItem = new ToolStripMenuItem("开机自动启动(&A)") { Enabled = false };
+            _autostartItem = new ToolStripMenuItem(Loc.T("开机自动启动(&A)", "Start with Windows (&A)")) { Enabled = false };
         }
 
         if (isAutostartEnabled != null)
@@ -56,12 +57,12 @@ public sealed class TrayService : IDisposable
         }
 
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("退出(&X)", null, (_, _) => onExit());
+        menu.Items.Add(Loc.T("退出(&X)", "Exit (&X)"), null, (_, _) => onExit());
 
         _icon = new NotifyIcon
         {
             Icon = _ownedIcon,
-            Text = "日程助手",
+            Text = Loc.T("日程助手", "Schedule Assistant"),
             Visible = true,
             ContextMenuStrip = menu,
         };
@@ -72,14 +73,15 @@ public sealed class TrayService : IDisposable
     /// <summary>更新托盘悬停提示与菜单里的下一次提醒。</summary>
     public void UpdateNextReminder(DueReminder? reminder)
     {
-        var text = "下一次提醒：无";
-        var tooltip = "日程助手";
+        var text = Loc.T("下一次提醒：无", "Next reminder: none");
+        var tooltip = Loc.T("日程助手", "Schedule Assistant");
 
         if (reminder != null)
         {
-            text = "下一次：" + reminder.Item.Title + " " + reminder.FireAt.ToString("MM-dd HH:mm")
-                + "（" + reminder.Plan.OffsetText + "）";
-            tooltip = "日程助手 - 下一次 " + reminder.FireAt.ToString("HH:mm") + " " + reminder.Item.Title;
+            text = Loc.F("下一次：{0} {1}（{2}）", "Next: {0} {1} ({2})",
+                reminder.Item.Title, reminder.FireAt.ToString("MM-dd HH:mm"), reminder.Plan.OffsetText);
+            tooltip = Loc.F("日程助手 - 下一次 {0} {1}", "Schedule Assistant - next {0} {1}",
+                reminder.FireAt.ToString("HH:mm"), reminder.Item.Title);
         }
 
         try

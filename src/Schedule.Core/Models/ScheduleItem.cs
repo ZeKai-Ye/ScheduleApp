@@ -1,3 +1,5 @@
+using Schedule.Core.Localization;
+
 namespace Schedule.Core.Models;
 
 /// <summary>
@@ -312,29 +314,29 @@ public sealed class ScheduleItem
             && ReminderVoiceTexts.TryGetValue(offsetMinutes, out var perOffset)
             && !string.IsNullOrWhiteSpace(perOffset))
         {
-            return "本日程 · 该档位";
+            return Loc.T("本日程 · 该档位", "This event · this offset");
         }
 
-        if (!string.IsNullOrWhiteSpace(VoiceText)) return "本日程 · 通用文案";
+        if (!string.IsNullOrWhiteSpace(VoiceText)) return Loc.T("本日程 · 通用文案", "This event · generic text");
 
         if (settings.OffsetVoiceTemplates.TryGetValue(offsetMinutes, out var globalOffset)
             && !string.IsNullOrWhiteSpace(globalOffset))
         {
-            return "全局 · 该档位文案";
+            return Loc.T("全局 · 该档位文案", "Global · this offset");
         }
 
-        return "全局模板";
+        return Loc.T("全局模板", "Global template");
     }
 
     /// <summary>提醒档位的可读描述，例如「提前 30 分钟 / 提前 5 分钟 / 准点」。</summary>
     public string DescribeReminders()
     {
-        if (!ReminderEnabled) return "不提醒";
+        if (!ReminderEnabled) return Loc.T("不提醒", "No reminder");
 
         var parts = new List<string>();
-        if (RemindAtOverride.HasValue) parts.Add("指定 " + RemindAtOverride.Value.ToString("MM-dd HH:mm"));
+        if (RemindAtOverride.HasValue) parts.Add(Loc.F("指定 {0}", "at {0}", RemindAtOverride.Value.ToString("MM-dd HH:mm")));
         parts.AddRange(NormalizedOffsets().Select(ReminderPlan.DescribeOffset));
-        return parts.Count == 0 ? "不提醒" : string.Join(" / ", parts);
+        return parts.Count == 0 ? Loc.T("不提醒", "No reminder") : string.Join(" / ", parts);
     }
 
     /// <summary>

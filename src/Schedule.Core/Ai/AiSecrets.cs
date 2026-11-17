@@ -1,3 +1,5 @@
+using Schedule.Core.Localization;
+
 namespace Schedule.Core.Ai;
 
 /// <summary>
@@ -30,7 +32,7 @@ public static class AiSecrets
     public static string Mask(string? key)
     {
         var text = (key ?? string.Empty).Trim();
-        if (text.Length == 0) return "(未填写)";
+        if (text.Length == 0) return Loc.T("(未填写)", "(not set)");
         if (text.Length <= 8) return new string('*', text.Length);
 
         return text.Substring(0, 4) + "…" + text.Substring(text.Length - 4) + "（" + text.Length + " 位）";
@@ -44,10 +46,12 @@ public static class AiSecrets
         if (variable != null)
         {
             return key.Length > 0
-                ? "来自环境变量 " + variable + "：" + Mask(key)
-                : "环境变量 " + variable + " 为空或不存在，请检查后重试";
+                ? Loc.F("来自环境变量 {0}：{1}", "From environment variable {0}: {1}", variable, Mask(key))
+                : Loc.F("环境变量 {0} 为空或不存在，请检查后重试", "Environment variable {0} is empty or missing; check it and try again", variable);
         }
 
-        return key.Length > 0 ? "已填写：" + Mask(key) : "未填写";
+        return key.Length > 0
+            ? Loc.F("已填写：{0}", "Set: {0}", Mask(key))
+            : Loc.T("未填写", "Not set");
     }
 }

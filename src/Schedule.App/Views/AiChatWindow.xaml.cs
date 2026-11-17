@@ -7,6 +7,7 @@ using Schedule.App.Mvvm;
 using Schedule.App.Services;
 using Schedule.App.ViewModels;
 using Schedule.Core.Ai;
+using Schedule.Core.Localization;
 using Schedule.Core.Logging;
 
 namespace Schedule.App.Views;
@@ -71,14 +72,14 @@ public partial class AiChatWindow : Window
         var settings = _host.Settings;
 
         _bubbles.Add(AiChatBubble.Assistant(
-            "你好，我是日程助手内置的 AI。可以直接用日常说话的方式让我干活，例如：\n"
-            + "· 今天有什么日程？\n"
-            + "· 明天下午三点加一个「客户沟通」，提前 30 分钟提醒我\n"
-            + "· 把明天的例会改到 16:00\n"
-            + "· 这周的周会都标成已完成\n"
-            + "· 换成夜间主题\n\n"
-            + "模型跑在本机（当前：" + settings.AiModel + " @ " + AiClientFactory.DescribeProtocol(settings) + "），"
-            + "改动会立刻反映到主界面。"));
+            Loc.T("你好，我是日程助手内置的 AI。可以直接用日常说话的方式让我干活，例如：\n", "Hi, I am the AI built into this schedule app. Just tell me what you need in everyday words, for example:\n")
+            + Loc.T("· 今天有什么日程？\n", "· What is on my schedule today?\n")
+            + Loc.T("· 明天下午三点加一个「客户沟通」，提前 30 分钟提醒我\n", "· Add “Client call” tomorrow at 3 pm, and remind me 30 minutes before\n")
+            + Loc.T("· 把明天的例会改到 16:00\n", "· Move tomorrow’s meeting to 16:00\n")
+            + Loc.T("· 这周的周会都标成已完成\n", "· Mark all of this week’s weekly meetings as done\n")
+            + Loc.T("· 换成夜间主题\n\n", "· Switch to the dark theme\n\n")
+            + Loc.F("模型跑在本机（当前：{0} @ {1}），改动会立刻反映到主界面。", "The model runs on this machine (current: {0} @ {1}); changes show up in the main window right away.",
+                settings.AiModel, AiClientFactory.DescribeProtocol(settings))));
     }
 
     /// <summary>把界面切到「正在生成」状态。</summary>
@@ -108,7 +109,7 @@ public partial class AiChatWindow : Window
 
         var seconds = (DateTime.Now - _turnStarted).TotalSeconds;
         var stage = _stage;
-        StatusText.Text = stage + "（已等待 " + seconds.ToString("0") + " 秒）";
+        StatusText.Text = Loc.F("{0}（已等待 {1} 秒）", "{0} (waiting {1}s)", stage, seconds.ToString("0"));
     }
 
     private string _stage = string.Empty;
@@ -143,7 +144,7 @@ public partial class AiChatWindow : Window
         ScrollToEnd();
 
         SetBusy(true);
-        SetStage("正在请求模型…");
+        SetStage(Loc.T("正在请求模型…", "Requesting the model…"));
 
         _cancellation = new CancellationTokenSource();
 
@@ -157,22 +158,22 @@ public partial class AiChatWindow : Window
             {
                 if (!_host.Settings.AiShowToolDetails)
                 {
-                    _bubbles.Add(AiChatBubble.Tool(tool.Name, tool.Summary ?? (tool.IsError ? "执行失败" : "完成"), string.Empty));
+                    _bubbles.Add(AiChatBubble.Tool(tool.Name, tool.Summary ?? (tool.IsError ? Loc.T("执行失败", "Failed") : Loc.T("完成", "Done")), string.Empty));
                     continue;
                 }
 
-                var details = "参数：" + tool.Arguments + "\n结果：" + tool.Result;
-                _bubbles.Add(AiChatBubble.Tool(tool.Name, tool.Summary ?? (tool.IsError ? "执行失败" : "完成"), details));
+                var details = Loc.T("参数：", "Arguments: ") + tool.Arguments + Loc.T("\n结果：", "\nResult: ") + tool.Result;
+                _bubbles.Add(AiChatBubble.Tool(tool.Name, tool.Summary ?? (tool.IsError ? Loc.T("执行失败", "Failed") : Loc.T("完成", "Done")), details));
             }
 
-            var assistant = AiChatBubble.Assistant(string.IsNullOrWhiteSpace(result.Text) ? "（模型没有给出文字回复）" : result.Text);
+            var assistant = AiChatBubble.Assistant(string.IsNullOrWhiteSpace(result.Text) ? Loc.T("（模型没有给出文字回复）", "(the model returned no text)") : result.Text);
 
             if (!string.IsNullOrWhiteSpace(result.Reasoning)) assistant.Reasoning = result.Reasoning;
 
             var meta = new List<string>
             {
-                "用时 " + result.Elapsed.TotalSeconds.ToString("0.0") + " 秒",
-                "工具 " + result.Tools.Count + " 次",
+                Loc.F("用时 {0} 秒", "Took {0}s", result.Elapsed.TotalSeconds.ToString("0.0")),
+                Loc.F("工具 {0} 次", "{0} tool calls", result.Tools.Count),
             };
 
             if (result.PromptTokens.HasValue || result.CompletionTokens.HasValue)
@@ -180,7 +181,7 @@ public partial class AiChatWindow : Window
                 meta.Add("token " + (result.PromptTokens ?? 0) + "+" + (result.CompletionTokens ?? 0));
             }
 
-            if (result.UsedTextFallback) meta.Add("（工具调用来自正文解析）");
+            if (result.UsedTextFallback) meta.Add(Loc.T("（工具调用来自正文解析）", "(tool calls parsed from the message text)"));
 
             _bubbles.Add(assistant);
             SetStage(string.Join("　·　", meta));
@@ -189,18 +190,18 @@ public partial class AiChatWindow : Window
         }
         catch (OperationCanceledException)
         {
-            _bubbles.Add(AiChatBubble.Error("已停止本次生成。"));
-            SetStage("已停止");
+            _bubbles.Add(AiChatBubble.Error(Loc.T("已停止本次生成。", "This reply was stopped.")));
+            SetStage(Loc.T("已停止", "Stopped"));
         }
         catch (AiChatException ex)
         {
             _bubbles.Add(AiChatBubble.Error(ex.Message));
-            SetStage("请求失败");
+            SetStage(Loc.T("请求失败", "Request failed"));
         }
         catch (Exception ex)
         {
-            _bubbles.Add(AiChatBubble.Error("出错了：" + ex.Message));
-            SetStage("请求失败");
+            _bubbles.Add(AiChatBubble.Error(Loc.T("出错了：", "Something went wrong: ") + ex.Message));
+            SetStage(Loc.T("请求失败", "Request failed"));
             AppLog.Error("AI 对话异常", ex);
         }
         finally
@@ -216,7 +217,7 @@ public partial class AiChatWindow : Window
     private void Stop_Click(object sender, RoutedEventArgs e)
     {
         _cancellation?.Cancel();
-        SetStage("正在停止…");
+        SetStage(Loc.T("正在停止…", "Stopping…"));
     }
 
     private void Clear_Click(object sender, RoutedEventArgs e)
@@ -224,7 +225,7 @@ public partial class AiChatWindow : Window
         _chat.Clear();
         _bubbles.Clear();
         Greet();
-        SetStage("对话已清空");
+        SetStage(Loc.T("对话已清空", "Chat cleared"));
     }
 
     // ================= 模型 =================
@@ -237,7 +238,7 @@ public partial class AiChatWindow : Window
         if (_loadingModels) return;
 
         _loadingModels = true;
-        if (!silent) SetStage("正在读取模型列表…");
+        if (!silent) SetStage(Loc.T("正在读取模型列表…", "Loading the model list…"));
 
         try
         {
@@ -250,12 +251,12 @@ public partial class AiChatWindow : Window
             ModelBox.SelectedItem = match;
             if (match == null) ModelBox.Text = current;
 
-            SetStage("已找到 " + models.Count + " 个模型：" + string.Join("、", models.Take(4).Select(m => m.Id))
+            SetStage(Loc.F("已找到 {0} 个模型：{1}", "Found {0} models: {1}", models.Count, string.Join(Loc.T("、", ", "), models.Take(4).Select(m => m.Id)))
                 + (models.Count > 4 ? " …" : string.Empty));
         }
         catch (Exception ex)
         {
-            if (!silent) SetStage("读取模型列表失败：" + ex.Message);
+            if (!silent) SetStage(Loc.T("读取模型列表失败：", "Failed to load the model list: ") + ex.Message);
         }
         finally
         {
@@ -275,7 +276,7 @@ public partial class AiChatWindow : Window
         _host.SettingsService.Save();
 
         UpdateEndpointText();
-        SetStage("已切换到模型 " + model.Trim());
+        SetStage(Loc.F("已切换到模型 {0}", "Switched to model {0}", model.Trim()));
         AppLog.Info("AI 模型已切换为 " + model.Trim());
     }
 
@@ -285,7 +286,7 @@ public partial class AiChatWindow : Window
         window.ShowDialog();
 
         UpdateEndpointText();
-        SetStage("设置已更新：" + AiClientFactory.Describe(_host.Settings));
+        SetStage(Loc.T("设置已更新：", "Settings updated: ") + AiClientFactory.Describe(_host.Settings));
     }
 
     /// <summary>顶部一行只显示「地址 · 模型」与本地/云端徽标，完整信息放 ToolTip（免得挤掉右边按钮）。</summary>
@@ -298,11 +299,11 @@ public partial class AiChatWindow : Window
         EndpointText.ToolTip = _chat.DescribeTarget()
             + Environment.NewLine
             + (cloud
-                ? "云端模型：对话内容会发送给该服务商；密钥只存在本机。可在「AI 设置…」里换成本地模型。"
-                : "本地模型：数据不出本机，断网也能用。");
+                ? Loc.T("云端模型：对话内容会发送给该服务商；密钥只存在本机。可在「AI 设置…」里换成本地模型。", "Cloud model: the conversation is sent to the provider; the key stays on this machine. You can switch to a local model in “AI settings…”.")
+                : Loc.T("本地模型：数据不出本机，断网也能用。", "Local model: no data leaves this machine, and it works offline."));
 
         // 本地/云端一眼可见：云端是花钱 + 数据外发，本地是免费 + 不出本机
-        CloudBadgeText.Text = cloud ? "云端" : "本地";
+        CloudBadgeText.Text = cloud ? Loc.T("云端", "Cloud") : Loc.T("本地", "Local");
         CloudBadgeText.Foreground = cloud ? ThemeBrushes.Warning : ThemeBrushes.Success;
         CloudBadge.Background = ThemeBrushes.Hint;
         CloudBadge.BorderBrush = ThemeBrushes.HintBorder;

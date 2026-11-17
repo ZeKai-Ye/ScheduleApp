@@ -1,3 +1,5 @@
+using Schedule.Core.Localization;
+
 namespace Schedule.Core.Models;
 
 /// <summary>提醒弹窗的位置策略。</summary>
@@ -151,11 +153,11 @@ public static class ReminderPositionMath
 
     public static string Describe(ReminderPositionMode mode) => mode switch
     {
-        ReminderPositionMode.BottomLeft => "左下角",
-        ReminderPositionMode.TopRight => "右上角",
-        ReminderPositionMode.TopLeft => "左上角",
-        ReminderPositionMode.Center => "屏幕中央",
-        ReminderPositionMode.Custom => "自定义位置",
-        _ => "右下角",
+        ReminderPositionMode.BottomLeft => Loc.T("左下角", "bottom left"),
+        ReminderPositionMode.TopRight => Loc.T("右上角", "top right"),
+        ReminderPositionMode.TopLeft => Loc.T("左上角", "top left"),
+        ReminderPositionMode.Center => Loc.T("屏幕中央", "center"),
+        ReminderPositionMode.Custom => Loc.T("自定义位置", "custom"),
+        _ => Loc.T("右下角", "bottom right"),
     };
 }

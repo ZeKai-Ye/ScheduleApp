@@ -1,5 +1,6 @@
 using System.Windows;
 using Microsoft.Win32;
+using Schedule.Core.Localization;
 using Schedule.Core.Logging;
 using Schedule.Core.Models;
 
@@ -86,9 +87,11 @@ public static class ThemeService
 
     public static string Describe(AppTheme mode) => mode switch
     {
-        AppTheme.Dark => "夜间主题",
-        AppTheme.Light => "浅色主题",
-        _ => "跟随系统（当前" + (IsSystemDark() ? "夜间" : "浅色") + "）",
+        AppTheme.Dark => Loc.T("夜间主题", "Dark theme"),
+        AppTheme.Light => Loc.T("浅色主题", "Light theme"),
+        _ => IsSystemDark()
+            ? Loc.T("跟随系统（当前夜间）", "Follow system (currently dark)")
+            : Loc.T("跟随系统（当前浅色）", "Follow system (currently light)"),
     };
 
     /// <summary>把主题名解析成模式（命令行用）。</summary>

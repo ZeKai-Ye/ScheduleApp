@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Threading;
 using Schedule.App.Services;
+using Schedule.Core.Localization;
 using Schedule.Core.Logging;
 using Schedule.Core.Models;
 using Schedule.Core.Templating;
@@ -39,11 +40,11 @@ public partial class ReminderWindow : Window
 
         TitleText.Text = item.Title;
         TimeText.Text = item.AllDay
-            ? occurrence.Start.ToString("yyyy-MM-dd") + " 全天"
+            ? occurrence.Start.ToString("yyyy-MM-dd") + Loc.T(" 全天", " All day")
             : occurrence.Start.ToString("yyyy-MM-dd HH:mm") + " - " + occurrence.End.ToString("HH:mm");
 
         OffsetText.Text = due.Plan.IsAbsolute
-            ? "指定时刻提醒"
+            ? Loc.T("指定时刻提醒", "At a set time")
             : due.Plan.OffsetText;
         CountdownText.Text = VoiceTemplate.DescribeCountdown(occurrence.Start, DateTime.Now);
 
@@ -52,7 +53,9 @@ public partial class ReminderWindow : Window
 
         var template = string.IsNullOrWhiteSpace(item.VoiceText) ? host.Settings.VoiceTemplate : item.VoiceText;
         var spoken = VoiceTemplate.Render(template, item, occurrence.Start, DateTime.Now, due.Plan.OffsetMinutes);
-        VoiceText.Text = host.Settings.SpeechEnabled ? "语音播报：" + spoken : "已关闭语音播报";
+        VoiceText.Text = host.Settings.SpeechEnabled
+            ? Loc.T("语音播报：", "Voice: ") + spoken
+            : Loc.T("已关闭语音播报", "Voice announcement is off");
 
         // 这条日程后续还有哪些档位没响
         var now = DateTime.Now;
@@ -63,7 +66,8 @@ public partial class ReminderWindow : Window
 
         if (remaining.Count > 0)
         {
-            MoreOffsetsText.Text = "本条日程还有 " + remaining.Count + " 档提醒：" + string.Join("、", remaining);
+            MoreOffsetsText.Text = Loc.F("本条日程还有 {0} 档提醒：{1}", "{0} more reminders for this event: {1}",
+                remaining.Count, string.Join(Loc.T("、", ", "), remaining));
             MoreOffsetsText.Visibility = Visibility.Visible;
         }
 
@@ -166,20 +170,20 @@ public partial class ReminderWindow : Window
     private void UpdatePositionHint(bool remembered)
     {
         var mode = _host.Settings.ReminderPosition;
-        var text = "位置：" + ReminderPositionMath.Describe(mode);
+        var text = Loc.T("位置：", "Position: ") + ReminderPositionMath.Describe(mode);
 
         if (mode == ReminderPositionMode.Custom && !remembered)
         {
-            text = "位置：自定义";
+            text = Loc.T("位置：自定义", "Position: custom");
         }
 
         if (remembered)
         {
-            text += "（已记住，可在设置里改）";
+            text += Loc.T("（已记住，可在设置里改）", " (saved; you can change it in Settings)");
         }
         else if (_host.Settings.ReminderRememberPosition)
         {
-            text += "（拖动弹窗可记住新位置）";
+            text += Loc.T("（拖动弹窗可记住新位置）", " (drag this window to save a new position)");
         }
 
         PositionHintText.Text = text;

@@ -2,6 +2,7 @@ using System.Text.Json.Nodes;
 using System.Windows;
 using Schedule.Core.Ai;
 using Schedule.Core.Csv;
+using Schedule.Core.Localization;
 using Schedule.Core.Logging;
 using Schedule.Core.Models;
 using Schedule.Core.Scheduling;
@@ -70,11 +71,12 @@ public sealed class ScheduleAiActions : IAiActions
             ["items"] = array,
         };
 
-        if (ordered.Count == 0) payload["hint"] = "这个范围里没有日程。";
+        if (ordered.Count == 0) payload["hint"] = Loc.T("这个范围里没有日程。", "No events in this range.");
 
         var summary = ordered.Count == 0
-            ? "这个范围里没有日程"
-            : "查到 " + ordered.Count + " 条日程：" + string.Join("、", ordered.Take(3).Select(m => m.Item.Title));
+            ? Loc.T("这个范围里没有日程", "No events in this range")
+            : Loc.F("查到 {0} 条日程：{1}", "Found {0} event(s): {1}",
+                ordered.Count, string.Join(Loc.T("、", ", "), ordered.Take(3).Select(m => m.Item.Title)));
 
         return AiToolResult.Ok(payload.ToJsonString(AiJson.Options), summary);
     });
@@ -86,8 +88,9 @@ public sealed class ScheduleAiActions : IAiActions
         var start = ParseDate(draft.Start, DateTime.Today);
         if (start == null)
         {
-            return AiToolResult.Error("开始时间无法识别：" + draft.Start + "。请用 2026-09-15 15:00 这种格式，"
-                + "也支持 明天15:00 / 下周三 上午10点。");
+            return AiToolResult.Error(Loc.F("开始时间无法识别：{0}。请用 2026-09-15 15:00 这种格式，也支持 明天15:00 / 下周三 上午10点。",
+                "Cannot parse the start time: {0}. Use a format like 2026-09-15 15:00; the Chinese forms 明天15:00 / 下周三 上午10点 also work.",
+                draft.Start));
         }
 
         var allDay = draft.AllDay ?? false;
@@ -122,7 +125,7 @@ public sealed class ScheduleAiActions : IAiActions
         };
 
         var errors = ScheduleItemValidator.Validate(item);
-        if (errors.Count > 0) return AiToolResult.Error("新建失败：" + string.Join("；", errors));
+        if (errors.Count > 0) return AiToolResult.Error(Loc.F("新建失败：{0}", "Create failed: {0}", string.Join(Loc.T("；", "; "), errors)));
 
         _context.Repository.Add(item);
         _context.Repository.Save();
@@ -134,12 +137,12 @@ public sealed class ScheduleAiActions : IAiActions
         {
             ["ok"] = true,
             ["ref"] = reference,
-            ["summary"] = "已新建日程：" + item.Title,
+            ["summary"] = Loc.F("已新建日程：{0}", "New event created: {0}", item.Title),
             ["title"] = item.Title,
             ["start"] = item.Start.ToString("yyyy-MM-dd HH:mm"),
             ["end"] = item.End?.ToString("yyyy-MM-dd HH:mm"),
-            ["reminders"] = item.ReminderEnabled ? ReminderText(item) : "不提醒",
-        }.ToJsonString(AiJson.Options), "已新建「" + item.Title + "」" + item.Start.ToString("MM-dd HH:mm"));
+            ["reminders"] = item.ReminderEnabled ? ReminderText(item) : Loc.T("不提醒", "No reminder"),
+        }.ToJsonString(AiJson.Options), Loc.F("已新建「{0}」{1}", "Created \"{0}\" {1}", item.Title, item.Start.ToString("MM-dd HH:mm")));
     });
 
     public AiToolResult UpdateItem(string reference, AiItemDraft draft) => Invoke(() =>
@@ -151,15 +154,15 @@ public sealed class ScheduleAiActions : IAiActions
 
         if (draft.Title != null)
         {
-            if (string.IsNullOrWhiteSpace(draft.Title)) return AiToolResult.Error("标题不能为空。");
+            if (string.IsNullOrWhiteSpace(draft.Title)) return AiToolResult.Error(Loc.T("标题不能为空。", "Title cannot be empty."));
             item.Title = draft.Title.Trim();
-            notes.Add("标题");
+            notes.Add(Loc.T("标题", "Title"));
         }
 
         if (draft.Start != null)
         {
             var start = ParseDate(draft.Start, item.Start);
-            if (start == null) return AiToolResult.Error("开始时间无法识别：" + draft.Start);
+            if (start == null) return AiToolResult.Error(Loc.F("开始时间无法识别：{0}", "Cannot parse the start time: {0}", draft.Start));
 
             var duration = item.End.HasValue && item.End.Value > item.Start ? item.End.Value - item.Start : TimeSpan.FromHours(1);
             var shifted = start.Value - item.Start;
@@ -168,17 +171,17 @@ public sealed class ScheduleAiActions : IAiActions
 
             item.Start = start.Value;
             if (draft.End == null) item.End = item.Start + duration;
-            notes.Add("开始时间");
+            notes.Add(Loc.T("开始时间", "Start time"));
         }
 
         if (draft.End != null)
         {
             var end = ParseDate(draft.End, item.Start);
-            if (end == null) return AiToolResult.Error("结束时间无法识别：" + draft.End);
+            if (end == null) return AiToolResult.Error(Loc.F("结束时间无法识别：{0}", "Cannot parse the end time: {0}", draft.End));
             if (end.Value <= item.Start) end = item.Start.AddHours(1);
 
             item.End = end;
-            notes.Add("结束时间");
+            notes.Add(Loc.T("结束时间", "End time"));
         }
 
         if (draft.AllDay.HasValue)
@@ -190,39 +193,40 @@ public sealed class ScheduleAiActions : IAiActions
                 if (item.End.HasValue) item.End = item.End.Value.Date.AddDays(1);
             }
 
-            notes.Add("全天");
+            notes.Add(Loc.T("全天", "All day"));
         }
 
         if (draft.Category != null)
         {
             item.Category = draft.Category.Trim();
-            notes.Add("分类");
+            notes.Add(Loc.T("分类", "Category"));
         }
 
         if (draft.Notes != null)
         {
             item.Notes = draft.Notes;
-            notes.Add("备注");
+            notes.Add(Loc.T("备注", "Notes"));
         }
 
         if (draft.VoiceText != null)
         {
             item.VoiceText = draft.VoiceText.Trim();
-            notes.Add("播报文案");
+            notes.Add(Loc.T("播报文案", "Voice text"));
         }
 
         if (draft.Color != null)
         {
             item.Color = EventColors.Normalize(draft.Color);
-            notes.Add("颜色");
+            notes.Add(Loc.T("颜色", "Color"));
         }
 
         if (draft.Status != null)
         {
             var status = ParseStatus(draft.Status);
-            if (status == null) return AiToolResult.Error("状态只能是 pending / done / cancelled（或 待办 / 已完成 / 已取消）。");
+            if (status == null) return AiToolResult.Error(Loc.T("状态只能是 pending / done / cancelled（或 待办 / 已完成 / 已取消）。",
+                "Status must be pending / done / cancelled (or 待办 / 已完成 / 已取消)."));
             item.Status = status.Value;
-            notes.Add("状态");
+            notes.Add(Loc.T("状态", "Status"));
         }
 
         if (draft.ReminderOffsets != null)
@@ -232,11 +236,11 @@ public sealed class ScheduleAiActions : IAiActions
             item.ReminderEnabled = offsets.Count > 0;
             item.RemindBeforeMinutes = offsets.Count > 0 ? offsets.Min() : item.RemindBeforeMinutes;
             item.PruneFiredReminders();
-            notes.Add("提醒档位");
+            notes.Add(Loc.T("提醒档位", "Reminder offsets"));
         }
 
         var errors = ScheduleItemValidator.Validate(item);
-        if (errors.Count > 0) return AiToolResult.Error("修改失败：" + string.Join("；", errors));
+        if (errors.Count > 0) return AiToolResult.Error(Loc.F("修改失败：{0}", "Update failed: {0}", string.Join(Loc.T("；", "; "), errors)));
 
         item.UpdatedAt = DateTime.Now;
         _context.Repository.Update(item);
@@ -246,7 +250,7 @@ public sealed class ScheduleAiActions : IAiActions
         var payload = new JsonObject
         {
             ["ok"] = true,
-            ["summary"] = "已修改：" + string.Join("、", notes),
+            ["summary"] = Loc.F("已修改：{0}", "Updated: {0}", string.Join(Loc.T("、", ", "), notes)),
             ["ref"] = References.Register(item.Id.ToString(), target.OccurrenceStart, item.Title),
             ["title"] = item.Title,
             ["start"] = item.Start.ToString("yyyy-MM-dd HH:mm"),
@@ -255,10 +259,12 @@ public sealed class ScheduleAiActions : IAiActions
 
         if (item.Repeat != RepeatKind.None)
         {
-            payload["note"] = "这是重复日程，内容 / 时间改动作用于整个系列。";
+            payload["note"] = Loc.T("这是重复日程，内容 / 时间改动作用于整个系列。",
+                "This is a repeating event; content and time changes apply to the whole series.");
         }
 
-        return AiToolResult.Ok(payload.ToJsonString(AiJson.Options), "已修改「" + item.Title + "」的" + string.Join("、", notes));
+        return AiToolResult.Ok(payload.ToJsonString(AiJson.Options),
+            Loc.F("已修改「{0}」的{1}", "Updated \"{0}\": {1}", item.Title, string.Join(Loc.T("、", ", "), notes)));
     });
 
     public AiToolResult RescheduleItem(string reference, string newStart, string? newEnd) => Invoke(() =>
@@ -267,7 +273,7 @@ public sealed class ScheduleAiActions : IAiActions
         if (item == null || target == null) return error!;
 
         var start = ParseDate(newStart, item.Start);
-        if (start == null) return AiToolResult.Error("新的开始时间无法识别：" + newStart);
+        if (start == null) return AiToolResult.Error(Loc.F("新的开始时间无法识别：{0}", "Cannot parse the new start time: {0}", newStart));
 
         if (item.AllDay) start = start.Value.Date;
 
@@ -299,7 +305,7 @@ public sealed class ScheduleAiActions : IAiActions
         }
 
         var errors = ScheduleItemValidator.Validate(item);
-        if (errors.Count > 0) return AiToolResult.Error("改期失败：" + string.Join("；", errors));
+        if (errors.Count > 0) return AiToolResult.Error(Loc.F("改期失败：{0}", "Reschedule failed: {0}", string.Join(Loc.T("；", "; "), errors)));
 
         item.UpdatedAt = DateTime.Now;
         _context.Repository.Update(item);
@@ -312,8 +318,9 @@ public sealed class ScheduleAiActions : IAiActions
             ["title"] = item.Title,
             ["start"] = start.Value.ToString("yyyy-MM-dd HH:mm"),
             ["end"] = end.ToString("yyyy-MM-dd HH:mm"),
-            ["scope"] = onlyThisTime ? "仅这一次" : "整个日程",
-            ["summary"] = "已改到 " + start.Value.ToString("MM-dd HH:mm") + (onlyThisTime ? "（只改这一次）" : string.Empty),
+            ["scope"] = onlyThisTime ? Loc.T("仅这一次", "This occurrence only") : Loc.T("整个日程", "The whole event"),
+            ["summary"] = Loc.F("已改到 {0}{1}", "Moved to {0}{1}", start.Value.ToString("MM-dd HH:mm"),
+                onlyThisTime ? Loc.T("（只改这一次）", " (this occurrence only)") : string.Empty),
         };
 
         return AiToolResult.Ok(payload.ToJsonString(AiJson.Options), payload["summary"]!.GetValue<string>());
@@ -324,10 +331,11 @@ public sealed class ScheduleAiActions : IAiActions
         var target = References.TryResolve(reference);
         if (target == null) return AiToolResult.Error(References.DescribeUnknown(reference));
 
-        if (!Guid.TryParse(target.Id, out var id)) return AiToolResult.Error("日程 id 不合法：" + target.Id);
+        if (!Guid.TryParse(target.Id, out var id)) return AiToolResult.Error(Loc.F("日程 id 不合法：{0}", "Invalid event id: {0}", target.Id));
 
         var item = _context.Repository.Find(id);
-        if (item == null) return AiToolResult.Error("这条日程已经不存在了（可能刚被删掉）。");
+        if (item == null) return AiToolResult.Error(Loc.T("这条日程已经不存在了（可能刚被删掉）。",
+            "This event no longer exists (it may have just been deleted)."));
 
         var title = item.Title;
 
@@ -342,9 +350,11 @@ public sealed class ScheduleAiActions : IAiActions
             return AiToolResult.Ok(new JsonObject
             {
                 ["ok"] = true,
-                ["scope"] = "仅这一次",
-                ["summary"] = "已删除 " + target.OccurrenceStart.Value.ToString("MM-dd HH:mm") + " 这一次，其它发生不受影响",
-            }.ToJsonString(AiJson.Options), "已删除「" + title + "」的这一次");
+                ["scope"] = Loc.T("仅这一次", "This occurrence only"),
+                ["summary"] = Loc.F("已删除 {0} 这一次，其它发生不受影响",
+                    "Deleted the occurrence on {0}; other occurrences are unaffected",
+                    target.OccurrenceStart.Value.ToString("MM-dd HH:mm")),
+            }.ToJsonString(AiJson.Options), Loc.F("已删除「{0}」的这一次", "Deleted this occurrence of \"{0}\"", title));
         }
 
         _context.Repository.Remove(item.Id);
@@ -354,9 +364,11 @@ public sealed class ScheduleAiActions : IAiActions
         return AiToolResult.Ok(new JsonObject
         {
             ["ok"] = true,
-            ["scope"] = item.Repeat == RepeatKind.None ? "整条日程" : "整个系列",
-            ["summary"] = "已删除：" + title,
-        }.ToJsonString(AiJson.Options), "已删除「" + title + "」");
+            ["scope"] = item.Repeat == RepeatKind.None
+                ? Loc.T("整条日程", "The whole event")
+                : Loc.T("整个系列", "The whole series"),
+            ["summary"] = Loc.F("已删除：{0}", "Deleted: {0}", title),
+        }.ToJsonString(AiJson.Options), Loc.F("已删除「{0}」", "Deleted \"{0}\"", title));
     });
 
     public AiToolResult SetStatus(string reference, string status) => Invoke(() =>
@@ -365,7 +377,8 @@ public sealed class ScheduleAiActions : IAiActions
         if (item == null) return error!;
 
         var parsed = ParseStatus(status);
-        if (parsed == null) return AiToolResult.Error("状态只能是 pending / done / cancelled（或 待办 / 已完成 / 已取消）。");
+        if (parsed == null) return AiToolResult.Error(Loc.T("状态只能是 pending / done / cancelled（或 待办 / 已完成 / 已取消）。",
+            "Status must be pending / done / cancelled (or 待办 / 已完成 / 已取消)."));
 
         item.Status = parsed.Value;
         item.UpdatedAt = DateTime.Now;
@@ -378,8 +391,8 @@ public sealed class ScheduleAiActions : IAiActions
             ["ok"] = true,
             ["title"] = item.Title,
             ["status"] = StatusText(parsed.Value),
-            ["summary"] = "已把「" + item.Title + "」标记为" + StatusText(parsed.Value),
-        }.ToJsonString(AiJson.Options), "已把「" + item.Title + "」标记为" + StatusText(parsed.Value));
+            ["summary"] = Loc.F("已把「{0}」标记为{1}", "Marked \"{0}\" as {1}", item.Title, StatusText(parsed.Value)),
+        }.ToJsonString(AiJson.Options), Loc.F("已把「{0}」标记为{1}", "Marked \"{0}\" as {1}", item.Title, StatusText(parsed.Value)));
     });
 
     public AiToolResult NextReminders(int count) => Invoke(() =>
@@ -410,7 +423,9 @@ public sealed class ScheduleAiActions : IAiActions
         };
 
         return AiToolResult.Ok(payload.ToJsonString(AiJson.Options),
-            upcoming.Count == 0 ? "接下来没有提醒" : "接下来 " + upcoming.Count + " 个提醒");
+            upcoming.Count == 0
+                ? Loc.T("接下来没有提醒", "No upcoming reminders")
+                : Loc.F("接下来 {0} 个提醒", "{0} upcoming reminders", upcoming.Count));
     });
 
     public AiToolResult AppInfo() => Invoke(() =>
@@ -432,13 +447,15 @@ public sealed class ScheduleAiActions : IAiActions
             ["now"] = DateTime.Now.ToString("yyyy-MM-dd HH:mm"),
         };
 
-        return AiToolResult.Ok(payload.ToJsonString(AiJson.Options), "共 " + items.Count + " 条日程，今天 " + today + " 条");
+        return AiToolResult.Ok(payload.ToJsonString(AiJson.Options),
+            Loc.F("共 {0} 条日程，今天 {1} 条", "{0} events in total, {1} today", items.Count, today));
     });
 
     public AiToolResult SetTheme(string theme) => Invoke(() =>
     {
         var parsed = Schedule.App.Services.ThemeService.Parse(theme);
-        if (parsed == null) return AiToolResult.Error("主题只能是 light / dark / system（或 浅色 / 夜间 / 跟随系统）。");
+        if (parsed == null) return AiToolResult.Error(Loc.T("主题只能是 light / dark / system（或 浅色 / 夜间 / 跟随系统）。",
+            "Theme must be light / dark / system (or 浅色 / 夜间 / 跟随系统)."));
 
         _context.Settings.Theme = parsed.Value;
         _context.SaveSettings();
@@ -447,8 +464,8 @@ public sealed class ScheduleAiActions : IAiActions
         {
             ["ok"] = true,
             ["theme"] = Schedule.App.Services.ThemeService.Describe(parsed.Value),
-            ["summary"] = "主题已切换为" + Schedule.App.Services.ThemeService.Describe(parsed.Value),
-        }.ToJsonString(AiJson.Options), "主题已切换为" + Schedule.App.Services.ThemeService.Describe(parsed.Value));
+            ["summary"] = Loc.F("主题已切换为{0}", "Theme switched to {0}", Schedule.App.Services.ThemeService.Describe(parsed.Value)),
+        }.ToJsonString(AiJson.Options), Loc.F("主题已切换为{0}", "Theme switched to {0}", Schedule.App.Services.ThemeService.Describe(parsed.Value)));
     });
 
     // ================= 内部工具 =================
@@ -466,14 +483,15 @@ public sealed class ScheduleAiActions : IAiActions
 
         if (!Guid.TryParse(target.Id, out var id))
         {
-            error = AiToolResult.Error("日程 id 不合法：" + target.Id);
+            error = AiToolResult.Error(Loc.F("日程 id 不合法：{0}", "Invalid event id: {0}", target.Id));
             return null;
         }
 
         var item = _context.Repository.Find(id);
         if (item == null)
         {
-            error = AiToolResult.Error("这条日程已经不存在了（可能刚被删掉）。请重新 list_items。");
+            error = AiToolResult.Error(Loc.T("这条日程已经不存在了（可能刚被删掉）。请重新 list_items。",
+                "This event no longer exists (it may have just been deleted). Please call list_items again."));
             return null;
         }
 
@@ -530,7 +548,7 @@ public sealed class ScheduleAiActions : IAiActions
         var repeat = RepeatText(item);
         if (repeat.Length > 0) node["repeat"] = repeat;
 
-        node["reminders"] = item.ReminderEnabled ? ReminderText(item) : "不提醒";
+        node["reminders"] = item.ReminderEnabled ? ReminderText(item) : Loc.T("不提醒", "No reminder");
 
         if (!string.IsNullOrWhiteSpace(item.Notes)) node["notes"] = Shorten(item.Notes, 80);
 
@@ -540,32 +558,45 @@ public sealed class ScheduleAiActions : IAiActions
     private static string RepeatText(ScheduleItem item) => item.Repeat switch
     {
         RepeatKind.None => string.Empty,
-        RepeatKind.Daily => item.RepeatInterval > 1 ? "每 " + item.RepeatInterval + " 天" : "每天",
-        RepeatKind.Weekdays => "每个工作日",
-        RepeatKind.Weekly => (item.RepeatInterval > 1 ? "每 " + item.RepeatInterval + " 周" : "每周")
+        RepeatKind.Daily => item.RepeatInterval > 1
+            ? Loc.F("每 {0} 天", "Every {0} days", item.RepeatInterval)
+            : Loc.T("每天", "Daily"),
+        RepeatKind.Weekdays => Loc.T("每个工作日", "Every weekday"),
+        RepeatKind.Weekly => (item.RepeatInterval > 1
+                ? Loc.F("每 {0} 周", "Every {0} weeks", item.RepeatInterval)
+                : Loc.T("每周", "Weekly"))
             + (item.RepeatWeekdays.Count > 0
-                ? "（" + string.Join("、", item.RepeatWeekdays.OrderBy(d => d).Select(WeekdayText)) + "）"
+                ? Loc.F("（{0}）", " ({0})", string.Join(Loc.T("、", ", "), item.RepeatWeekdays.OrderBy(d => d).Select(WeekdayText)))
                 : string.Empty),
-        RepeatKind.Monthly => item.RepeatInterval > 1 ? "每 " + item.RepeatInterval + " 个月" : "每月",
-        RepeatKind.Yearly => item.RepeatInterval > 1 ? "每 " + item.RepeatInterval + " 年" : "每年",
+        RepeatKind.Monthly => item.RepeatInterval > 1
+            ? Loc.F("每 {0} 个月", "Every {0} months", item.RepeatInterval)
+            : Loc.T("每月", "Monthly"),
+        RepeatKind.Yearly => item.RepeatInterval > 1
+            ? Loc.F("每 {0} 年", "Every {0} years", item.RepeatInterval)
+            : Loc.T("每年", "Yearly"),
         _ => string.Empty,
     };
 
     private static string WeekdayText(DayOfWeek day) => day switch
     {
-        DayOfWeek.Monday => "周一",
-        DayOfWeek.Tuesday => "周二",
-        DayOfWeek.Wednesday => "周三",
-        DayOfWeek.Thursday => "周四",
-        DayOfWeek.Friday => "周五",
-        DayOfWeek.Saturday => "周六",
-        _ => "周日",
+        DayOfWeek.Monday => Loc.T("周一", "Mon"),
+        DayOfWeek.Tuesday => Loc.T("周二", "Tue"),
+        DayOfWeek.Wednesday => Loc.T("周三", "Wed"),
+        DayOfWeek.Thursday => Loc.T("周四", "Thu"),
+        DayOfWeek.Friday => Loc.T("周五", "Fri"),
+        DayOfWeek.Saturday => Loc.T("周六", "Sat"),
+        _ => Loc.T("周日", "Sun"),
     };
 
     private static string ReminderText(ScheduleItem item)
     {
         var offsets = item.NormalizedOffsets();
-        if (offsets.Count == 0) return item.RemindAtOverride.HasValue ? "指定时刻 " + item.RemindAtOverride.Value.ToString("MM-dd HH:mm") : "无";
+        if (offsets.Count == 0)
+        {
+            return item.RemindAtOverride.HasValue
+                ? Loc.F("指定时刻 {0}", "At {0}", item.RemindAtOverride.Value.ToString("MM-dd HH:mm"))
+                : Loc.T("无", "None");
+        }
 
         // DescribeOffset 自己已经带「提前」前缀，这里别再加一次（否则会变成「提前 提前 30 分钟」）
         return string.Join(" / ", offsets.Select(ReminderPlan.DescribeOffset));
@@ -573,9 +604,9 @@ public sealed class ScheduleAiActions : IAiActions
 
     private static string StatusText(ItemStatus status) => status switch
     {
-        ItemStatus.Done => "已完成",
-        ItemStatus.Canceled => "已取消",
-        _ => "待办",
+        ItemStatus.Done => Loc.T("已完成", "Done"),
+        ItemStatus.Canceled => Loc.T("已取消", "Cancelled"),
+        _ => Loc.T("待办", "To do"),
     };
 
     private static ItemStatus? ParseStatus(string? text) => (text ?? string.Empty).Trim().ToLowerInvariant() switch

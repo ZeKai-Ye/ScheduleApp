@@ -35,6 +35,7 @@ public static class TestRunner
         Run("AI 对话", AiChatTests.Run);
         Run("AI 联网模型", AiCloudTests.Run);
         Run("语音模板", TemplateTests.Run);
+        Run("双语与本地化", LocalizationTests.Run);
         Run("存储与持久化", StorageTests.Run);
 
         stopwatch.Stop();

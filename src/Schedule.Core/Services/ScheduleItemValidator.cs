@@ -1,3 +1,4 @@
+using Schedule.Core.Localization;
 using Schedule.Core.Models;
 
 namespace Schedule.Core.Services;
@@ -11,84 +12,84 @@ public static class ScheduleItemValidator
 
         if (string.IsNullOrWhiteSpace(item.Title))
         {
-            errors.Add("标题不能为空。");
+            errors.Add(Loc.T("标题不能为空。", "Title cannot be empty."));
         }
         else if (item.Title.Length > 200)
         {
-            errors.Add("标题不能超过 200 个字符。");
+            errors.Add(Loc.T("标题不能超过 200 个字符。", "Title cannot be longer than 200 characters."));
         }
 
         if (item.End.HasValue && item.End.Value < item.Start)
         {
-            errors.Add("结束时间不能早于开始时间。");
+            errors.Add(Loc.T("结束时间不能早于开始时间。", "End time cannot be earlier than the start time."));
         }
 
         foreach (var offset in item.ReminderOffsets)
         {
-            if (offset < 0) errors.Add("提醒档位不能为负数。");
-            else if (offset > 60 * 24 * 365) errors.Add("提醒档位过大（超过一年）。");
+            if (offset < 0) errors.Add(Loc.T("提醒档位不能为负数。", "Reminder offsets cannot be negative."));
+            else if (offset > 60 * 24 * 365) errors.Add(Loc.T("提醒档位过大（超过一年）。", "Reminder offset is too large (more than one year)."));
         }
 
         if (item.ReminderOffsets.Count == 0 && item.RemindBeforeMinutes < 0)
         {
-            errors.Add("提前提醒分钟数不能为负数。");
+            errors.Add(Loc.T("提前提醒分钟数不能为负数。", "Reminder minutes before cannot be negative."));
         }
 
         if (item.ReminderOffsets.Count == 0 && item.RemindBeforeMinutes > 60 * 24 * 365)
         {
-            errors.Add("提前提醒时间过长（超过一年）。");
+            errors.Add(Loc.T("提前提醒时间过长（超过一年）。", "Reminder lead time is too long (more than one year)."));
         }
 
         if (item.Repeat < 0 || item.Repeat > RepeatKind.Yearly)
         {
-            errors.Add("重复规则无效。");
+            errors.Add(Loc.T("重复规则无效。", "Invalid repeat rule."));
         }
 
         if (item.RepeatInterval < 1)
         {
-            errors.Add("重复间隔必须大于等于 1。");
+            errors.Add(Loc.T("重复间隔必须大于等于 1。", "Repeat interval must be at least 1."));
         }
 
         if (item.RepeatCount is <= 0)
         {
-            errors.Add("重复次数必须大于等于 1。");
+            errors.Add(Loc.T("重复次数必须大于等于 1。", "Repeat count must be at least 1."));
         }
 
         if (item.Repeat == RepeatKind.None && (item.RepeatUntil.HasValue || item.RepeatCount.HasValue))
         {
-            errors.Add("未设置重复规则时不应指定重复截止或重复次数。");
+            errors.Add(Loc.T("未设置重复规则时不应指定重复截止或重复次数。", "A repeat end date or count should not be set when no repeat rule is set."));
         }
 
         if (item.RepeatUntil.HasValue && item.RepeatUntil.Value.Date < item.Start.Date)
         {
-            errors.Add("重复截止日期不能早于开始日期。");
+            errors.Add(Loc.T("重复截止日期不能早于开始日期。", "The repeat end date cannot be earlier than the start date."));
         }
 
         if (!string.IsNullOrWhiteSpace(item.Color) && !EventColors.IsValid(item.Color))
         {
-            errors.Add("事件颜色格式不正确（应为 #RRGGBB）。");
+            errors.Add(Loc.T("事件颜色格式不正确（应为 #RRGGBB）。", "Event color format is invalid (expected #RRGGBB)."));
         }
 
         if (!string.IsNullOrWhiteSpace(item.SoundFile) && !File.Exists(item.SoundFile))
         {
-            errors.Add("指定的提醒音频文件不存在：" + item.SoundFile);
+            errors.Add(Loc.F("指定的提醒音频文件不存在：{0}", "Reminder sound file not found: {0}", item.SoundFile));
         }
 
         if (item.OccurrenceOverrides.Count > 0 && item.Repeat == RepeatKind.None)
         {
-            errors.Add("非重复日程不应带有「仅本次」例外。");
+            errors.Add(Loc.T("非重复日程不应带有「仅本次」例外。", "A non-repeating event should not carry any \"only this occurrence\" exception."));
         }
 
         foreach (var instance in item.OccurrenceOverrides)
         {
             if (instance.NewStart.HasValue && instance.NewEnd.HasValue && instance.NewEnd.Value < instance.NewStart.Value)
             {
-                errors.Add("第 " + instance.OriginalStart.ToString("MM-dd HH:mm") + " 次的改期结束时间早于开始时间。");
+                errors.Add(Loc.F("第 {0} 次的改期结束时间早于开始时间。", "The rescheduled occurrence {0} ends before it starts.", instance.OriginalStart.ToString("MM-dd HH:mm")));
             }
 
             foreach (var offset in instance.ReminderOffsets ?? new List<int>())
             {
-                if (offset < 0) errors.Add("「仅本次」的提醒档位不能为负数。");
+                if (offset < 0) errors.Add(Loc.T("「仅本次」的提醒档位不能为负数。", "An \"only this occurrence\" reminder offset cannot be negative."));
             }
         }
 
@@ -96,14 +97,14 @@ public static class ScheduleItemValidator
         {
             if (!string.IsNullOrWhiteSpace(pair.Value) && !File.Exists(pair.Value))
             {
-                errors.Add("档位 " + pair.Key + " 的提醒音频文件不存在：" + pair.Value);
+                errors.Add(Loc.F("档位 {0} 的提醒音频文件不存在：{1}", "Reminder sound file for offset {0} not found: {1}", pair.Key, pair.Value));
             }
         }
 
         var known = new HashSet<int>(item.NormalizedOffsets());
         foreach (var offset in item.ReminderVoiceTexts.Keys)
         {
-            if (!known.Contains(offset)) errors.Add("档位 " + offset + " 的自定义播报文案没有对应的提醒档位。");
+            if (!known.Contains(offset)) errors.Add(Loc.F("档位 {0} 的自定义播报文案没有对应的提醒档位。", "Custom voice text for offset {0} has no matching reminder offset.", offset));
         }
 
         return errors;
@@ -130,14 +131,14 @@ public static class ScheduleItemValidator
 
         if (string.IsNullOrWhiteSpace(item.Title))
         {
-            item.Title = "(无标题)";
-            notes.Add("补齐了空标题");
+            item.Title = Loc.T("(无标题)", "(Untitled)");
+            notes.Add(Loc.T("补齐了空标题", "filled in the empty title"));
         }
 
         if (item.End.HasValue && item.End.Value < item.Start)
         {
             item.End = null;
-            notes.Add("清除了早于开始时间的结束时间");
+            notes.Add(Loc.T("清除了早于开始时间的结束时间", "removed an end time earlier than the start time"));
         }
 
         if (item.ExcludedOccurrences == null) item.ExcludedOccurrences = new List<DateTime>();
@@ -162,7 +163,7 @@ public static class ScheduleItemValidator
 
         if (sanitized.Count != item.ReminderOffsets.Count)
         {
-            notes.Add("清理了非法提醒档位");
+            notes.Add(Loc.T("清理了非法提醒档位", "removed invalid reminder offsets"));
             item.ReminderOffsets = sanitized;
         }
 
@@ -174,7 +175,7 @@ public static class ScheduleItemValidator
                 .Where(p => offsets.Contains(p.Key) && !string.IsNullOrWhiteSpace(p.Value))
                 .ToDictionary(p => p.Key, p => p.Value);
 
-            if (kept.Count != item.ReminderVoiceTexts.Count) notes.Add("清理了无对应档位的播报文案");
+            if (kept.Count != item.ReminderVoiceTexts.Count) notes.Add(Loc.T("清理了无对应档位的播报文案", "removed voice text without a matching reminder offset"));
             item.ReminderVoiceTexts = kept;
         }
 
@@ -184,26 +185,26 @@ public static class ScheduleItemValidator
                 .Where(p => offsets.Contains(p.Key) && !string.IsNullOrWhiteSpace(p.Value))
                 .ToDictionary(p => p.Key, p => p.Value);
 
-            if (kept.Count != item.ReminderSoundFiles.Count) notes.Add("清理了无对应档位的铃声设置");
+            if (kept.Count != item.ReminderSoundFiles.Count) notes.Add(Loc.T("清理了无对应档位的铃声设置", "removed sound settings without a matching reminder offset"));
             item.ReminderSoundFiles = kept;
         }
 
         if (item.RemindBeforeMinutes < 0)
         {
             item.RemindBeforeMinutes = 0;
-            notes.Add("负的提前提醒分钟数已归零");
+            notes.Add(Loc.T("负的提前提醒分钟数已归零", "reset a negative reminder lead time to zero"));
         }
 
         if (item.RepeatInterval < 1)
         {
             item.RepeatInterval = 1;
-            notes.Add("重复间隔已修正为 1");
+            notes.Add(Loc.T("重复间隔已修正为 1", "fixed the repeat interval to 1"));
         }
 
         if (item.RepeatCount is <= 0)
         {
             item.RepeatCount = null;
-            notes.Add("清除了非法的重复次数");
+            notes.Add(Loc.T("清除了非法的重复次数", "removed an invalid repeat count"));
         }
 
         if (item.Repeat != RepeatKind.Weekly && item.RepeatWeekdays.Count > 0)
@@ -224,7 +225,7 @@ public static class ScheduleItemValidator
             if (normalized.Length != 7)
             {
                 item.Color = string.Empty;
-                notes.Add("清除了非法颜色值");
+                notes.Add(Loc.T("清除了非法颜色值", "removed an invalid color value"));
             }
             else if (normalized != item.Color)
             {
@@ -238,7 +239,7 @@ public static class ScheduleItemValidator
             var cleaned = item.ExcludedOccurrences.Distinct().OrderBy(v => v).ToList();
             if (cleaned.Count != item.ExcludedOccurrences.Count)
             {
-                notes.Add("清理了重复的「删除本次」记录");
+                notes.Add(Loc.T("清理了重复的「删除本次」记录", "removed duplicate \"delete this occurrence\" records"));
                 item.ExcludedOccurrences = cleaned;
             }
         }
@@ -265,14 +266,14 @@ public static class ScheduleItemValidator
 
             if (kept.Count != item.OccurrenceOverrides.Count)
             {
-                notes.Add("清理了无效的「仅本次」修改");
+                notes.Add(Loc.T("清理了无效的「仅本次」修改", "removed invalid \"only this occurrence\" changes"));
                 item.OccurrenceOverrides = kept;
             }
         }
 
         if (DropOccurrenceEditsWhenNotRepeating(item))
         {
-            notes.Add("清除了非重复日程上的「仅本次」例外");
+            notes.Add(Loc.T("清除了非重复日程上的「仅本次」例外", "removed \"only this occurrence\" exceptions from a non-repeating event"));
         }
 
         // 旧字段迁移：LastFiredOccurrence → 每个档位各记一条，避免升级后重复弹窗
@@ -295,13 +296,13 @@ public static class ScheduleItemValidator
             }
 
             item.LastFiredOccurrence = null;
-            notes.Add("迁移了旧的提醒触发记录");
+            notes.Add(Loc.T("迁移了旧的提醒触发记录", "migrated old reminder fire records"));
         }
 
         if (item.RemindAtOverride.HasValue && item.RemindAtOverride.Value.Year < 1900)
         {
             item.RemindAtOverride = null;
-            notes.Add("清除了非法提醒时间");
+            notes.Add(Loc.T("清除了非法提醒时间", "removed an invalid reminder time"));
         }
 
         return notes;

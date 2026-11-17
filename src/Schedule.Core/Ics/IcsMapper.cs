@@ -1,3 +1,4 @@
+using Schedule.Core.Localization;
 using Schedule.Core.Models;
 using Schedule.Core.Services;
 
@@ -52,7 +53,7 @@ public static class IcsMapper
 
                 if (!IcsReader.TryParseDate(keyProperty, out var originalStart, out _, out var isUtc))
                 {
-                    warnings.Add("「" + item.Title + "」有一次单独修改的 RECURRENCE-ID 无法解析，已忽略这一次的修改。");
+                    warnings.Add(Loc.F("「{0}」有一次单独修改的 RECURRENCE-ID 无法解析，已忽略这一次的修改。", "\"{0}\" has a RECURRENCE-ID change that cannot be parsed; that change was ignored.", item.Title));
                     continue;
                 }
 
@@ -60,7 +61,7 @@ public static class IcsMapper
 
                 if (item.Repeat == RepeatKind.None)
                 {
-                    warnings.Add("「" + item.Title + "」不是重复日程，但文件里带了 RECURRENCE-ID，已忽略该次修订。");
+                    warnings.Add(Loc.F("「{0}」不是重复日程，但文件里带了 RECURRENCE-ID，已忽略该次修订。", "\"{0}\" is not a repeating event, but the file contains a RECURRENCE-ID; that revision was ignored.", item.Title));
                     continue;
                 }
 
@@ -85,14 +86,14 @@ public static class IcsMapper
         List<ImportError> errors)
     {
         var title = ev.Find("SUMMARY")?.Text.Trim() ?? string.Empty;
-        var label = title.Length > 0 ? "「" + title + "」" : "第 " + ev.Line + " 行的事件";
+        var label = title.Length > 0 ? Loc.F("「{0}」", "\"{0}\"", title) : Loc.F("第 {0} 行的事件", "event on line {0}", ev.Line);
 
         if (!IcsReader.TryParseDate(ev.Find("DTSTART"), out var start, out var allDay, out var startIsUtc))
         {
             errors.Add(new ImportError
             {
                 Line = ev.Line,
-                Message = "缺少或无法解析 DTSTART（开始时间）",
+                Message = Loc.T("缺少或无法解析 DTSTART（开始时间）", "Missing or unparsable DTSTART (start time)"),
                 Raw = Shorten(ev.Get("SUMMARY")),
             });
 
@@ -103,8 +104,8 @@ public static class IcsMapper
 
         if (title.Length == 0)
         {
-            title = "(无标题)";
-            warnings.Add(label + "：没有 SUMMARY（标题），已按「(无标题)」导入。");
+            title = Loc.T("(无标题)", "(Untitled)");
+            warnings.Add(Loc.F("{0}：没有 SUMMARY（标题），已按「{1}」导入。", "{0}: no SUMMARY (title), imported as \"{1}\".", label, title));
         }
 
         var item = new ScheduleItem
@@ -153,7 +154,7 @@ public static class IcsMapper
         if (!string.IsNullOrEmpty(description)) notes.Add(description);
 
         var location = ev.Find("LOCATION")?.Text.Trim();
-        if (!string.IsNullOrEmpty(location)) notes.Add("地点：" + location);
+        if (!string.IsNullOrEmpty(location)) notes.Add(Loc.F("地点：{0}", "Location: {0}", location));
 
         item.Notes = string.Join(Environment.NewLine, notes);
 
@@ -188,7 +189,7 @@ public static class IcsMapper
 
             if (spec.Kind == RepeatKind.None)
             {
-                warnings.Add(label + "：重复规则 " + rule + " 暂不支持，已按单次日程导入。");
+                warnings.Add(Loc.F("{0}：重复规则 {1} 暂不支持，已按单次日程导入。", "{0}: repeat rule {1} is not supported yet, imported as a single event.", label, rule));
             }
         }
 
@@ -211,7 +212,7 @@ public static class IcsMapper
             errors.Add(new ImportError
             {
                 Line = ev.Line,
-                Message = string.Join("；", problems),
+                Message = string.Join(Loc.T("；", "; "), problems),
                 Raw = Shorten(item.Title),
             });
 
@@ -252,7 +253,7 @@ public static class IcsMapper
 
             if (minutes < 0)
             {
-                warnings.Add(label + "：提醒写在开始之后（TRIGGER=" + trigger.Value + "），已调整为「准点」。");
+                warnings.Add(Loc.F("{0}：提醒写在开始之后（TRIGGER={1}），已调整为「准点」。", "{0}: the reminder is after the start (TRIGGER={1}), adjusted to \"On time\".", label, trigger.Value));
                 minutes = 0;
             }
 
@@ -285,7 +286,7 @@ public static class IcsMapper
         var parts = raw.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Trim()).Where(p => p.Length > 0).ToList();
         if (parts.Count == 0) return string.Empty;
 
-        if (parts.Count > 1) warnings.Add(label + "：有多个分类（" + raw + "），已取第一个：「" + parts[0] + "」。");
+        if (parts.Count > 1) warnings.Add(Loc.F("{0}：有多个分类（{1}），已取第一个：「{2}」。", "{0}: multiple categories ({1}), using the first one: \"{2}\".", label, raw, parts[0]));
 
         return parts[0];
     }

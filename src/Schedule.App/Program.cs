@@ -1,5 +1,6 @@
 using System.Threading;
 using System.Windows;
+using Schedule.Core.Localization;
 using Schedule.Core.Logging;
 using Schedule.Core.Services;
 using Schedule.Core.Storage;
@@ -62,7 +63,7 @@ internal static class Program
     /// <summary>把无法恢复的启动异常写到临时目录并弹窗提示，避免「闪退且无信息」。</summary>
     private static void ReportFatal(Exception ex)
     {
-        var text = "日程助手启动失败" + Environment.NewLine
+        var text = Loc.T("日程助手启动失败", "ScheduleApp failed to start") + Environment.NewLine
             + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + Environment.NewLine + Environment.NewLine
             + ex;
 
@@ -87,11 +88,36 @@ internal static class Program
 
         try
         {
-            MessageBox.Show(text, "日程助手 - 启动失败", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(text, Loc.T("日程助手 - 启动失败", "ScheduleApp - startup failed"), MessageBoxButton.OK, MessageBoxImage.Error);
         }
         catch (Exception)
         {
             // 忽略
+        }
+    }
+
+    /// <summary>
+    /// 无界面模式的语言：优先 --lang，其次 settings.json 里的设置，最后按系统显示语言。
+    /// 只在命令行模式调用；界面模式由 <see cref="AppHost.Start"/> 统一应用。
+    /// </summary>
+    private static void ApplyCliLanguage(CommandLineOptions options)
+    {
+        var overridden = Loc.Parse(options.LanguageOverride);
+        if (overridden != null)
+        {
+            Loc.Use(overridden.Value);
+            return;
+        }
+
+        try
+        {
+            var settings = new SettingsService();
+            settings.Load();
+            Loc.Use(settings.Current.Language);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Warn("读取语言设置失败，沿用默认语言：" + ex.Message);
         }
     }
 
@@ -149,16 +175,19 @@ internal static class Program
             {
                 Serve = true,
                 ThemeOverride = options.ThemeOverride,
+                LanguageOverride = options.LanguageOverride,
                 ApiPort = options.ApiPort,
 
                 // 自检用的是临时数据目录：绝不能借机改写用户真实的开机启动设置
                 NoSystemChanges = true,
             });
-
             var smokeCode = UiSmoke.Run(smokeHost);
             smokeHost.Dispose();
             return smokeCode;
         }
+
+        // 命令行输出也跟随界面语言：优先 --lang，其次设置文件，最后按系统
+        ApplyCliLanguage(options);
 
         // 2) 命令行模式（导入 / 导出 / 语音 / 信息 / 快捷方式），不启动界面
         if (options.HasCliAction)

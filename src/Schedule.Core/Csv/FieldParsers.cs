@@ -348,6 +348,18 @@ public static class FieldParsers
             if (key.Contains(token, StringComparison.Ordinal) && !result.Contains(day)) result.Add(day);
         }
 
+        // 英文缩写：本地化之后导出的「Mon、Wed」也要能重新导入
+        foreach (var (token, day) in new (string, DayOfWeek)[]
+                 {
+                     ("mon", DayOfWeek.Monday), ("tue", DayOfWeek.Tuesday),
+                     ("wed", DayOfWeek.Wednesday), ("thu", DayOfWeek.Thursday),
+                     ("fri", DayOfWeek.Friday), ("sat", DayOfWeek.Saturday),
+                     ("sun", DayOfWeek.Sunday),
+                 })
+        {
+            if (Regex.IsMatch(key, "(^|[^a-z])" + token + "([^a-z]|$)") && !result.Contains(day)) result.Add(day);
+        }
+
         return result.OrderBy(day => day).ToList();
     }
 

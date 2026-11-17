@@ -72,6 +72,7 @@ if ($LASTEXITCODE -ne 0) { throw "自测失败" }
 | 验证 AI 对话（不需要真模型） | `dotnet run --project tests/Schedule.Core.Tests`：`AI 对话` 一节用本地 `MiniHttpServer` 假装 Ollama / OpenAI 两种服务，把请求体与响应解析、工具往返都跑通 |
 | 验证 AI 对话（真模型） | `ScheduleApp.exe --ai-models`、`ScheduleApp.exe --ai-chat "明天下午三点加个会"`；都是无界面执行，输出可用 `--out` 落盘 |
 | 换模型 / 换服务 | 设置 → AI 助手改服务地址与协议；地址里含 `:11434` 会走 Ollama 原生（能真正关掉思考过程，快 5 倍以上） |
+| 验证英文界面 | `ScheduleApp.exe --ui-smoke --lang en` → 数据目录 `logs\ui-*.png`；机制见 [docs/LOCALIZATION.md](LOCALIZATION.md) |
 
 ## 代码约定
 - `Nullable` 与 `ImplicitUsings` 全开，构建保持 **0 警告**
@@ -79,6 +80,8 @@ if ($LASTEXITCODE -ne 0) { throw "自测失败" }
   使用时显式 `using System.Windows.Forms;` / `using System.Drawing;`
 - Core 层禁止引用任何 UI / Windows 专有类型（`NativeEncoding` 的 P/Invoke 是唯一例外，且有降级路径）
 - 新增业务逻辑优先写进 Core 并补自测，界面层只做编排与展示
+- **界面文案一律双语**：代码 `Loc.T("中文", "English")` / `Loc.F(...)`，XAML `{l:Text '中文|English'}`；
+  写死中文或漏写英文会被自测的「双语与本地化」一节拦下（[docs/LOCALIZATION.md](LOCALIZATION.md)）
 
 ## 发布
 

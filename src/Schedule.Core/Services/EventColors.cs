@@ -1,3 +1,4 @@
+using Schedule.Core.Localization;
 using Schedule.Core.Models;
 
 namespace Schedule.Core.Services;
@@ -26,25 +27,26 @@ public static class EventColors
         "#B45309", // 棕
     };
 
-    /// <summary>供颜色选择器使用的预设（名称 + 色值）。</summary>
-    public static readonly (string Name, string Hex)[] Presets =
+    /// <summary>供颜色选择器使用的预设（名称 + 色值）。名称随界面语言切换，因此每次取用时现算。</summary>
+    public static (string Name, string Hex)[] Presets => new[]
     {
-        ("蓝", "#2563EB"),
-        ("紫", "#7C3AED"),
-        ("玫红", "#DB2777"),
-        ("红", "#DC2626"),
-        ("橙", "#EA580C"),
-        ("琥珀", "#CA8A04"),
-        ("绿", "#16A34A"),
-        ("青", "#0891B2"),
-        ("蓝绿", "#0D9488"),
-        ("石板灰", "#64748B"),
-        ("深紫", "#9333EA"),
-        ("棕", "#B45309"),
+        (Loc.T("蓝", "Blue"), "#2563EB"),
+        (Loc.T("紫", "Purple"), "#7C3AED"),
+        (Loc.T("玫红", "Rose"), "#DB2777"),
+        (Loc.T("红", "Red"), "#DC2626"),
+        (Loc.T("橙", "Orange"), "#EA580C"),
+        (Loc.T("琥珀", "Amber"), "#CA8A04"),
+        (Loc.T("绿", "Green"), "#16A34A"),
+        (Loc.T("青", "Cyan"), "#0891B2"),
+        (Loc.T("蓝绿", "Teal"), "#0D9488"),
+        (Loc.T("石板灰", "Slate"), "#64748B"),
+        (Loc.T("深紫", "Violet"), "#9333EA"),
+        (Loc.T("棕", "Brown"), "#B45309"),
     };
 
     public const string AutoColor = "";
-    public const string AutoColorLabel = "跟随分类";
+
+    public static string AutoColorLabel => Loc.T("跟随分类", "Follow category");
 
     /// <summary>解析事件最终颜色（十六进制 #RRGGBB）。</summary>
     public static string Resolve(ScheduleItem item, IReadOnlyDictionary<string, string>? categoryColors = null)

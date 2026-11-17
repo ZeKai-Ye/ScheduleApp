@@ -1,4 +1,5 @@
 using System.Text;
+using Schedule.Core.Localization;
 
 namespace Schedule.Core.Csv;
 
@@ -49,7 +50,7 @@ public static class CsvEncodingDetector
             return new CsvTextSource
             {
                 Text = text,
-                EncodingName = "UTF-8（无 BOM）",
+                EncodingName = Loc.T("UTF-8（无 BOM）", "UTF-8 (no BOM)"),
                 HasBom = false,
                 IsGuessed = false,
             };
@@ -65,10 +66,10 @@ public static class CsvEncodingDetector
             return new CsvTextSource
             {
                 Text = gb,
-                EncodingName = "GB18030/GBK（自动识别）",
+                EncodingName = Loc.T("GB18030/GBK（自动识别）", "GB18030/GBK (auto-detected)"),
                 HasBom = false,
                 IsGuessed = true,
-                Note = "文件未使用 UTF-8 编码，已按简体中文代码页解码",
+                Note = Loc.T("文件未使用 UTF-8 编码，已按简体中文代码页解码", "The file is not UTF-8; it was decoded with the Simplified Chinese code page"),
             };
         }
 
@@ -77,11 +78,11 @@ public static class CsvEncodingDetector
         return new CsvTextSource
         {
             Text = fallback,
-            EncodingName = "UTF-8（替换非法字节）",
+            EncodingName = Loc.T("UTF-8（替换非法字节）", "UTF-8 (invalid bytes replaced)"),
             HasBom = false,
             IsGuessed = true,
             IsFallback = true,
-            Note = "无法确定文件编码，部分字符可能显示为问号",
+            Note = Loc.T("无法确定文件编码，部分字符可能显示为问号", "The encoding could not be determined; some characters may show as question marks"),
         };
     }
 
@@ -98,7 +99,9 @@ public static class CsvEncodingDetector
                     return new CsvTextSource
                     {
                         Text = text,
-                        EncodingName = preference == Gbk ? "GBK（手动指定）" : "GB18030（手动指定）",
+                        EncodingName = preference == Gbk
+                            ? Loc.T("GBK（手动指定）", "GBK (manual)")
+                            : Loc.T("GB18030（手动指定）", "GB18030 (manual)"),
                         IsGuessed = false,
                     };
                 }
@@ -111,7 +114,7 @@ public static class CsvEncodingDetector
                 var text = bytes.Length >= 2 && bytes[0] == 0xFF && bytes[1] == 0xFE
                     ? Encoding.Unicode.GetString(bytes, 2, bytes.Length - 2)
                     : Encoding.Unicode.GetString(bytes);
-                return new CsvTextSource { Text = text, EncodingName = "UTF-16LE（手动指定）" };
+                return new CsvTextSource { Text = text, EncodingName = Loc.T("UTF-16LE（手动指定）", "UTF-16LE (manual)") };
             }
 
             case Utf8:
@@ -119,7 +122,7 @@ public static class CsvEncodingDetector
                 var offset = bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF ? 3 : 0;
                 var text = new UTF8Encoding(false, throwOnInvalidBytes: false)
                     .GetString(bytes, offset, bytes.Length - offset);
-                return new CsvTextSource { Text = text, EncodingName = "UTF-8（手动指定）" };
+                return new CsvTextSource { Text = text, EncodingName = Loc.T("UTF-8（手动指定）", "UTF-8 (manual)") };
             }
         }
 

@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using Schedule.App.Services;
 using Schedule.Core.Csv;
+using Schedule.Core.Localization;
 using Schedule.Core.Models;
 using Schedule.Core.Templating;
 
@@ -26,10 +27,10 @@ public partial class RescheduleWindow : Window
         var icon = AppIcons.LoadWindowIcon();
         if (icon != null) Icon = icon;
 
-        HeaderText.Text = "改期：" + item.Title;
-        CurrentText.Text = "当前：" + occurrenceStart.ToString("yyyy-MM-dd HH:mm")
+        HeaderText.Text = Loc.T("改期：", "Reschedule: ") + item.Title;
+        CurrentText.Text = Loc.T("当前：", "Current: ") + occurrenceStart.ToString("yyyy-MM-dd HH:mm")
             + (occurrenceEnd > occurrenceStart ? " - " + occurrenceEnd.ToString("HH:mm") : string.Empty)
-            + "（" + MainViewModelTimeText(occurrenceStart, _originalDuration) + "）";
+            + Loc.T("（", " (") + MainViewModelTimeText(occurrenceStart, _originalDuration) + ")";
 
         DateBox.SelectedDate = occurrenceStart.Date;
         TimeBox.Text = occurrenceStart.ToString("HH:mm");
@@ -37,7 +38,8 @@ public partial class RescheduleWindow : Window
 
         ScopePanel.Visibility = isSeries ? Visibility.Visible : Visibility.Collapsed;
         ScopeHint.Text = isSeries
-            ? "「仅这一次」只把这一次搬走，其它发生不变；「整个系列」按同样的时间差整体平移（已记录的本次修改会一起跟随）。"
+            ? Loc.T("「仅这一次」只把这一次搬走，其它发生不变；「整个系列」按同样的时间差整体平移（已记录的本次修改会一起跟随）。",
+                "This event only moves this occurrence; all events shift the whole series by the same amount (existing per-event edits move along).")
             : string.Empty;
 
         Loaded += (_, _) =>
@@ -48,13 +50,13 @@ public partial class RescheduleWindow : Window
     }
 
     private static string MainViewModelTimeText(DateTime start, TimeSpan duration)
-        => "原时长 " + HumanizeDuration(duration);
+        => Loc.T("原时长 ", "Original duration ") + HumanizeDuration(duration);
 
     private static string HumanizeDuration(TimeSpan duration)
     {
-        if (duration.TotalMinutes < 60) return (int)duration.TotalMinutes + " 分钟";
-        if (duration.TotalMinutes % 60 == 0) return (int)duration.TotalHours + " 小时";
-        return (int)duration.TotalHours + " 小时 " + (int)(duration.TotalMinutes % 60) + " 分钟";
+        if (duration.TotalMinutes < 60) return Loc.F("{0} 分钟", "{0} min", (int)duration.TotalMinutes);
+        if (duration.TotalMinutes % 60 == 0) return Loc.F("{0} 小时", "{0} hours", (int)duration.TotalHours);
+        return Loc.F("{0} 小时 {1} 分钟", "{0} h {1} min", (int)duration.TotalHours, (int)(duration.TotalMinutes % 60));
     }
 
     /// <summary>改期后的开始时间。</summary>
@@ -95,7 +97,7 @@ public partial class RescheduleWindow : Window
     {
         if (!FlexibleDateTime.TryParse(TimeBox.Text, out var start, DateBox.SelectedDate ?? DateTime.Today))
         {
-            ErrorText.Text = "开始时间格式无法识别（示例：15:30）。";
+            ErrorText.Text = Loc.T("开始时间格式无法识别（示例：15:30）。", "Can’t read the start time (example: 15:30).");
             return;
         }
 

@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Threading;
 using Schedule.Core.Csv;
+using Schedule.Core.Localization;
 using Schedule.Core.Logging;
 using Schedule.Core.Models;
 using Schedule.Core.Scheduling;
@@ -88,6 +89,9 @@ public sealed class AppHost : IDisposable, IAiAppContext
     {
         SettingsService = new SettingsService();
         SettingsService.Load();
+
+        // 语言要先定下来：后面所有窗口与文案都在装配 / 加载时生成
+        LanguageService.Apply(Settings.Language, Loc.Parse(options.LanguageOverride));
 
         Repository = new ScheduleRepository(backupKeepCount: Settings.BackupKeepCount);
         Repository.Load();
@@ -184,11 +188,14 @@ public sealed class AppHost : IDisposable, IAiAppContext
 
         if (ApplyAutostart(enable, null, out var mode, out var error))
         {
-            Tray?.ShowBalloon("开机启动", enable ? "已启用（" + mode + "）" : "已停用");
+            Tray?.ShowBalloon(Loc.T("开机启动", "Start with Windows"),
+                enable
+                    ? Loc.F("已启用（{0}）", "Enabled ({0})", mode)
+                    : Loc.T("已停用", "Disabled"));
         }
         else
         {
-            Tray?.ShowBalloon("开机启动设置失败", error ?? "未知原因");
+            Tray?.ShowBalloon(Loc.T("开机启动设置失败", "Could not change start with Windows"), error ?? Loc.T("未知原因", "Unknown reason"));
         }
     }
 
@@ -196,11 +203,12 @@ public sealed class AppHost : IDisposable, IAiAppContext
     {
         if (SetShortcut("desktop", true, null, out var path, out var error))
         {
-            Tray?.ShowBalloon("桌面快捷方式", "已创建：" + System.IO.Path.GetFileName(path ?? string.Empty));
+            Tray?.ShowBalloon(Loc.T("桌面快捷方式", "Desktop shortcut"),
+                Loc.F("已创建：{0}", "Created: {0}", System.IO.Path.GetFileName(path ?? string.Empty)));
         }
         else
         {
-            Tray?.ShowBalloon("创建快捷方式失败", error ?? "未知原因");
+            Tray?.ShowBalloon(Loc.T("创建快捷方式失败", "Could not create the shortcut"), error ?? Loc.T("未知原因", "Unknown reason"));
         }
     }
 
@@ -234,7 +242,8 @@ public sealed class AppHost : IDisposable, IAiAppContext
         {
             var window = new ReminderWindow(this, reminder);
             window.Show();
-            Tray?.ShowBalloon("日程提醒", reminder.Item.Title + "（" + reminder.Plan.OffsetText + "）");
+            Tray?.ShowBalloon(Loc.T("日程提醒", "Reminder"),
+                Loc.F("{0}（{1}）", "{0} ({1})", reminder.Item.Title, reminder.Plan.OffsetText));
         }
         catch (Exception ex)
         {
@@ -421,7 +430,7 @@ public sealed class AppHost : IDisposable, IAiAppContext
             var command = BuildRestartCommand();
             if (command == null)
             {
-                error = "无法确定程序路径。";
+                error = Loc.T("无法确定程序路径。", "Could not determine the application path.");
                 return false;
             }
 

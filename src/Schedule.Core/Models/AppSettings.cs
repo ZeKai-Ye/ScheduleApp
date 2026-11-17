@@ -1,3 +1,5 @@
+using Schedule.Core.Localization;
+
 namespace Schedule.Core.Models;
 
 /// <summary>界面主题模式（叫 AppTheme 以免与 System.Windows.ThemeMode 撞名）。</summary>
@@ -193,6 +195,12 @@ public sealed class AppSettings
     /// <summary>旧字段（仅兼容历史数据，请使用 Theme）。</summary>
     public bool DarkTheme { get; set; }
 
+    /// <summary>
+    /// 界面语言：跟随系统 / 中文 / English。
+    /// XAML 里的文案在窗口加载时求值，所以切换后需要重启界面才完全生效。
+    /// </summary>
+    public AppLanguage Language { get; set; } = AppLanguage.System;
+
     // ---------- AI 助手（对话） ----------
     /// <summary>
     /// 对话模型服务地址（OpenAI 兼容根地址）。
@@ -277,7 +285,8 @@ public sealed class AppSettings
     /// <summary>CSV 默认编码：auto / utf-8 / gbk / gb18030。</summary>
     public string CsvEncoding { get; set; } = "auto";
 
-    public string CsvDefaultCategory { get; set; } = "导入";
+    /// <summary>CSV 导入的默认分类；留空表示按界面语言取「导入 / Imported」。</summary>
+    public string CsvDefaultCategory { get; set; } = string.Empty;
 
     public int BackupKeepCount { get; set; } = 10;
 
@@ -321,6 +330,7 @@ public sealed class AppSettings
         Theme = other.Theme;
         AutoRestartOnThemeChange = other.AutoRestartOnThemeChange;
         DarkTheme = other.DarkTheme;
+        Language = other.Language;
         AiBaseUrl = other.AiBaseUrl;
         AiApiKey = other.AiApiKey;
         AiAuthMode = other.AiAuthMode;

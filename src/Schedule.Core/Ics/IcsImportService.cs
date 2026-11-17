@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Schedule.Core.Localization;
 using Schedule.Core.Models;
 
 namespace Schedule.Core.Ics;
@@ -34,16 +35,15 @@ public sealed class IcsImportService
         preview.OverrideCount = parsed.Events.Count(e => e.IsOverride);
 
         preview.Warnings.AddRange(parsed.Warnings);
-        foreach (var (line, message) in parsed.Errors) preview.Warnings.Add("第 " + line + " 行：" + message);
+        foreach (var (line, message) in parsed.Errors) preview.Warnings.Add(Loc.F("第 {0} 行：{1}", "Line {0}: {1}", line, message));
 
         if (!parsed.LooksLikeCalendar && parsed.Events.Count == 0)
         {
-            preview.BlockReason = "这个文件看起来不是 iCalendar：没有找到 BEGIN:VCALENDAR / BEGIN:VEVENT。"
-                + "\n请选择 Google 日历 / Outlook / Apple 日历导出的 .ics 文件，或改用 CSV 导入。";
+            preview.BlockReason = Loc.T("这个文件看起来不是 iCalendar：没有找到 BEGIN:VCALENDAR / BEGIN:VEVENT。\n请选择 Google 日历 / Outlook / Apple 日历导出的 .ics 文件，或改用 CSV 导入。", "This file does not look like iCalendar: no BEGIN:VCALENDAR / BEGIN:VEVENT was found.\nPlease pick an .ics file exported from Google Calendar / Outlook / Apple Calendar, or use the CSV import instead.");
         }
         else if (parsed.Events.Count == 0)
         {
-            preview.BlockReason = "文件里没有日程（VEVENT）。请确认导出时选择的是「日程」而不是「提醒事项」。";
+            preview.BlockReason = Loc.T("文件里没有日程（VEVENT）。请确认导出时选择的是「日程」而不是「提醒事项」。", "The file contains no event (VEVENT). Please make sure you exported \"events\" instead of \"reminders\".");
         }
 
         // 试映射一遍，把"能认但支持不了"的问题提前暴露出来（不影响数据）
@@ -81,7 +81,7 @@ public sealed class IcsImportService
         if (!parsed.LooksLikeCalendar && parsed.Events.Count == 0)
         {
             report.Blocked = true;
-            report.BlockReason = "这个文件看起来不是 iCalendar：没有找到 BEGIN:VCALENDAR / BEGIN:VEVENT。";
+            report.BlockReason = Loc.T("这个文件看起来不是 iCalendar：没有找到 BEGIN:VCALENDAR / BEGIN:VEVENT。", "This file does not look like iCalendar: no BEGIN:VCALENDAR / BEGIN:VEVENT was found.");
             report.Warnings.Add(report.BlockReason);
             report.Elapsed = stopwatch.Elapsed;
             return report;
@@ -90,7 +90,7 @@ public sealed class IcsImportService
         if (parsed.Events.Count == 0)
         {
             report.Blocked = true;
-            report.BlockReason = "文件里没有日程（VEVENT）。";
+            report.BlockReason = Loc.T("文件里没有日程（VEVENT）。", "The file contains no event (VEVENT).");
             report.Warnings.Add(report.BlockReason);
             report.Elapsed = stopwatch.Elapsed;
             return report;
@@ -103,7 +103,7 @@ public sealed class IcsImportService
         if (mapped.Count == 0)
         {
             report.Blocked = true;
-            report.BlockReason = "文件里的 " + parsed.Events.Count + " 个日程都没能转换成有效日程（详见下面的错误）。";
+            report.BlockReason = Loc.F("文件里的 {0} 个日程都没能转换成有效日程（详见下面的错误）。", "None of the {0} events in the file could be converted into a valid event (see the errors below).", parsed.Events.Count);
             report.Warnings.Add(report.BlockReason);
             report.Elapsed = stopwatch.Elapsed;
             return report;
@@ -159,7 +159,7 @@ public sealed class IcsImportService
     {
         if (!File.Exists(filePath))
         {
-            return new Csv.CsvTextSource { Text = string.Empty, EncodingName = "文件不存在", Note = "找不到文件：" + filePath };
+            return new Csv.CsvTextSource { Text = string.Empty, EncodingName = Loc.T("文件不存在", "File not found"), Note = Loc.F("找不到文件：{0}", "File not found: {0}", filePath) };
         }
 
         try
@@ -168,7 +168,7 @@ public sealed class IcsImportService
         }
         catch (Exception ex)
         {
-            return new Csv.CsvTextSource { Text = string.Empty, EncodingName = "读取失败", Note = "读取文件失败：" + ex.Message };
+            return new Csv.CsvTextSource { Text = string.Empty, EncodingName = Loc.T("读取失败", "Read failed"), Note = Loc.F("读取文件失败：{0}", "Failed to read the file: {0}", ex.Message) };
         }
     }
 
@@ -237,9 +237,9 @@ public sealed class IcsPreview
     public bool CanImport => BlockReason == null;
 
     public string ToSummary()
-        => "共 " + EventCount + " 个事件：可导入 " + MappedCount
-            + (RecurringCount > 0 ? "，其中重复日程 " + RecurringCount : string.Empty)
-            + (AlarmCount > 0 ? "，带 " + AlarmCount + " 个提醒" : string.Empty)
-            + (OverrideCount > 0 ? "，含 " + OverrideCount + " 处单独修改" : string.Empty)
-            + (ExcludedCount > 0 ? "，" + ExcludedCount + " 条例外日期" : string.Empty);
+        => Loc.F("共 {0} 个事件：可导入 {1}", "{0} events: {1} importable", EventCount, MappedCount)
+            + (RecurringCount > 0 ? Loc.F("，其中重复日程 {0}", ", {0} recurring", RecurringCount) : string.Empty)
+            + (AlarmCount > 0 ? Loc.F("，带 {0} 个提醒", ", {0} reminder(s)", AlarmCount) : string.Empty)
+            + (OverrideCount > 0 ? Loc.F("，含 {0} 处单独修改", ", {0} individual change(s)", OverrideCount) : string.Empty)
+            + (ExcludedCount > 0 ? Loc.F("，{0} 条例外日期", ", {0} exception date(s)", ExcludedCount) : string.Empty);
 }

@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Windows;
 using Schedule.Core.Api;
+using Schedule.Core.Localization;
 using Schedule.Core.Logging;
 using Schedule.Core.Storage;
 
@@ -80,7 +81,7 @@ public sealed class ApiHost : IDisposable
     private ApiResponse Dispatch(ApiRequest request)
     {
         var api = _api;
-        if (api == null) return ApiResponse.Error(503, "接口尚未就绪。");
+        if (api == null) return ApiResponse.Error(503, Loc.T("接口尚未就绪。", "The API is not ready yet."));
 
         var dispatcher = Application.Current?.Dispatcher;
 
@@ -93,7 +94,7 @@ public sealed class ApiHost : IDisposable
             catch (Exception ex)
             {
                 AppLog.Warn("接口请求调度失败：" + ex.Message);
-                return ApiResponse.Error(500, "调度失败：" + ex.Message);
+                return ApiResponse.Error(500, Loc.F("调度失败：{0}", "Dispatch failed: {0}", ex.Message));
             }
         }
 
