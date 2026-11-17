@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Net;
 using System.Net.Http;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -25,7 +26,7 @@ namespace Schedule.Core.Ai;
 /// 密钥还可以写成 `env:OPENAI_API_KEY` 从环境变量读取，不落盘。
 /// 全程只用 BCL 的 HttpClient + System.Text.Json，不引入任何 NuGet 依赖。
 /// </summary>
-public sealed class OpenAiCompatibleClient : IAiChatClient, IDisposable
+public sealed class OpenAiCompatibleClient : IAiChatClient, IAiStreamingChatClient, IDisposable
 {
     public const string DefaultBaseUrl = "http://127.0.0.1:11434/v1";
 
@@ -198,6 +199,103 @@ public sealed class OpenAiCompatibleClient : IAiChatClient, IDisposable
 
     // ================= 对话 =================
 
+    /// <summary>
+    /// 流式对话：一边收一边把增量交给调用方，结束时给出完整结果（正文 / 工具调用 / 用量）。
+    /// OpenAI 兼容走 SSE，Ollama 原生走 NDJSON，两种协议都支持工具调用。
+    /// </summary>
+    public async IAsyncEnumerable<AiStreamChunk> StreamAsync(
+        AiChatRequest request,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.Model))
+        {
+            throw new AiChatException("还没有选择模型。请在「设置 → AI 助手」里选择或填写模型名。");
+        }
+
+        var payload = AiJson.Text(IsOllama
+            ? BuildOllamaPayload(request, stream: true)
+            : BuildPayload(request, stream: true));
+
+        var timeout = Math.Clamp(request.TimeoutSeconds > 0 ? request.TimeoutSeconds : DefaultTimeoutSeconds, 5, 3600);
+
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        linked.CancelAfter(TimeSpan.FromSeconds(timeout));
+
+        var watch = Stopwatch.StartNew();
+        HttpResponseMessage response;
+
+        try
+        {
+            using var content = new StringContent(payload, new UTF8Encoding(false), "application/json");
+            using var httpRequest = new HttpRequestMessage(HttpMethod.Post, ChatUri) { Content = content };
+            ApplyAuth(httpRequest);
+
+            response = await _http
+                .SendAsync(httpRequest, HttpCompletionOption.ResponseHeadersRead, linked.Token)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new AiChatException(TimeoutMessage(timeout));
+        }
+        catch (HttpRequestException ex)
+        {
+            throw new AiChatException(DescribeNetworkFailure(ex), ex);
+        }
+
+        using (response)
+        {
+            if (!response.IsSuccessStatusCode)
+            {
+                var body = await ReadBodyAsync(response, linked.Token).ConfigureAwait(false);
+                throw new AiChatException(DescribeFailure((int)response.StatusCode, body));
+            }
+
+            var accumulator = new AiStreamAccumulator();
+
+            await using var stream = await response.Content.ReadAsStreamAsync(linked.Token).ConfigureAwait(false);
+            using var reader = new StreamReader(stream, new UTF8Encoding(false));
+
+            while (true)
+            {
+                string? line;
+
+                try
+                {
+                    line = await reader.ReadLineAsync(linked.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                {
+                    throw new AiChatException(TimeoutMessage(timeout));
+                }
+
+                if (line == null) break;
+
+                AiStreamChunk? chunk;
+                var state = IsOllama
+                    ? AiStreamParser.ReadOllamaLine(line, accumulator, out chunk)
+                    : AiStreamParser.ReadOpenAiLine(line, accumulator, out chunk);
+
+                if (state == StreamLineResult.Chunk && chunk != null) yield return chunk;
+                if (state == StreamLineResult.Ended) break;
+            }
+
+            watch.Stop();
+
+            var reply = accumulator.ToReply();
+            reply.Elapsed = watch.Elapsed;
+
+            yield return new AiStreamChunk { IsDone = true, Reply = reply };
+        }
+    }
+
+    /// <summary>超时提示（流式与非流式共用一套说法）。</summary>
+    private string TimeoutMessage(int timeout)
+        => "等待模型超过 " + timeout + " 秒仍未返回。"
+            + (IsLocal
+                ? "本地大模型首次加载会比较慢，可在「设置 → AI 助手」里调大超时时间；也可以在对话窗口点「停止」。"
+                : "云端服务偶尔会排队或波动，可稍后重试、调大超时时间，或在对话窗口点「停止」。");
+
     public async Task<AiChatReply> CompleteAsync(AiChatRequest request, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.Model))
@@ -338,7 +436,7 @@ public sealed class OpenAiCompatibleClient : IAiChatClient, IDisposable
     // ================= 请求体（OpenAI 兼容） =================
 
     /// <summary>拼出 OpenAI 兼容请求体（纯函数，便于自测核对协议字段）。</summary>
-    public JsonObject BuildPayload(AiChatRequest request)
+    public JsonObject BuildPayload(AiChatRequest request, bool stream = false)
     {
         var messages = new JsonArray();
         foreach (var message in request.Messages) messages.Add(ToWire(message));
@@ -348,7 +446,7 @@ public sealed class OpenAiCompatibleClient : IAiChatClient, IDisposable
             ["model"] = request.Model,
             ["messages"] = messages,
             ["temperature"] = Math.Clamp(request.Temperature, 0, 2),
-            ["stream"] = false,
+            ["stream"] = stream,
         };
 
         if (request.MaxTokens > 0) payload["max_tokens"] = request.MaxTokens;
@@ -405,7 +503,7 @@ public sealed class OpenAiCompatibleClient : IAiChatClient, IDisposable
     // ================= 请求体（Ollama 原生） =================
 
     /// <summary>拼出 Ollama 原生 /api/chat 请求体。</summary>
-    public JsonObject BuildOllamaPayload(AiChatRequest request)
+    public JsonObject BuildOllamaPayload(AiChatRequest request, bool stream = false)
     {
         var messages = new JsonArray();
         foreach (var message in request.Messages) messages.Add(ToWireOllama(message));
@@ -417,7 +515,7 @@ public sealed class OpenAiCompatibleClient : IAiChatClient, IDisposable
         {
             ["model"] = request.Model,
             ["messages"] = messages,
-            ["stream"] = false,
+            ["stream"] = stream,
             ["options"] = options,
         };
 

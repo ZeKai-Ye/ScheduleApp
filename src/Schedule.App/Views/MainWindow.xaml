@@ -102,7 +102,7 @@
 
                         <TextBlock Style="{StaticResource FieldHint}"
                                    Margin="2,14,0,0"
-                                   Text="{l:Text '提示：周 / 月视图只按分类与搜索过滤；双击空白处可在该时间点新建日程。|Tip: Week / Month views only filter by category and search; double-click empty space to create an event at that time.'}" />
+                                   Text="{l:Text '提示：周 / 月视图只按分类与搜索过滤；双击空白处新建日程；拖动事件块可改时间或日期（Shift = 整个系列）。|Tip: Week / Month views only filter by category and search; double-click empty space to create an event; drag a block to change its time or date (Shift = whole series).'}" />
                     </StackPanel>
                 </DockPanel>
             </Border>
@@ -448,7 +448,7 @@
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
 
-                                <ItemsControl Grid.Row="2" ItemsSource="{Binding MonthCells}">
+                                <ItemsControl Grid.Row="2" x:Name="MonthGrid" ItemsSource="{Binding MonthCells}">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
                                             <UniformGrid Rows="6" Columns="7" />
@@ -479,7 +479,10 @@
                                                                         BorderThickness="3,0,0,0" CornerRadius="3" Padding="3,1" Margin="0,1,1,0"
                                                                         ToolTip="{Binding ToolTipText}"
                                                                         ContextMenu="{StaticResource ScheduleItemMenu}"
-                                                                        MouseLeftButtonDown="MonthChip_Click">
+                                                                        MouseLeftButtonDown="MonthChip_Click"
+                                                                        PreviewMouseLeftButtonDown="MonthChip_DragStart"
+                                                                        MouseMove="MonthChip_DragMove"
+                                                                        MouseLeftButtonUp="MonthChip_DragEnd">
                                                                     <TextBlock Text="{Binding TitleText}" FontSize="10"
                                                                                TextTrimming="CharacterEllipsis"
                                                                                TextDecorations="{Binding IsDone, Converter={StaticResource DoneToDecoration}}" />

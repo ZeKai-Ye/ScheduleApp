@@ -149,10 +149,34 @@ public partial class AiChatWindow : Window
         _cancellation = new CancellationTokenSource();
 
         var progress = new Progress<AiProgress>(p => SetStage(p.Stage + "…"));
+        // 流式：先把助手气泡建出来，收到增量就直接往里追加
+        var live = AiChatBubble.Assistant(string.Empty);
+        _bubbles.Add(live);
+
+        var stream = new Progress<AiStreamChunk>(chunk =>
+        {
+            if (chunk.IsNewRound)
+            {
+                live.Text = string.Empty;
+                return;
+            }
+
+            if (!string.IsNullOrEmpty(chunk.Text))
+            {
+                live.Text += chunk.Text;
+                ScrollToEnd();
+            }
+
+            if (!string.IsNullOrEmpty(chunk.Reasoning))
+            {
+                live.Reasoning = (live.Reasoning ?? string.Empty) + chunk.Reasoning;
+            }
+        });
+
 
         try
         {
-            var result = await _chat.SendAsync(text, progress, _cancellation.Token);
+            var result = await _chat.SendAsync(text, progress, _cancellation.Token, stream);
 
             foreach (var tool in result.Tools)
             {
@@ -166,9 +190,11 @@ public partial class AiChatWindow : Window
                 _bubbles.Add(AiChatBubble.Tool(tool.Name, tool.Summary ?? (tool.IsError ? Loc.T("执行失败", "Failed") : Loc.T("完成", "Done")), details));
             }
 
-            var assistant = AiChatBubble.Assistant(string.IsNullOrWhiteSpace(result.Text) ? Loc.T("（模型没有给出文字回复）", "(the model returned no text)") : result.Text);
+            live.Text = string.IsNullOrWhiteSpace(result.Text)
+                ? (string.IsNullOrWhiteSpace(live.Text) ? Loc.T("（模型没有给出文字回复）", "(the model returned no text)") : live.Text)
+                : result.Text;
 
-            if (!string.IsNullOrWhiteSpace(result.Reasoning)) assistant.Reasoning = result.Reasoning;
+            if (!string.IsNullOrWhiteSpace(result.Reasoning)) live.Reasoning = result.Reasoning;
 
             var meta = new List<string>
             {
@@ -183,7 +209,6 @@ public partial class AiChatWindow : Window
 
             if (result.UsedTextFallback) meta.Add(Loc.T("（工具调用来自正文解析）", "(tool calls parsed from the message text)"));
 
-            _bubbles.Add(assistant);
             SetStage(string.Join("　·　", meta));
 
             AppLog.Info("AI 回复完成：" + meta[0] + "，" + meta[1]);

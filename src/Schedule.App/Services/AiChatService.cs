@@ -37,14 +37,18 @@ public sealed class AiChatService : IDisposable
     public AiSession Session => EnsureSession();
 
     /// <summary>发一条消息，跑完「模型 → 工具 → 模型」的循环。</summary>
-    public async Task<AiTurnResult> SendAsync(string text, IProgress<AiProgress>? progress, CancellationToken cancellationToken)
+    public async Task<AiTurnResult> SendAsync(
+        string text,
+        IProgress<AiProgress>? progress,
+        CancellationToken cancellationToken,
+        IProgress<AiStreamChunk>? stream = null)
     {
         var session = EnsureSession();
         IsBusy = true;
 
         try
         {
-            return await session.SendAsync(text, progress, cancellationToken).ConfigureAwait(true);
+            return await session.SendAsync(text, progress, cancellationToken, stream).ConfigureAwait(true);
         }
         finally
         {

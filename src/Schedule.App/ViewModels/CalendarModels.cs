@@ -11,6 +11,9 @@ public sealed class MonthChipViewModel
 
     public required DateTime Start { get; init; }
 
+    /// <summary>这一次的结束时间（拖动改期时用它保持时长）。</summary>
+    public required DateTime End { get; init; }
+
     /// <summary>该次发生在系列中的**原始**开始时间（改期后定位例外仍用它）。</summary>
     public DateTime SeriesStart { get; init; }
 
@@ -42,6 +45,7 @@ public sealed class MonthChipViewModel
 public sealed class MonthCellViewModel : ObservableObject
 {
     private bool _isSelected;
+    private bool _isDropTarget;
 
     public required DateOnly Date { get; init; }
 
@@ -62,6 +66,19 @@ public sealed class MonthCellViewModel : ObservableObject
 
     public List<MonthChipViewModel> Chips { get; init; } = new();
 
+    /// <summary>拖动月视图事件块时鼠标停在哪一格（只影响描边，不改选中日）。</summary>
+    public bool IsDropTarget
+    {
+        get => _isDropTarget;
+        set
+        {
+            if (!SetProperty(ref _isDropTarget, value)) return;
+
+            OnPropertyChanged(nameof(CellBorderBrush));
+            OnPropertyChanged(nameof(CellBorderThickness));
+        }
+    }
+
     public bool IsSelected
     {
         get => _isSelected;
@@ -81,11 +98,11 @@ public sealed class MonthCellViewModel : ObservableObject
         ? ThemeBrushes.AccentSoft
         : IsCurrentMonth ? ThemeBrushes.Card : ThemeBrushes.CellMuted;
 
-    public System.Windows.Media.Brush CellBorderBrush => IsSelected
+    public System.Windows.Media.Brush CellBorderBrush => IsDropTarget || IsSelected
         ? ThemeBrushes.Accent
         : ThemeBrushes.Border;
 
-    public System.Windows.Thickness CellBorderThickness => IsSelected
+    public System.Windows.Thickness CellBorderThickness => IsDropTarget || IsSelected
         ? new System.Windows.Thickness(2)
         : new System.Windows.Thickness(0, 0, 1, 1);
 

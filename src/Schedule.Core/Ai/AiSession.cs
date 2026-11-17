@@ -139,7 +139,7 @@ public sealed class AiSession
     };
 
     /// <summary>发一条用户消息，跑完「模型 → 工具 → 模型」直到模型给出自然语言答复。</summary>
-    public async Task<AiTurnResult> SendAsync(string userText, IProgress<AiProgress>? progress, CancellationToken cancellationToken)
+    public async Task<AiTurnResult> SendAsync(string userText, IProgress<AiProgress>? progress, CancellationToken cancellationToken, IProgress<AiStreamChunk>? stream = null)
     {
         var result = new AiTurnResult();
         var watch = Stopwatch.StartNew();
@@ -164,7 +164,9 @@ public sealed class AiSession
                 TimeoutSeconds = Options.TimeoutSeconds,
             };
 
-            var reply = await _client.CompleteAsync(request, cancellationToken).ConfigureAwait(false);
+            var reply = stream == null
+                ? await _client.CompleteAsync(request, cancellationToken).ConfigureAwait(false)
+                : await StreamReplyAsync(request, stream, round, cancellationToken).ConfigureAwait(false);
 
             result.PromptTokens = reply.PromptTokens ?? result.PromptTokens;
             result.CompletionTokens = reply.CompletionTokens ?? result.CompletionTokens;
@@ -233,6 +235,40 @@ public sealed class AiSession
         TrimHistory();
 
         return result;
+    }
+
+    /// <summary>
+    /// 走流式接口：把增量交给界面，收完再返回完整回复。
+    /// 客户端不支持流式（测试替身 / 第三方实现）时自动退化为一次性返回。
+    /// </summary>
+    private async Task<AiChatReply> StreamReplyAsync(
+        AiChatRequest request,
+        IProgress<AiStreamChunk> stream,
+        int round,
+        CancellationToken cancellationToken)
+    {
+        if (_client is not IAiStreamingChatClient streaming)
+        {
+            return await _client.CompleteAsync(request, cancellationToken).ConfigureAwait(false);
+        }
+
+        // 上一轮只调用了工具：告诉界面「新一轮开始了」，把临时气泡清空
+        if (round > 0) stream.Report(new AiStreamChunk { IsNewRound = true });
+
+        AiChatReply? reply = null;
+
+        await foreach (var chunk in streaming.StreamAsync(request, cancellationToken).ConfigureAwait(false))
+        {
+            if (chunk.IsDone)
+            {
+                reply = chunk.Reply;
+                break;
+            }
+
+            stream.Report(chunk);
+        }
+
+        return reply ?? new AiChatReply();
     }
 
     /// <summary>系统提示 + 裁剪后的历史。</summary>

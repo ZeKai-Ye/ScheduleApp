@@ -1,340 +1,217 @@
 # 日程助手 ScheduleApp
 
-> Windows 11 桌面日程软件 · CSV 批量导入 · 自定义语音提醒 · 原生轻量实现
+Windows 11 桌面日程工具 · .NET 9 + WPF · 零第三方依赖 · 中文 / English
 
-一个专注于「**把日程导进来、到点用嘴提醒你**」的桌面小工具。基于 .NET 9 + WPF 原生开发，
-**零第三方 NuGet 依赖**，框架依赖模式发布后主程序仅几 MB，启动快、占用低，不打包 Electron / 浏览器内核。
-
----
-
-## 功能特性
-
-### 日程管理
-- 新建 / 编辑 / 删除 / 完成日程，支持全天日程、起止时间、分类、优先级、备注
-- **事件配色**：每条日程可指定颜色（12 色预设或自定义 #RRGGBB），也可选「跟随分类」按分类名稳定自动配色
-- **周期事件**：不重复 / 每天 / 工作日 / 每周（可多选星期）/ 每月 / 每年，支持「每 N 个周期」间隔、
-  「共 N 次」次数上限与重复截止日期
-- 自动保存（每 60 秒 + 关键操作即时落盘），保存时自动滚动备份，JSON 损坏可自愈
-
-### 系列事件的例外处理（「仅本次」）
-重复日程的某一次常常需要单独处理，本程序支持**只删除某一次**和**给某一次改期**，都不影响系列其它发生：
-
-- **只删除本次**：右键该事件 →「删除本次」（其它发生保持不变，之后还能恢复）
-- **只改这一次**：右键 →「改期…」，或双击打开编辑窗口选「仅这一次」后改时间 / 文案 / 提醒档位 / 状态
-- **周视图直接拖**：拖动事件块即可改时间（15 分钟吸附）；按住 **Shift 拖动 = 整个系列一起平移**
-- **恢复本次默认**：撤销这一次的单独修改，回到系列原本的安排
-- 编辑窗口顶部会明确显示「这是系列事件中的一次发生」，并标明这一次是否已被单独修改过
-
-### 日历视图（列表 / 周 / 月）
-- **列表视图**：按「今天 · 6月3日 星期二」自动分组，支持搜索、分类筛选、6 种时间范围筛选
-- **周视图**：7 天 × 24 小时时间网格，事件按真实时长绘制，重叠事件自动并排分列；顶部有全天事件条；
-  双击空白处可在该时间点直接新建日程；**拖动事件块即可改期**（15 分钟吸附，Shift 拖动=整个系列）
-- **统一的右键菜单**：周视图事件块、月视图色条、列表行与「选中日详情」都支持
-  编辑… / 改期… / 删除本次 / 删除整个系列 / 恢复本次默认 / 标记完成
-- **月视图**：6 × 7 日期格，每格显示彩色事件条与「+N」折叠提示，点击日期后在下方查看当天全部日程
-- 切换方式：工具条「列表 / 周 / 月」，快捷键 Ctrl+1 / Ctrl+2 / Ctrl+3；「◀ ▶」切换上一周 / 月，「今天」回到当天
-
-### 导入 CSV / iCalendar（重点能力）
-- **两种格式都接**：CSV 用下面的**统一格式**；也支持 **iCalendar（.ics）**——
-  Google 日历 / Outlook / Apple 日历导出的文件可以直接导入（含重复规则、提醒、例外日期、
-  「单独改过的那一次」），不支持的规则会逐条提示而不是偷偷丢掉
-- **编码自动识别**：UTF-8（含/不含 BOM）、UTF-16、**GBK / GB18030**（中文 Excel 导出常见），
-  无需 System.Text.Encoding.CodePages 包，直接走 Win32 API 解码
-- **CSV 统一格式**：17 列固定表头（只有「标题」「开始时间」必填），导出、模板、导入诊断、文档共用一个定义；
-  导入窗口「下载 CSV 模板」或 `--csv-template` 一键拿到可照填的模板，**导出的文件能原样再导入**
-- **格式不匹配不会静默失败**：表头诊断会列出「识别到的字段 / 没认出来的列 / 缺的列」，
-  缺必填列时红字提示 + 禁用导入 + 整单不导（一条数据都不改）；旧列名（主题/开始/描述…）仍可导入但会提示差异
-- **日期时间宽容解析**：`2025-06-01 09:30`、`2025/6/1 9:30`、`2025年6月1日 下午3点`、`20250601`、
-  Excel 序列号、`明天 9:00`、`下周三 14:00`、`3天后`、ISO 8601 等
-- **多档提醒**：提醒列支持 `30,15,5` 或 `提前30分钟、提前5分钟` 写法，一次导入多个提醒档位
-- **导入向导**：预览前 30 行、手工调整列映射、选择导入方式（追加 / 更新重复项 / 覆盖）
-- **导入报告**：新增 / 更新 / 跳过 / 失败计数，失败精确到行号与原因
-- 支持导出为 CSV（UTF-8 BOM，Excel 直接打开不乱码）
-
-### 界面主题（浅色 / 夜间 / 跟随系统）
-- 完整夜间配色：窗口、卡片、列表、周 / 月日历、编辑窗口、提醒弹窗、设置页全部跟随主题
-- **输入框 / 下拉框 / 复选框 / 单选按钮 / 日期选择 / 选项卡 / 滚动条 / 右键菜单 / 提示气泡 / 滑块全部自绘**，
-  夜间模式下不会突然露出一块白底；输入框用比卡片更暗的底色，层次更像原生深色应用
-- 「设置 → 外观与默认值 → 主题」可切换，**改选即预览**，取消则回滚；也可选择「跟随系统」读取 Windows 应用模式
-- 调色板独立成字典（`Themes/Palette.Light.xaml` / `Palette.Dark.xaml`），界面全部用 `DynamicResource` 引用，
-  切换时整块替换、无需重建窗口
-- **切换主题后自动重启**：主题本身即时生效，但视图模型里已经算好的颜色（日历色块等）要重建、
-  少数系统弹层要整个界面重新加载才完全一致 —— 「设置 → 外观与默认值」可勾选
-  「切换主题后自动重启软件」（默认开启），也可随时点「立即重启软件」（会先保存设置）
-- 命令行 `--theme light|dark|system` 可临时覆盖（不写回设置），配合 `--ui-smoke` 还能给每个窗口截图
-
-
-### 界面语言（中文 / English）
-- **整套界面双语**：主窗口、周 / 月视图、编辑与改期窗口、导入向导、提醒弹窗、AI 对话、设置页、托盘菜单、
-  气泡通知与命令行帮助全部有中英文两套文案，不只是菜单换皮
-- 语言入口：「设置 → 外观与默认值 → 界面语言」，可选「跟随系统 / 中文 / English」；
-  「跟随系统」在中文 Windows 上用中文，其它语言的系统上用英文
-- **切换后提示重启**：XAML 文案在窗口加载时求值，和主题一样需要重载界面才完全一致；
-  保存后会直接问「现在重启吗？」，不重启也不会丢设置
-- 命令行 `--lang zh|en|system` 可临时覆盖（不写回设置），例如
-  `ScheduleApp.exe --ui-smoke --lang en` 可以给英文界面截图核对
-- 语音播报的默认文案、提醒档位文案（「提前 30 分钟」/「30 min before」）、
-  导入报告与校验提示同样会跟着语言走；日程标题、分类等**用户数据永远原样显示**
-- 自测里有一条扫描用例：**XAML 里再写死中文、或者哪条文案漏了英文，`dotnet run --project tests/Schedule.Core.Tests` 直接失败**
-### AI 对话（本地大模型，能直接操作日程）
-- 主界面「AI 对话」或 **Ctrl + K** 打开对话窗口，模型**本机或联网都行**：默认 Ollama + `qwen3:8b`
-  （断网可用、数据不出本机），也可以一键切到 **DeepSeek / OpenAI / 通义千问 / 智谱 / Kimi / OpenRouter /
-  Azure OpenAI** 等云端服务，填上接口密钥即可
-- 不是"只会聊天"：模型通过 9 个内置工具**真的**查 / 建 / 改 / 删日程、标记完成、查接下来的提醒、切主题，
-  改完立刻反映到主界面
-- **模型可自由选择**：设置页「获取模型列表」一键拉取（OpenAI 的 `/models` 或 Ollama 的 `/api/tags`）后下拉选择，
-  对话窗口顶部也能随时切换；兼容 Ollama 原生（LM Studio / llama.cpp / vLLM）与任何 OpenAI 兼容服务
-- **联网模型**：内置 DeepSeek / OpenAI / 通义千问 / 智谱 / Kimi / OpenRouter / Azure OpenAI 预设，
-  选中即填好地址与鉴权方式；密钥支持 `env:OPENAI_API_KEY` 从环境变量读取（不落盘），
-  支持系统代理或自填代理，出错时给的是"照做就能修"的中文提示；窗口顶部有「本地 / 云端」徽标
-- **思考等级默认最低档（完全不思考）**：这是本地模型最有效的提速手段，实测同一句问话 6~10 秒 / 0 字思维链；
-  设置页可上调到 低 / 中 / 高（选「低」反而要 42~52 秒，因为那是"打开少量思考"）
-- 默认自动判断协议：Ollama 走 `/api/chat`、其它走 OpenAI 兼容；两条路都能把思考压到 0 字
-  （原生 `think:false`、OpenAI 兼容 `reasoning_effort:"none"`）
-- 等待期间显示当前阶段与已等待秒数，可随时「停止」；思考过程与每次工具调用的参数 / 结果都能展开核对
-- 删除这类不可逆操作，内置提示要求模型先复述确认；AI 的所有写操作默认记入日志
-- 详见 [docs/AI.md](docs/AI.md)
-
-### 本地接口（AI / 脚本可直接读写日程）
-- 内置 **HTTP JSON 接口，只监听 127.0.0.1**，零第三方依赖（自实现的极简 HTTP 服务器，非 HttpListener）
-- 启动后在数据目录生成 `api.json`（含 url 与令牌），`GET /api/schema` 是**自描述**接口文档
-- 覆盖：日程增删改查、按关键词 / 时间 / 状态查询、**重复日程展开**、接下来 N 次提醒、音色枚举、
-  朗读、立即触发提醒、CSV 导入导出、全局设置读写
-- 每次响应里的 `reminders[]` 会给出「该档位**实际会播报的文本**与来源」，便于 AI 自检
-- 未识别字段通过 `X-Ignored-Fields` 响应头提示，避免字段拼错却不自知
-- `--serve` 可只跑接口与提醒（不开窗口），适合让 AI 常驻调用；详见 [docs/API.md](docs/API.md)
-
-### 自定义语音提醒
-- **多档提醒**：同一条日程可设置多个提醒档位（如提前 30 / 15 / 5 分钟 + 准点），每档独立触发、独立去重；
-  弹窗会标出本次档位，并提示这条日程还有几档没响
-- 到点弹窗 + **语音播报**，播报内容可用模板自定义：
-  `{title}` `{time}` `{date}` `{weekday}` `{category}` `{notes}` `{priority}` `{countdown}` `{status}` `{offset}`
-- 音色可选（读取 Windows SAPI 语音库）、语速 -10~10、音量 0~100，支持一键试听
-- 提示音可换成任意 wav / mp3 / wma / m4a 文件，可选「先响铃再说话」
-- 每条日程可单独指定播报文本与铃声，未指定则用全局模板
-- **不同档位说不同的话**：每条日程可为每个档位单独写播报文案（如 30 分钟说"还有半小时"、准点说"现在开始"），
-  也可为每个档位单独指定铃声
-- **全局语音选项**：设置页可配置「按档位的全局默认文案」，未被日程覆盖时自动生效；
-  另有全局模板、音色、语速、音量、提示音、是否先响铃后朗读
-- 弹窗支持「稍后提醒（1/5/10/30/60 分钟）」「标记完成」「重播」，并显示本条还剩几档未响
-
-### 桌面集成
-- **桌面 / 开始菜单快捷方式**：设置页一键创建或删除（.lnk 由 WScript.Shell 生成，图标、工作目录、说明都写好）
-- **开机自动启动**：优先写注册表 HKCU Run；被安全软件或策略拦住时自动回退为「启动文件夹快捷方式」，
-  界面与接口都会回报真实落地方式；可配置附加参数（默认 `--minimized`，也可加 `--serve` 让接口开机即用）
-- **最小化启动**：`--minimized` 启动后直接进托盘，提醒照常触发（适合开机自启）
-- 系统托盘：悬停显示下一次提醒；右键菜单含 新建日程 / 查看今天 / **创建桌面快捷方式** / **开机自动启动** / 退出
-- 最小化到托盘、关闭到托盘
-- 单实例运行：同一数据目录重复启动会激活已有窗口；用不同 `--data` 目录可并行运行多个实例
-- 休眠 / 关机唤醒后不会补弹一堆历史提醒（只补最近 2 小时）
-
-### 提醒弹窗位置可自定义
-- 6 种预设：右下角（默认）/ 左下角 / 右上角 / 左上角 / 屏幕中央 / 自定义坐标
-- 前 5 种支持 X / Y 微调偏移；自定义模式直接填屏幕坐标（单位是设备无关单位 DIP，越界会自动贴回可见区域）
-- **拖动即可记住**：随手把弹窗拖到想要的位置，松手后自动保存为该坐标（可在设置里关闭这个行为）
-- **多显示器**：自定义坐标按**整个虚拟桌面**约束，把弹窗拖到第二块屏幕也不会被拉回主屏；
-  预设角落默认出现在鼠标所在的显示器，也可固定用主显示器
-- **高 DPI 正确**：保存的是 WPF 单位，定位时按屏幕缩放换算成设备像素再算，125% / 150% 缩放下不会跑偏
-- 设置页有「试一次位置」按钮：弹一个预览窗，拖动它即时微调（预览不发声，避免打扰）
+[中文](#中文) · [English](#english)
 
 ---
 
-## 快速开始
+## 中文
 
-### 环境要求
-- Windows 10 / 11（推荐 Windows 11）
-- [.NET 9 SDK](https://dotnet.microsoft.com/download)（开发）/ .NET 9 Desktop Runtime（仅运行框架依赖版）
-- 无需任何 NuGet 包，**完全离线可构建**
+### 功能
 
-### 构建与运行
+**日程与视图**
+- 列表 / 周 / 月三种视图，工具条一键切换（`Ctrl+1/2/3`）；列表按「今天 · 明天 · 本周 · 全部」自动分组
+- 周视图直接拖动事件块改时间（15 分钟吸附）；月视图把事件块拖到另一天即可改日期
+- 拖动重复日程默认只改这一次，按住 `Shift` 平移整个系列；双击空白处在对应时间点新建
+
+**重复与例外**
+- 每天 / 工作日 / 每周（可多选星期）/ 每月 / 每年，支持「每 N 个周期」「共 N 次」「截止日期」
+- 单次例外：只删除某一次、只修改某一次，都不影响系列其它发生
+
+**提醒**
+- 多档提醒（例如 30 / 15 / 5 分钟前 + 准点），可给每档单独写播报文案
+- Windows SAPI5 语音播报（音色 / 语速 / 音量 / 模板可调）、提示音、弹窗位置可自定义
+- 稍后提醒、标记完成、重播；弹窗位置拖动后自动记住
+
+**导入导出**
+- CSV：统一 17 列格式，自动识别 GBK / GB18030 / UTF-8 / UTF-16，导出文件可原样再导入
+- iCalendar：`.ics` 导入（含 RRULE / EXDATE / VALARM）与导出
+- 导入前预览、列映射、表头诊断；格式不匹配时明确阻止，不会写坏数据
+
+**AI 对话**
+- 本机 Ollama 或任意 OpenAI 兼容服务（DeepSeek / OpenAI / 通义千问 / 智谱 / Kimi / OpenRouter / Azure），内置服务预设
+- **流式输出**：模型边生成边显示，可随时停止
+- 工具调用：直接新建 / 修改 / 删除 / 查询日程，改动即时反映到主界面
+
+**界面**
+- 双语：设置 →「外观与默认值 → 界面语言」，可选跟随系统 / 中文 / English（切换后提示重启生效）
+- 主题：浅色 / 夜间 / 跟随系统，全部控件自绘，夜间不露白底
+
+**桌面集成**
+- 托盘菜单、最小化到托盘、开机启动（注册表，被拦截时自动改用启动文件夹）、桌面 / 开始菜单快捷方式
+- 本地接口：`127.0.0.1` 上的 HTTP JSON 接口 + 令牌，供脚本 / AI 直接读写
+
+### 快速开始
+
+需要 Windows 10/11 与 .NET 9 SDK。
 
 ```powershell
-git clone <仓库地址>
-cd 日程软件
-
-# 构建（沙箱 / 多节点受限环境请加 -m:1，详见 docs/DEVELOPMENT.md）
 dotnet build ScheduleApp.sln -c Release -m:1
-
-# 运行
-.\src\Schedule.App\bin\Release\net9.0-windows\ScheduleApp.exe
+dotnet run --project src/Schedule.App -c Release
 ```
 
-或使用一键脚本：
+发布单文件（框架依赖约几 MB；WPF 不支持裁剪，自包含约 150 MB）：
 
 ```powershell
-.\build.ps1              # 构建 + 运行自测
-.\build.ps1 -Run         # 构建 + 自测 + 启动程序
-.\build.ps1 -Publish         # 打包发布版本到 release 目录（等价于下面的 pack-release.ps1）
-.\pack-release.ps1          # 发布 + 拷贝文档/样例 + 生成运行说明.txt + 验证打包产物
-.\pack-release.ps1 -SelfContained   # 自包含单文件版（约 150 MB，需联网下载运行时包）
-```
-
-### 发布为轻量单文件
-
-```powershell
-# 框架依赖（体积小，需装 .NET 9 桌面运行时）
 dotnet publish src/Schedule.App/Schedule.App.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o publish
-
-# 自包含（免运行环境，体积大）
-dotnet publish src/Schedule.App/Schedule.App.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o publish
 ```
 
-> 首次发布需要联网还原 RID 专用的 apphost 包（Microsoft.NETCore.App.Host.win-x64）。
-> 纯离线环境请直接用 build.ps1 构建后运行 bin 目录下的 exe，或用 pack-release.ps1 打框架依赖包
-> （自包含单文件包需要联网下载运行时包，离线打不出来）。
+### 命令行
 
----
+无界面执行，适合脚本与自测：
 
-## 使用说明
-
-### 1. 导入日程（CSV / iCalendar）
-主界面「导入日程」→ 选择文件（`.csv` 或 `.ics`）→ 向导会自动识别格式、编码、表头与列含义 →
-确认后点「开始导入」。列名不认识也没关系，可以手工把「字段」对应到「第 N 列」；
-CSV 表头完全对不上时会明确报错并禁止导入，不会悄悄导入垃圾数据。
-
-**CSV 统一格式**：`标题,开始时间,结束时间,全天,分类,颜色,优先级,重复,重复间隔,星期,重复次数,重复截止,提前提醒,语音内容,提醒铃声,备注,状态`
-（只有「标题」「开始时间」必填）。导入窗口里点「下载 CSV 模板」即可拿到带示例的模板。
-
-样例：[模板](samples/日程导入模板.csv)、[基础](samples/日程示例-UTF8.csv)、
-[颜色 / 多档提醒 / 周期](samples/日程示例-周期与多档提醒.csv)、[iCalendar](samples/日程示例-ICS.ics)；
-字段与写法详见 [docs/CSV_FORMAT.md](docs/CSV_FORMAT.md)。
-
-### 2. 配置语音提醒
-「设置 → 语音播报」中：
-
-1. 勾选「启用语音播报」
-2. 选择音色（可点「刷新」重新读取系统语音库）
-3. 调整语速 / 音量，编辑播报模板，点「试听」听效果
-4. 「设置 → 提醒」里可指定自定义提示音、稍后提醒默认时长、弹窗自动关闭秒数
-5. 「设置 → 外观与默认值」可设置启动默认视图、周视图每小时行高、月视图每格条数、默认提醒档位与分类配色
-6. 新建 / 编辑日程时用胶囊按钮勾选多个提醒档位，下方会实时显示「提醒时间点：13:30、13:45、13:55」
-7. 同一页面可为事件挑颜色，或保持「跟随分类」让程序按分类名自动配色
-8. 展开「按档位自定义播报」后，可为每个已勾选档位单独填写播报文案与铃声（留空则回退到通用 / 全局设置）
-9. 「设置 → 语音播报」里的「按档位的全局默认文案」是全局语音选项：一次配置，之后所有没有自定义文案的日程都会套用
-10. **重复日程的某一次**：右键事件选「改期…」或「删除本次」；也可在编辑窗口把「修改范围」切到「仅这一次」，
-    改完保存即只影响这一条；选「整个系列」则按原语义修改全部发生
-11. **主题**：「设置 → 外观与默认值 → 主题」选浅色 / 夜间 / 跟随系统，改选即时预览
-
-### 时间输入的两个贴心规则
-- 结束时间可以直接写**时长**：`6小时`、`90分钟`、`1.5小时`、`6h` 都会换算成「开始时间 + 时长」
-- 只填时间且**早于开始时间**时自动按**次日**处理（例如 22:00 → 04:00 的夜班，不必手动改结束日期）
-- 时间下方会实时显示算出来的结束时刻与总时长，避免"填了却不知道存成什么"
-
-### 4. 桌面快捷方式与开机启动
-「设置 → 常规」的「桌面集成」区：
-
-1. **创建桌面快捷方式 / 创建开始菜单快捷方式**：一键生成，旁边「删除」可移除
-2. **开机自动启动**：勾选后保存即写入注册表；下方会显示真实的落地方式（注册表 Run 键 / 启动文件夹快捷方式）
-3. **启动参数**：默认 `--minimized`（开机进托盘不弹窗）；如需开机就能被 AI 调用，可再加 `--serve`
-4. **启动后最小化到托盘**：不想开机弹窗就保持勾选
-
-也可以从命令行完成（便于脚本或安装包）：`--shortcut desktop`、`--remove-shortcut startmenu`、`--startup on`。
-
-### 5. 让 AI / 脚本直接操作日程
-启动后数据目录会生成 `api.json`（含接口地址与令牌），可直接交给 AI 使用：
-
-```powershell
-$api = Get-Content "$env:APPDATA\ScheduleApp\api.json" -Raw | ConvertFrom-Json
-curl -s -H "X-Api-Token: $($api.token)" $api.schema
-```
-
-完整端点、字段、示例与 AI 用法配方见 [docs/API.md](docs/API.md)。
-
-默认模板：`{time}，提醒您：{title}。{category}`，实际播报「14:00，提醒您：项目周会。工作」
-
-### 3. 命令行模式（可脚本化 / 无界面）
-
-```text
-ScheduleApp.exe --import <文件> [--mode append|upsert|replace] [--encoding auto|utf-8|gbk]  # CSV 或 .ics 自动识别
-ScheduleApp.exe --csv-template <文件>      # 导出统一格式的 CSV 模板
-ScheduleApp.exe --export <文件>            # .csv 导出统一格式；.ics 导出 iCalendar
-ScheduleApp.exe --voices                  # 列出系统语音
-ScheduleApp.exe --speak "测试文本"         # 测试语音
-ScheduleApp.exe --info                    # 数据目录与统计
-ScheduleApp.exe --data <目录>              # 指定数据目录
-ScheduleApp.exe --out <文件>               # 输出同时写入文件
-ScheduleApp.exe --serve                    # 只启动本地接口与提醒（不显示窗口）
-ScheduleApp.exe --serve --port 43121       # 指定接口端口
-ScheduleApp.exe --no-api                   # 本次启动禁用接口
-ScheduleApp.exe --minimized                # 启动后直接最小化到托盘
-ScheduleApp.exe --shortcut desktop         # 创建桌面快捷方式（也可 startmenu）
-ScheduleApp.exe --remove-shortcut desktop  # 删除快捷方式
-ScheduleApp.exe --startup on               # 启用开机启动（off 停用）
-ScheduleApp.exe --theme dark               # 临时用夜间主题启动（不写回设置）
-ScheduleApp.exe --ai-models                # 列出本地模型服务上的模型
-ScheduleApp.exe --ai-chat "明天下午三点加个客户沟通"   # 让 AI 执行一句话并打印回复与工具调用
-```
-
-### 4. 数据存放位置
-
-| 模式 | 位置 |
+| 选项 | 说明 |
 | --- | --- |
-| 默认 | `%APPDATA%\ScheduleApp\`（不可写时自动回退到 `%LOCALAPPDATA%` / 程序目录 `data` / 临时目录） |
-| 便携 | 程序目录放一个空文件 `portable.txt`，数据存到 `程序目录\data\` |
-| 指定 | 启动参数 `--data D:\日程数据` |
+| `--import <文件>` | 导入 CSV 或 `.ics`，按扩展名 / 内容自动识别 |
+| `--export <文件>` | 导出为 CSV 或 `.ics` |
+| `--mode append\|upsert\|replace` | 导入模式（默认 append） |
+| `--csv-template <文件>` | 导出 CSV 模板 |
+| `--serve` | 只跑接口与提醒，不显示主窗口 |
+| `--ui-smoke` | 界面冒烟自检：构造全部窗口、截图后退出 |
+| `--lang zh\|en\|system` | 临时指定界面语言（不写回设置） |
+| `--theme light\|dark\|system` | 临时指定主题 |
+| `--help` | 完整参数列表（跟随界面语言） |
 
-文件：`schedules.json`（日程）、`settings.json`（设置）、`import-history.json`（导入历史）、`backups\`（自动备份）、`logs\`（按天滚动日志）。
+### 数据与文件
 
----
+数据目录默认 `%APPDATA%\ScheduleApp`（可用 `--data` 指定；把 `portable.txt` 放到程序目录则改为程序目录下的 `data`）：
 
-## 项目结构
+- `schedules.json` / `settings.json`：日程与设置，原子写入并保留滚动备份
+- `backups/`：每次保存前的历史副本；文件损坏时自动重命名并自愈
+- `api.json`：本地接口地址与令牌；`logs/`：按天滚动的运行日志
+
+### 项目结构
 
 ```text
-ScheduleApp.sln
-├─ src/Schedule.Core            纯逻辑层（net9.0，不依赖任何 UI / Windows API）
-│   ├─ Models/                  领域模型、设置、导入模型
-│   ├─ Csv/                     编码识别、RFC4180 解析、列映射、宽容日期解析、导入/导出
-│   ├─ Scheduling/              重复规则展开、提醒调度、周/月日历布局引擎
-│   ├─ Api/                     本地 JSON 接口（HTTP 服务器 + 路由 + 自描述 schema）
-│   ├─ Templating/              语音播报模板引擎
-│   ├─ Services/                仓储、设置、导入历史、数据校验、事件配色
-│   └─ Storage/                 路径策略、原子写入、JSON 存储
-├─ src/Schedule.App             WPF 表现层（net9.0-windows）
-│   ├─ Views/                   主窗口、日程编辑、提醒弹窗、导入向导（CSV / ICS）、设置
-│   ├─ ViewModels/              MVVM 视图模型
-│   ├─ Services/                SAPI 语音、提示音、托盘、开机自启、提醒宿主
-│   ├─ Themes/Theme.xaml        主题与控件样式
-│   └─ Cli/                     无界面命令行模式
-└─ tests/Schedule.Core.Tests    零依赖自测（209 项断言）
+src/Schedule.Core/   业务核心：模型、重复展开、提醒调度、CSV/ICS、存储、本地接口、AI 客户端（无 UI 依赖）
+src/Schedule.App/    WPF 界面：窗口、视图模型、服务（语音 / 托盘 / 提醒 / 接口宿主）
+tests/               零依赖自测运行器与全部用例
+docs/                架构、CSV 格式、AI 工具、开发与本地化说明
+samples/             可直接导入的 CSV / ICS 样例
 ```
 
-详细设计见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
-
----
-
-## 自测
+### 自测
 
 ```powershell
 dotnet run --project tests/Schedule.Core.Tests -c Release
 ```
 
-覆盖：日期时间解析、CSV 解析 / 编码 / 列映射 / 端到端导入 / 导出往返、重复规则边界（月末压缩、闰年、工作日）、
-提醒调度窗口（含提前两天、绝对时间、去重）、语音模板、存储与损坏自愈。
+覆盖日期解析、CSV / ICS 往返、重复规则边界、提醒调度、语音模板、存储自愈、AI 流式解析、双语完整性扫描等（1500+ 项断言，退出码可用于 CI）。
+
+### 已知限制
+
+- 语音依赖系统已安装的 SAPI5 语音包
+- 日期选择弹层与系统消息框沿用 Windows 自身主题
+- 重复日程的「完成」作用于整个系列
+- 本地接口仅监听回环地址、不做 HTTPS 与多用户鉴权
+- `GET /api/schema` 的自描述 JSON 固定中文（协议文本，不随界面语言变化）
 
 ---
 
-## 已知限制
-- 语音引擎依赖 Windows SAPI5 语音包；系统未装中文语音时可在「Windows 设置 → 时间和语言 → 语音」添加
-- 月视图暂不支持拖拽移动事件（周视图可直接拖动事件块改期，15 分钟吸附，按住 Shift 表示整个系列）
-- 日历视图按分类与搜索过滤，不套用列表视图的「时间范围」筛选
-- 本地接口仅监听回环地址并要求令牌，不做 HTTPS 与多用户鉴权；`api.json` 里的令牌等同于本机访问权限，注意不要外传
-- 开机启动写入 HKCU 注册表；若被安全软件拦截，程序会自动改用启动文件夹快捷方式，并在界面 / 接口给出说明
-- 夜间主题下仍有少数系统级弹层沿用 Windows 自身主题：日期选择弹出的日历层、系统消息框（WPF 覆盖不到）
-- 重复日程的「完成」作用于整个系列，不针对单次发生
-- WPF 不支持 PublishTrimmed，自包含发布体积约 150 MB；追求轻量请用框架依赖版
+## English
 
-## 路线图
-- [x] 周 / 月日历视图
-- [x] 多档提醒（提前 30 / 15 / 5 分钟等）
-- [x] 事件颜色区分
-- [x] 周期事件（间隔 / 多星期 / 次数）
-- [x] 单次发生的例外处理（跳过某一次、仅修改本次）
-- [x] 周视图拖拽调整时间
-- [x] 深色（夜间）主题
-- [x] AI 对话（本地大模型 + 工具调用）
-- [ ] 对话流式输出
-- [ ] 月视图拖拽调整时间
-- [ ] 多语言界面
+### Features
 
-## 许可
+**Events and views**
+- List / Week / Month views (`Ctrl+1/2/3`); the list groups events into Today · Tomorrow · This week · All
+- Drag an event block in Week view to change its time (15-minute snap); drag a chip in Month view onto another day to change the date
+- Dragging a repeating event moves only that occurrence — hold `Shift` to shift the whole series; double-click empty space to create an event there
+
+**Recurrence and exceptions**
+- Daily / weekdays / weekly (any set of days) / monthly / yearly, with “every N periods”, “N times” and “until” limits
+- Per-occurrence exceptions: delete just one occurrence or edit just one, without touching the rest of the series
+
+**Reminders**
+- Multiple lead times (for example 30 / 15 / 5 minutes before, plus on time), each with its own spoken text
+- Windows SAPI5 speech (voice, rate, volume, template), sound, custom popup position, snooze, mark done, replay
+- The popup remembers where you dragged it
+
+**Import / export**
+- CSV: one fixed 17-column format; GBK / GB18030 / UTF-8 / UTF-16 detected automatically; exported files import back unchanged
+- iCalendar: `.ics` import (RRULE / EXDATE / VALARM) and export
+- Preview, column mapping and header diagnosis before importing; a mismatched file is blocked instead of writing garbage
+
+**AI chat**
+- Local Ollama or any OpenAI-compatible service (DeepSeek / OpenAI / Qwen / Zhipu / Kimi / OpenRouter / Azure) with built-in presets
+- **Streaming output**: text appears as the model generates it, and can be stopped at any time
+- Tool calls create, update, delete and query events; changes show up in the main window immediately
+
+**Interface**
+- Bilingual UI: Settings → “Appearance and defaults → Language” (follow system / 中文 / English; a restart prompt applies it)
+- Light / dark / follow-system themes, every control custom-drawn so dark mode never shows a white block
+
+**Desktop integration**
+- Tray menu, minimize to tray, start with Windows (registry, with automatic fallback to a Startup-folder shortcut), desktop / Start-menu shortcuts
+- Local API: HTTP JSON on `127.0.0.1` with a token, for scripts and AI agents
+
+### Quick start
+
+Windows 10/11 and the .NET 9 SDK:
+
+```powershell
+dotnet build ScheduleApp.sln -c Release -m:1
+dotnet run --project src/Schedule.App -c Release
+```
+
+Single-file publish (framework-dependent is a few MB; WPF cannot be trimmed, so self-contained is about 150 MB):
+
+```powershell
+dotnet publish src/Schedule.App/Schedule.App.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o publish
+```
+
+### Command line
+
+Headless mode, useful for scripts and self-checks:
+
+| Option | Purpose |
+| --- | --- |
+| `--import <file>` | Import CSV or `.ics`, detected by extension / content |
+| `--export <file>` | Export to CSV or `.ics` |
+| `--mode append\|upsert\|replace` | Import mode (default append) |
+| `--csv-template <file>` | Write a CSV template |
+| `--serve` | Run API and reminders only, no main window |
+| `--ui-smoke` | UI smoke test: build every window, take screenshots, exit |
+| `--lang zh\|en\|system` | Temporary UI language (not saved) |
+| `--theme light\|dark\|system` | Temporary theme |
+| `--help` | Full option list (follows the UI language) |
+
+### Data and files
+
+The data directory defaults to `%APPDATA%\ScheduleApp` (override with `--data`; drop `portable.txt` next to the executable to use `data` beside it):
+
+- `schedules.json` / `settings.json`: events and settings, written atomically with rolling backups
+- `backups/`: a copy before every save; corrupted files are renamed and recovered automatically
+- `api.json`: local API address and token; `logs/`: daily rolling logs
+
+### Project layout
+
+```text
+src/Schedule.Core/   Business core: models, recurrence, reminder scheduling, CSV/ICS, storage, local API, AI client (no UI)
+src/Schedule.App/    WPF UI: windows, view models, services (speech / tray / reminders / API host)
+tests/               Zero-dependency test runner and all cases
+docs/                Architecture, CSV format, AI tools, development and localization notes
+samples/             Ready-to-import CSV / ICS samples
+```
+
+### Tests
+
+```powershell
+dotnet run --project tests/Schedule.Core.Tests -c Release
+```
+
+Covers date parsing, CSV / ICS round-trips, recurrence edge cases, reminder scheduling, voice templates, storage recovery, AI streaming parsing and a bilingual completeness scan (1500+ assertions; the exit code works in CI).
+
+### Known limitations
+
+- Speech needs a SAPI5 voice pack installed in Windows
+- The date-picker popup and system message boxes keep the Windows theme
+- Marking a repeating event done applies to the whole series
+- The local API listens on loopback only and has no HTTPS or multi-user auth
+- The `GET /api/schema` self-description is always Chinese (protocol text, independent of the UI language)
+
+---
+
+## 许可 / License
+
 MIT

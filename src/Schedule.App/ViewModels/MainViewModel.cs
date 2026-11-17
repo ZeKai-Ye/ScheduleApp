@@ -656,6 +656,7 @@ public sealed class MainViewModel : ObservableObject
         {
             Item = item,
             Start = start,
+            End = end,
             SeriesStart = occurrence.SeriesStart,
             IsSeries = item.Repeat != RepeatKind.None,
             HasOccurrenceEdit = occurrence.IsOverride,

@@ -476,6 +476,122 @@ public partial class MainWindow : Window
         ViewModel.Reschedule(target.Item, target.SeriesStart, newStart, newStart + duration, wholeSeries);
     }
 
+    // ================= 月视图拖动改期 =================
+
+    private Point _monthDragOrigin;
+    private Border? _monthDragChip;
+    private MonthCellViewModel? _monthDropCell;
+    private bool _monthDragging;
+
+    private void MonthChip_DragStart(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not Border chip || chip.DataContext is not MonthChipViewModel) return;
+
+        _monthDragChip = chip;
+        _monthDragOrigin = e.GetPosition(this);
+        _monthDragging = false;
+
+        chip.CaptureMouse();
+
+        // 不置 Handled：单击仍要走到 MonthChip_Click 去选中当天
+    }
+
+    private void MonthChip_DragMove(object sender, MouseEventArgs e)
+    {
+        if (_monthDragChip == null || e.LeftButton != MouseButtonState.Pressed) return;
+
+        var delta = e.GetPosition(this) - _monthDragOrigin;
+
+        // 8 像素阈值：和编辑窗口里的手势保持一致，避免「点一下就被改期」
+        if (!_monthDragging && Math.Abs(delta.X) < 8 && Math.Abs(delta.Y) < 8) return;
+
+        _monthDragging = true;
+
+        if (_monthDragChip.RenderTransform is not TranslateTransform transform)
+        {
+            transform = new TranslateTransform();
+            _monthDragChip.RenderTransform = transform;
+        }
+
+        transform.X = delta.X;
+        transform.Y = delta.Y;
+        _monthDragChip.Opacity = 0.75;
+
+        HighlightMonthDropTarget(FindMonthCell(e.GetPosition(MonthGrid)));
+        e.Handled = true;
+    }
+
+    private void MonthChip_DragEnd(object sender, MouseButtonEventArgs e)
+    {
+        if (_monthDragChip == null) return;
+
+        var chip = _monthDragChip;
+        var cell = FindMonthCell(e.GetPosition(MonthGrid));
+        _monthDragChip = null;
+
+        chip.ReleaseMouseCapture();
+
+        if (chip.RenderTransform is TranslateTransform transform)
+        {
+            transform.X = 0;
+            transform.Y = 0;
+        }
+
+        chip.Opacity = 1;
+        HighlightMonthDropTarget(null);
+
+        if (!_monthDragging) return; // 没拖动就是普通单击
+        _monthDragging = false;
+
+        if (cell != null && chip.DataContext is MonthChipViewModel dragged)
+        {
+            MoveChipToDate(dragged, cell.Date);
+        }
+
+        e.Handled = true;
+    }
+
+    /// <summary>拖动过程中高亮鼠标下面的日期格。</summary>
+    private void HighlightMonthDropTarget(MonthCellViewModel? cell)
+    {
+        if (ReferenceEquals(_monthDropCell, cell)) return;
+
+        if (_monthDropCell != null) _monthDropCell.IsDropTarget = false;
+        _monthDropCell = cell;
+        if (_monthDropCell != null) _monthDropCell.IsDropTarget = true;
+    }
+
+    /// <summary>命中测试：鼠标位置落在哪个日期格上。</summary>
+    private MonthCellViewModel? FindMonthCell(Point point)
+    {
+        if (MonthGrid == null) return null;
+
+        var hit = MonthGrid.InputHitTest(point) as DependencyObject;
+        while (hit != null)
+        {
+            if (hit is FrameworkElement { DataContext: MonthCellViewModel cell }) return cell;
+            hit = VisualTreeHelper.GetParent(hit);
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// 把事件块拖到另一天：保留原来的时刻与时长。
+    /// 与周视图一致，默认只改这一次发生；按住 Shift 表示整个系列一起平移。
+    /// </summary>
+    private void MoveChipToDate(MonthChipViewModel chip, DateOnly targetDate)
+    {
+        var dayDelta = targetDate.ToDateTime(TimeOnly.MinValue).Date - chip.Start.Date;
+        if (dayDelta == TimeSpan.Zero) return;
+
+        var duration = chip.End - chip.Start;
+        var newStart = chip.Start + dayDelta;
+        var wholeSeries = !chip.IsSeries || Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
+
+        ViewModel.Reschedule(chip.Item, chip.SeriesStart, newStart, newStart + duration, wholeSeries);
+    }
+
     private void DeleteRow_Click(object sender, RoutedEventArgs e) => WithRow(sender, DeleteItem);
 
     private void ToggleDone_Click(object sender, RoutedEventArgs e) => WithRow(sender, ViewModel.ToggleDone);
